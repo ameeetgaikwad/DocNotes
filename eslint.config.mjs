@@ -15,6 +15,8 @@ export default tseslint.config(
       "**/coverage/**",
       "apps/mobile/metro.config.js",
       "apps/mobile/babel.config.js",
+      "apps/web/.output/**",
+      "apps/web/.vinxi/**",
     ],
   },
   js.configs.recommended,
@@ -25,6 +27,28 @@ export default tseslint.config(
       globals: {
         ...globals.node,
       },
+    },
+  },
+  {
+    files: ["apps/web/**/*.{ts,tsx}"],
+    plugins: {
+      react: reactPlugin,
+      "react-hooks": reactHooksPlugin,
+    },
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+      },
+    },
+    settings: {
+      react: {
+        version: "detect",
+      },
+    },
+    rules: {
+      ...reactPlugin.configs.recommended.rules,
+      ...reactHooksPlugin.configs.recommended.rules,
+      "react/react-in-jsx-scope": "off",
     },
   },
   {
