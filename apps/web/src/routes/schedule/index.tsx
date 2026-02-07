@@ -141,26 +141,26 @@ function SchedulePage() {
   );
 
   return (
-    <div className="p-6">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="p-4 sm:p-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Schedule</h1>
           <p className="text-muted-foreground">
             Manage appointments and availability
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
+        <Button onClick={() => setDialogOpen(true)} className="self-start">
           <Plus className="h-4 w-4" />
           New Appointment
         </Button>
       </div>
 
-      <div className="mb-6 flex items-center justify-between rounded-lg border bg-card p-3">
+      <div className="mb-6 flex items-center justify-between rounded-lg border bg-card p-2 sm:p-3">
         <Button variant="ghost" size="icon" onClick={goToPreviousDay}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <div className="flex items-center gap-3">
-          <h2 className="text-lg font-medium">
+        <div className="flex flex-col items-center gap-1 sm:flex-row sm:gap-3">
+          <h2 className="text-center text-sm font-medium sm:text-lg">
             {formatDisplayDate(selectedDate)}
           </h2>
           {!isToday && (
@@ -216,8 +216,8 @@ function SchedulePage() {
         <div className="space-y-3">
           {sortedAppointments.map((appointment) => (
             <Card key={appointment.id} className="hover:bg-muted/30">
-              <CardContent className="flex items-center gap-4 p-4">
-                <div className="flex w-20 flex-col items-center text-center">
+              <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+                <div className="flex items-center gap-3 sm:w-20 sm:flex-col sm:text-center">
                   <span className="text-sm font-medium">
                     {formatTime(appointment.scheduledAt)}
                   </span>
@@ -225,12 +225,18 @@ function SchedulePage() {
                     <Clock className="h-3 w-3" />
                     {appointment.durationMinutes}m
                   </span>
+                  <Badge
+                    variant={statusVariants[appointment.status] ?? "outline"}
+                    className="ml-auto sm:hidden"
+                  >
+                    {statusLabels[appointment.status] ?? appointment.status}
+                  </Badge>
                 </div>
 
-                <div className="h-10 w-px bg-border" />
+                <div className="hidden h-10 w-px bg-border sm:block" />
 
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium">
                       Patient: {appointment.patientId.slice(0, 8)}...
                     </span>
@@ -247,6 +253,7 @@ function SchedulePage() {
 
                 <Badge
                   variant={statusVariants[appointment.status] ?? "outline"}
+                  className="hidden sm:inline-flex"
                 >
                   {statusLabels[appointment.status] ?? appointment.status}
                 </Badge>

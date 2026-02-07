@@ -7,9 +7,15 @@ import {
   useRouterState,
   useNavigate,
 } from "@tanstack/react-router";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  QueryCache,
+  MutationCache,
+} from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { clearToken } from "@/lib/auth";
 import { AppSidebar } from "@/components/AppSidebar";
 
 import appCss from "../styles.css?url";
@@ -68,17 +74,31 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            staleTime: 1000 * 60,
-            refetchOnWindowFocus: false,
+  const [queryClient] = useState(() => {
+    function handleUnauthorized(error: unknown) {
+      const code = (error as { data?: { code?: string } }).data?.code;
+      if (code === "UNAUTHORIZED") {
+        clearToken();
+        window.location.href = "/auth/login";
+      }
+    }
+
+    return new QueryClient({
+      queryCache: new QueryCache({ onError: handleUnauthorized }),
+      mutationCache: new MutationCache({ onError: handleUnauthorized }),
+      defaultOptions: {
+        queries: {
+          staleTime: 1000 * 60,
+          refetchOnWindowFocus: false,
+          retry: (failureCount, error) => {
+            const code = (error as { data?: { code?: string } }).data?.code;
+            if (code === "UNAUTHORIZED") return false;
+            return failureCount < 3;
           },
         },
-      }),
-  );
+      },
+    });
+  });
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -96,9 +116,10 @@ function AuthenticatedLayout() {
   const routerState = useRouterState();
   const navigate = useNavigate();
   const isAuthPage = routerState.location.pathname.startsWith("/auth");
+  const isPublicPage = routerState.location.pathname.startsWith("/share");
 
-  // While checking auth, show nothing (prevents flash)
-  if (isLoading) {
+  // While checking auth, show nothing (prevents flash) — except for public pages
+  if (isLoading && !isPublicPage) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -106,8 +127,8 @@ function AuthenticatedLayout() {
     );
   }
 
-  // Auth pages (login/register) get rendered without sidebar
-  if (isAuthPage) {
+  // Auth pages and public pages get rendered without sidebar
+  if (isAuthPage || isPublicPage) {
     return <Outlet />;
   }
 
@@ -120,7 +141,7 @@ function AuthenticatedLayout() {
 
   // Authenticated → show app shell
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen flex-col overflow-hidden md:flex-row">
       <AppSidebar />
       <main className="flex-1 overflow-y-auto">
         <Outlet />

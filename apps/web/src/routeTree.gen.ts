@@ -15,6 +15,7 @@ import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as ScheduleIndexRouteImport } from './routes/schedule/index'
 import { Route as ReportsIndexRouteImport } from './routes/reports/index'
 import { Route as PatientsIndexRouteImport } from './routes/patients/index'
+import { Route as ShareTokenRouteImport } from './routes/share/$token'
 import { Route as PatientsPatientIdRouteImport } from './routes/patients/$patientId'
 import { Route as AuthRegisterRouteImport } from './routes/auth/register'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
@@ -49,6 +50,11 @@ const PatientsIndexRoute = PatientsIndexRouteImport.update({
   path: '/patients/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShareTokenRoute = ShareTokenRouteImport.update({
+  id: '/share/$token',
+  path: '/share/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PatientsPatientIdRoute = PatientsPatientIdRouteImport.update({
   id: '/patients/$patientId',
   path: '/patients/$patientId',
@@ -70,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/patients/$patientId': typeof PatientsPatientIdRoute
+  '/share/$token': typeof ShareTokenRoute
   '/patients/': typeof PatientsIndexRoute
   '/reports/': typeof ReportsIndexRoute
   '/schedule/': typeof ScheduleIndexRoute
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/patients/$patientId': typeof PatientsPatientIdRoute
+  '/share/$token': typeof ShareTokenRoute
   '/patients': typeof PatientsIndexRoute
   '/reports': typeof ReportsIndexRoute
   '/schedule': typeof ScheduleIndexRoute
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/patients/$patientId': typeof PatientsPatientIdRoute
+  '/share/$token': typeof ShareTokenRoute
   '/patients/': typeof PatientsIndexRoute
   '/reports/': typeof ReportsIndexRoute
   '/schedule/': typeof ScheduleIndexRoute
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/register'
     | '/patients/$patientId'
+    | '/share/$token'
     | '/patients/'
     | '/reports/'
     | '/schedule/'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/register'
     | '/patients/$patientId'
+    | '/share/$token'
     | '/patients'
     | '/reports'
     | '/schedule'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/register'
     | '/patients/$patientId'
+    | '/share/$token'
     | '/patients/'
     | '/reports/'
     | '/schedule/'
@@ -140,6 +152,7 @@ export interface RootRouteChildren {
   AuthLoginRoute: typeof AuthLoginRoute
   AuthRegisterRoute: typeof AuthRegisterRoute
   PatientsPatientIdRoute: typeof PatientsPatientIdRoute
+  ShareTokenRoute: typeof ShareTokenRoute
   PatientsIndexRoute: typeof PatientsIndexRoute
   ReportsIndexRoute: typeof ReportsIndexRoute
   ScheduleIndexRoute: typeof ScheduleIndexRoute
@@ -191,6 +204,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PatientsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/share/$token': {
+      id: '/share/$token'
+      path: '/share/$token'
+      fullPath: '/share/$token'
+      preLoaderRoute: typeof ShareTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/patients/$patientId': {
       id: '/patients/$patientId'
       path: '/patients/$patientId'
@@ -220,6 +240,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthLoginRoute: AuthLoginRoute,
   AuthRegisterRoute: AuthRegisterRoute,
   PatientsPatientIdRoute: PatientsPatientIdRoute,
+  ShareTokenRoute: ShareTokenRoute,
   PatientsIndexRoute: PatientsIndexRoute,
   ReportsIndexRoute: ReportsIndexRoute,
   ScheduleIndexRoute: ScheduleIndexRoute,

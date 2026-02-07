@@ -7,6 +7,7 @@ import {
   patientSearchSchema,
 } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
+import { logAudit } from "../lib/audit.js";
 
 export const patientRouter = router({
   list: protectedProcedure
@@ -84,6 +85,12 @@ export const patientRouter = router({
         })
         .returning();
 
+      logAudit(ctx, {
+        action: "create",
+        resource: "patient",
+        resourceId: patient!.id,
+      });
+
       return patient;
     }),
 
@@ -103,6 +110,12 @@ export const patientRouter = router({
         .where(eq(patients.id, input.id))
         .returning();
 
+      logAudit(ctx, {
+        action: "update",
+        resource: "patient",
+        resourceId: input.id,
+      });
+
       return patient;
     }),
 
@@ -114,6 +127,12 @@ export const patientRouter = router({
         .set({ isActive: false })
         .where(eq(patients.id, input.id))
         .returning();
+
+      logAudit(ctx, {
+        action: "delete",
+        resource: "patient",
+        resourceId: input.id,
+      });
 
       return patient;
     }),

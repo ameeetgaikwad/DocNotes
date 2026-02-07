@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard,
@@ -8,6 +9,8 @@ import {
   Search,
   FileText,
   LogOut,
+  Menu,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -29,6 +32,7 @@ const bottomItems = [
 ] as const;
 
 export function AppSidebar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const { user, logout } = useAuth();
@@ -48,15 +52,25 @@ export function AppSidebar() {
         .toUpperCase()
     : "";
 
-  return (
-    <aside className="flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar">
-      <div className="flex h-14 items-center gap-2 px-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <FileText className="h-4 w-4" />
+  const sidebarContent = (
+    <>
+      <div className="flex h-14 items-center justify-between px-4">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <FileText className="h-4 w-4" />
+          </div>
+          <span className="text-lg font-semibold text-sidebar-foreground">
+            DocNotes
+          </span>
         </div>
-        <span className="text-lg font-semibold text-sidebar-foreground">
-          DocNotes
-        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 md:hidden"
+          onClick={() => setMobileOpen(false)}
+        >
+          <X className="h-4 w-4" />
+        </Button>
       </div>
 
       <div className="px-3 py-2">
@@ -66,7 +80,7 @@ export function AppSidebar() {
         >
           <Search className="h-4 w-4" />
           <span>Search...</span>
-          <kbd className="ml-auto pointer-events-none inline-flex h-5 items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+          <kbd className="ml-auto pointer-events-none hidden h-5 items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:inline-flex">
             <span className="text-xs">Ctrl</span>K
           </kbd>
         </Button>
@@ -85,6 +99,7 @@ export function AppSidebar() {
               <Link
                 key={item.to}
                 to={item.to}
+                onClick={() => setMobileOpen(false)}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                   isActive
@@ -109,6 +124,7 @@ export function AppSidebar() {
             <Link
               key={item.to}
               to={item.to}
+              onClick={() => setMobileOpen(false)}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                 isActive
@@ -149,6 +165,51 @@ export function AppSidebar() {
           </div>
         </>
       )}
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile top bar */}
+      <div className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b bg-background px-4 md:hidden">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9"
+          onClick={() => setMobileOpen(true)}
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <FileText className="h-3.5 w-3.5" />
+          </div>
+          <span className="font-semibold">DocNotes</span>
+        </div>
+      </div>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 md:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Mobile drawer */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-sidebar-border bg-sidebar transition-transform duration-200 md:hidden",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
+        )}
+      >
+        {sidebarContent}
+      </aside>
+
+      {/* Desktop sidebar */}
+      <aside className="hidden h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar md:flex">
+        {sidebarContent}
+      </aside>
+    </>
   );
 }

@@ -6,6 +6,7 @@ import {
   updateMedicalRecordSchema,
 } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
+import { logAudit } from "../lib/audit.js";
 
 export const medicalRecordRouter = router({
   listByPatient: protectedProcedure
@@ -76,6 +77,12 @@ export const medicalRecordRouter = router({
         })
         .returning();
 
+      logAudit(ctx, {
+        action: "create",
+        resource: "medical_record",
+        resourceId: record!.id,
+      });
+
       return record;
     }),
 
@@ -115,6 +122,12 @@ export const medicalRecordRouter = router({
           createdBy: ctx.session.userId,
         })
         .returning();
+
+      logAudit(ctx, {
+        action: "update",
+        resource: "medical_record",
+        resourceId: record!.id,
+      });
 
       return record;
     }),

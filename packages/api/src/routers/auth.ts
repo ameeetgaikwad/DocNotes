@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { TRPCError } from "@trpc/server";
 import { users, sessions, type Database } from "@docnotes/db";
 import { publicProcedure, protectedProcedure, router } from "../trpc.js";
+import { logAudit } from "../lib/audit.js";
 
 function generateToken(): string {
   return randomBytes(48).toString("hex");
@@ -62,6 +63,15 @@ export const authRouter = router({
         userAgent: (ctx.req?.headers?.["user-agent"] as string) ?? null,
       });
 
+      logAudit(
+        { ...ctx, session: { userId: user!.id, role: "gp" } },
+        {
+          action: "create",
+          resource: "user",
+          resourceId: user!.id,
+        },
+      );
+
       return { user: user!, token, expiresAt };
     }),
 
@@ -113,6 +123,14 @@ export const authRouter = router({
         userAgent: (ctx.req?.headers?.["user-agent"] as string) ?? null,
       });
 
+      logAudit(
+        { ...ctx, session: { userId: user.id, role: user.role } },
+        {
+          action: "login",
+          resource: "session",
+        },
+      );
+
       return {
         user: {
           id: user.id,
@@ -131,6 +149,8 @@ export const authRouter = router({
     await ctx.db
       .delete(sessions)
       .where(eq(sessions.userId, ctx.session.userId));
+
+    logAudit(ctx, { action: "logout", resource: "session" });
 
     return { success: true };
   }),

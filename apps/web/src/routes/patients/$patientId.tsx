@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Loader2,
@@ -7,9 +8,13 @@ import {
   Edit,
   MoreHorizontal,
   Archive,
+  Download,
+  Printer,
+  Share2,
 } from "lucide-react";
-import { trpc } from "@/lib/trpc";
+import { trpc, trpcClient } from "@/lib/trpc";
 import { formatDate, calculateAge, formatGender } from "@/lib/format";
+import { downloadBase64File, printBase64Pdf } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -23,6 +28,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PatientSummary } from "@/components/patients/patient-summary";
 import { PatientHistory } from "@/components/patients/patient-history";
+import { PatientDocuments } from "@/components/patients/patient-documents";
+import { ShareDialog } from "@/components/patients/share-dialog";
 
 export const Route = createFileRoute("/patients/$patientId")({
   component: PatientProfilePage,
@@ -30,12 +37,27 @@ export const Route = createFileRoute("/patients/$patientId")({
 
 function PatientProfilePage() {
   const { patientId } = Route.useParams();
+  const [shareOpen, setShareOpen] = useState(false);
 
   const {
     data: patient,
     isLoading,
     error,
   } = useQuery(trpc.patient.getById.queryOptions({ id: patientId }));
+
+  const exportMutation = useMutation({
+    mutationFn: (action: "download" | "print") =>
+      trpcClient.export.patientSummary
+        .mutate({ patientId })
+        .then((result) => ({ ...result, action })),
+    onSuccess: (data) => {
+      if (data.action === "download") {
+        downloadBase64File(data.base64, data.filename, "application/pdf");
+      } else {
+        printBase64Pdf(data.base64);
+      }
+    },
+  });
 
   if (isLoading) {
     return (
@@ -47,7 +69,7 @@ function PatientProfilePage() {
 
   if (error) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <Link
           to="/patients"
           className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -70,7 +92,7 @@ function PatientProfilePage() {
 
   if (!patient) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <Link
           to="/patients"
           className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -97,7 +119,7 @@ function PatientProfilePage() {
   const conditions = (patient.activeConditions ?? []) as string[];
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <Link
         to="/patients"
         className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -106,16 +128,16 @@ function PatientProfilePage() {
         Back to Patients
       </Link>
 
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-4">
-          <Avatar className="h-16 w-16 text-lg">
+          <Avatar className="h-12 w-12 text-base sm:h-16 sm:w-16 sm:text-lg">
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
-          <div>
-            <h1 className="text-2xl font-semibold">
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-xl font-semibold sm:text-2xl">
               {patient.firstName} {patient.lastName}
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground sm:text-base">
               {formatGender(patient.gender)} &middot;{" "}
               {calculateAge(patient.dateOfBirth)} years &middot; DOB:{" "}
               {formatDate(patient.dateOfBirth)}
@@ -160,10 +182,10 @@ function PatientProfilePage() {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           <Button variant="outline" size="sm">
             <Edit className="h-4 w-4" />
-            Edit
+            <span className="hidden sm:inline">Edit</span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -172,8 +194,24 @@ function PatientProfilePage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>Export Records</DropdownMenuItem>
-              <DropdownMenuItem>Print Summary</DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => exportMutation.mutate("download")}
+                disabled={exportMutation.isPending}
+              >
+                <Download className="h-4 w-4" />
+                {exportMutation.isPending ? "Exporting..." : "Export Records"}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => exportMutation.mutate("print")}
+                disabled={exportMutation.isPending}
+              >
+                <Printer className="h-4 w-4" />
+                Print Summary
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShareOpen(true)}>
+                <Share2 className="h-4 w-4" />
+                Share Records
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-destructive">
                 <Archive className="h-4 w-4" />
@@ -185,9 +223,10 @@ function PatientProfilePage() {
       </div>
 
       <Tabs defaultValue="summary">
-        <TabsList>
+        <TabsList className="w-full justify-start overflow-x-auto">
           <TabsTrigger value="summary">Summary</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="appointments">Appointments</TabsTrigger>
         </TabsList>
 
@@ -197,6 +236,10 @@ function PatientProfilePage() {
 
         <TabsContent value="history">
           <PatientHistory patientId={patient.id} />
+        </TabsContent>
+
+        <TabsContent value="documents">
+          <PatientDocuments patientId={patient.id} />
         </TabsContent>
 
         <TabsContent value="appointments">
@@ -211,6 +254,14 @@ function PatientProfilePage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        resourceType="patient_summary"
+        resourceId={patientId}
+        resourceLabel={`${patient.firstName} ${patient.lastName}'s records`}
+      />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {
   appointmentQuerySchema,
 } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
+import { logAudit } from "../lib/audit.js";
 
 export const appointmentRouter = router({
   list: protectedProcedure
@@ -58,6 +59,12 @@ export const appointmentRouter = router({
         })
         .returning();
 
+      logAudit(ctx, {
+        action: "create",
+        resource: "appointment",
+        resourceId: appointment!.id,
+      });
+
       return appointment;
     }),
 
@@ -70,6 +77,12 @@ export const appointmentRouter = router({
         .where(eq(appointments.id, input.id))
         .returning();
 
+      logAudit(ctx, {
+        action: "update",
+        resource: "appointment",
+        resourceId: input.id,
+      });
+
       return appointment;
     }),
 
@@ -81,6 +94,12 @@ export const appointmentRouter = router({
         .set({ status: "cancelled" })
         .where(eq(appointments.id, input.id))
         .returning();
+
+      logAudit(ctx, {
+        action: "delete",
+        resource: "appointment",
+        resourceId: input.id,
+      });
 
       return appointment;
     }),

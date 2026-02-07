@@ -25,7 +25,7 @@ app.use(
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: 500,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -40,7 +40,7 @@ app.use(
 );
 
 // Body parsing
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "10mb" }));
 
 // Health check (no auth required)
 app.get("/health", (_req, res) => {

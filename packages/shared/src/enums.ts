@@ -59,5 +59,32 @@ export const AuditResource = z.enum([
   "user",
   "session",
   "export",
+  "document",
+  "share_link",
 ]);
 export type AuditResource = z.infer<typeof AuditResource>;
+
+export const DocumentCategory = z.enum([
+  "lab_report",
+  "imaging",
+  "referral_letter",
+  "prescription",
+  "consent_form",
+  "insurance",
+  "discharge_summary",
+  "other",
+]);
+export type DocumentCategory = z.infer<typeof DocumentCategory>;
+
+export const DocumentStatus = z.enum(["uploading", "active", "archived"]);
+export type DocumentStatus = z.infer<typeof DocumentStatus>;
+
+export const ShareResourceType = z.enum([
+  "patient_summary",
+  "medical_record",
+  "document",
+]);
+export type ShareResourceType = z.infer<typeof ShareResourceType>;
+
+export const ExportFormat = z.enum(["pdf"]);
+export type ExportFormat = z.infer<typeof ExportFormat>;
