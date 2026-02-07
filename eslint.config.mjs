@@ -22,7 +22,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["apps/backend/**/*.ts"],
+    files: ["apps/backend/**/*.ts", "packages/**/*.ts"],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -49,6 +49,7 @@ export default tseslint.config(
       ...reactPlugin.configs.recommended.rules,
       ...reactHooksPlugin.configs.recommended.rules,
       "react/react-in-jsx-scope": "off",
+      "react/prop-types": "off",
     },
   },
   {

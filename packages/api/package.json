@@ -1,0 +1,37 @@
+{
+  "name": "@docnotes/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@docnotes/db": "workspace:*",
+    "@docnotes/shared": "workspace:*",
+    "@trpc/server": "^11.0.0",
+    "bcryptjs": "^3.0.3",
+    "drizzle-orm": "^0.44.0",
+    "superjson": "^2.2.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.2"
+  }
+}

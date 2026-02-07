@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: docnotes-db
+    environment:
+      POSTGRES_USER: docnotes
+      POSTGRES_PASSWORD: docnotes
+      POSTGRES_DB: docnotes
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

@@ -2,7 +2,12 @@ node_modules
 dist
 build
 .turbo
+.output
+.vinxi
+.tanstack
+.nitro
 coverage
 pnpm-lock.yaml
 apps/mobile/ios
 apps/mobile/android
+*.gen.ts
