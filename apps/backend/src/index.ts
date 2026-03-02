@@ -1,20 +1,22 @@
-import express from "express";
-import cors from "cors";
-import helmet from "helmet";
-import rateLimit from "express-rate-limit";
-import pinoHttp from "pino-http";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { secureHeaders } from "hono/secure-headers";
+import { serve } from "@hono/node-server";
 import { logger } from "./lib/logger.js";
-import { trpcMiddleware } from "./middleware/trpc.js";
+import { trpcHandler } from "./middleware/trpc.js";
+import type { Context, Next } from "hono";
 
-const app = express();
-const PORT = process.env.PORT || 3001;
+const app = new Hono();
+const PORT = Number(process.env.PORT) || 3001;
 
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(",")
   : ["http://localhost:3000"];
 
-// Security middleware
-app.use(helmet());
+// Security headers
+app.use(secureHeaders());
+
+// CORS
 app.use(
   cors({
     origin: allowedOrigins,
@@ -22,39 +24,59 @@ app.use(
   }),
 );
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500,
-  standardHeaders: true,
-  legacyHeaders: false,
+// Rate limiting (in-memory, per-IP)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const WINDOW_MS = 15 * 60 * 1000;
+const MAX_REQUESTS = 500;
+
+app.use(async (c: Context, next: Next) => {
+  const key =
+    c.req.header("x-forwarded-for") ?? c.req.header("x-real-ip") ?? "unknown";
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+
+  if (!entry || now > entry.resetTime) {
+    rateLimitMap.set(key, { count: 1, resetTime: now + WINDOW_MS });
+  } else {
+    entry.count++;
+    if (entry.count > MAX_REQUESTS) {
+      c.res = new Response("Too Many Requests", { status: 429 });
+      return;
+    }
+  }
+
+  await next();
 });
-app.use(limiter);
 
-// Logging
-app.use(
-  pinoHttp({
-    logger,
-    redact: ["req.headers.authorization", "req.headers.cookie"],
-  }),
-);
+// Request logging
+app.use(async (c: Context, next: Next) => {
+  const start = Date.now();
+  await next();
+  const duration = Date.now() - start;
+  logger.info(
+    {
+      method: c.req.method,
+      path: c.req.path,
+      status: c.res.status,
+      duration,
+    },
+    "request completed",
+  );
+});
 
-// Body parsing
-app.use(express.json({ limit: "10mb" }));
+// Health check
+app.get("/health", (c) => {
+  return c.json({ status: "ok", timestamp: new Date().toISOString() });
+});
 
-// Health check (no auth required)
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+// Root endpoint
+app.get("/", (c) => {
+  return c.json({ message: "DocNotes API", version: "0.0.1" });
 });
 
 // tRPC API
-app.use("/trpc", trpcMiddleware);
+app.use("/trpc/*", trpcHandler);
 
-// Root endpoint
-app.get("/", (_req, res) => {
-  res.json({ message: "DocNotes API", version: "0.0.1" });
-});
-
-app.listen(PORT, () => {
+serve({ fetch: app.fetch, port: PORT }, () => {
   logger.info(`Server is running on port ${PORT}`);
 });
