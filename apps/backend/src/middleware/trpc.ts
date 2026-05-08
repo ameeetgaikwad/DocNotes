@@ -24,7 +24,7 @@ export const trpcHandler = async (c: HonoContext) => {
           ip:
             c.req.header("x-forwarded-for") ??
             c.req.header("x-real-ip") ??
-            null,
+            undefined,
           headers: Object.fromEntries(c.req.raw.headers.entries()),
         },
       };
