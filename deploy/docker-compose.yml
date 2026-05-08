@@ -1,0 +1,65 @@
+services:
+  backend-prod:
+    image: ${BACKEND_PROD_IMAGE:-ghcr.io/OWNER/docnotes-backend:latest}
+    container_name: backend-prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS_PROD:?set CORS_ORIGINS_PROD in .env}
+    expose:
+      - "3001"
+    networks:
+      - web
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  backend-staging:
+    image: ${BACKEND_STAGING_IMAGE:-ghcr.io/OWNER/docnotes-backend:staging}
+    container_name: backend-staging
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS_STAGING:?set CORS_ORIGINS_STAGING in .env}
+    expose:
+      - "3001"
+    networks:
+      - web
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN_PROD: ${API_DOMAIN_PROD:?set API_DOMAIN_PROD in .env (e.g. api-1-2-3-4.sslip.io)}
+      API_DOMAIN_STAGING: ${API_DOMAIN_STAGING:?set API_DOMAIN_STAGING in .env (e.g. staging-api-1-2-3-4.sslip.io)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - web
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  web:
+    driver: bridge

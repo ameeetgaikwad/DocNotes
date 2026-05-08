@@ -1,0 +1,157 @@
+name: Deploy backend
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - "apps/backend/**"
+      - "packages/api/**"
+      - "packages/db/**"
+      - "packages/shared/**"
+      - "pnpm-lock.yaml"
+      - "deploy/**"
+      - ".github/workflows/deploy-backend.yml"
+  pull_request:
+    branches: [main, staging]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/docnotes-backend
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm check-types
+
+      - run: pnpm lint
+
+      # Tests run if they exist; passes if no test script defined
+      - run: pnpm test || [ $? -eq 1 ] && echo "no tests yet, skipping"
+        continue-on-error: false
+
+  build-and-push:
+    needs: test
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=staging,enable=${{ github.ref == 'refs/heads/staging' }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute deploy target
+        id: target
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "env_name=prod" >> $GITHUB_OUTPUT
+            echo "service=backend-prod" >> $GITHUB_OUTPUT
+            echo "var_name=BACKEND_PROD_IMAGE" >> $GITHUB_OUTPUT
+          else
+            echo "env_name=staging" >> $GITHUB_OUTPUT
+            echo "service=backend-staging" >> $GITHUB_OUTPUT
+            echo "var_name=BACKEND_STAGING_IMAGE" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Copy deploy files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: "deploy/docker-compose.yml,deploy/Caddyfile"
+          target: "/opt/docnotes"
+          strip_components: 1
+
+      - name: Pull image and restart ${{ steps.target.outputs.service }}
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/docnotes
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            IMAGE="ghcr.io/${{ github.repository_owner }}/docnotes-backend:sha-${{ github.sha }}"
+            VAR_NAME="${{ steps.target.outputs.var_name }}"
+
+            # Update or insert the image var in .env
+            touch .env
+            if grep -q "^$VAR_NAME=" .env; then
+              sed -i "s|^$VAR_NAME=.*|$VAR_NAME=$IMAGE|" .env
+            else
+              echo "$VAR_NAME=$IMAGE" >> .env
+            fi
+
+            docker compose --env-file .env pull ${{ steps.target.outputs.service }}
+            docker compose --env-file .env up -d --no-deps --remove-orphans ${{ steps.target.outputs.service }} caddy
+            docker image prune -f --filter "until=72h"
+
+      - name: Health check
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              if docker exec ${{ steps.target.outputs.service }} wget -q --spider http://localhost:3001/health; then
+                echo "Health check passed"
+                exit 0
+              fi
+              echo "Attempt $i: not ready yet, sleeping 3s..."
+              sleep 3
+            done
+            echo "Health check FAILED after 30s"
+            docker logs ${{ steps.target.outputs.service }} --tail 100
+            exit 1

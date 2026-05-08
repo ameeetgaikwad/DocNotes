@@ -1,0 +1,16 @@
+# Repo-root .dockerignore — used because backend Dockerfile builds from repo root.
+**/node_modules
+**/dist
+**/.turbo
+**/.output
+**/.next
+**/coverage
+**/.env
+**/.env.*
+**/*.log
+.git
+.github
+.vscode
+.idea
+apps/mobile/ios
+apps/mobile/android

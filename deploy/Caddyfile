@@ -1,0 +1,21 @@
+{$API_DOMAIN_PROD} {
+	encode gzip zstd
+	reverse_proxy backend-prod:3001 {
+		header_up X-Real-IP {remote_host}
+	}
+	log {
+		output stdout
+		format console
+	}
+}
+
+{$API_DOMAIN_STAGING} {
+	encode gzip zstd
+	reverse_proxy backend-staging:3001 {
+		header_up X-Real-IP {remote_host}
+	}
+	log {
+		output stdout
+		format console
+	}
+}
