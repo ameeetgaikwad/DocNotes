@@ -1,18 +1,17 @@
+"use client";
+
 import { useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FileText, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export const Route = createFileRoute("/auth/register")({
-  component: RegisterPage,
-});
-
-function RegisterPage() {
+export default function RegisterPage() {
   const { register } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,7 +37,7 @@ function RegisterPage() {
 
     try {
       await register(email, password, name);
-      navigate({ to: "/" });
+      router.push("/");
     } catch (err) {
       setError(
         err instanceof Error
@@ -129,7 +128,7 @@ function RegisterPage() {
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}
           <Link
-            to="/auth/login"
+            href="/auth/login"
             className="font-medium text-primary hover:underline"
           >
             Sign in

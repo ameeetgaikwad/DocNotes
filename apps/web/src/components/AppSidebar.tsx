@@ -1,5 +1,8 @@
+"use client";
+
 import { useState } from "react";
-import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
@@ -33,14 +36,13 @@ const bottomItems = [
 
 export function AppSidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const routerState = useRouterState();
-  const currentPath = routerState.location.pathname;
+  const currentPath = usePathname() ?? "";
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const handleLogout = async () => {
     await logout();
-    navigate({ to: "/auth/login" });
+    router.push("/auth/login");
   };
 
   const initials = user
@@ -98,7 +100,7 @@ export function AppSidebar() {
             return (
               <Link
                 key={item.to}
-                to={item.to}
+                href={item.to}
                 onClick={() => setMobileOpen(false)}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
@@ -123,7 +125,7 @@ export function AppSidebar() {
           return (
             <Link
               key={item.to}
-              to={item.to}
+              href={item.to}
               onClick={() => setMobileOpen(false)}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",

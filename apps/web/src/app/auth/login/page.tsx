@@ -1,18 +1,17 @@
+"use client";
+
 import { useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FileText, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export const Route = createFileRoute("/auth/login")({
-  component: LoginPage,
-});
-
-function LoginPage() {
+export default function LoginPage() {
   const { login } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +24,7 @@ function LoginPage() {
 
     try {
       await login(email, password);
-      navigate({ to: "/" });
+      router.push("/");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Login failed. Please try again.",
@@ -88,7 +87,7 @@ function LoginPage() {
         <p className="text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}
           <Link
-            to="/auth/register"
+            href="/auth/register"
             className="font-medium text-primary hover:underline"
           >
             Create one

@@ -1,11 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
 
-export const Route = createFileRoute("/settings/")({
-  component: SettingsPage,
-});
-
-function SettingsPage() {
+export default function SettingsPage() {
   return (
     <div className="p-6">
       <div className="mb-6">

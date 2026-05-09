@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+"use client";
+
+import { use, useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -31,12 +33,12 @@ import { PatientHistory } from "@/components/patients/patient-history";
 import { PatientDocuments } from "@/components/patients/patient-documents";
 import { ShareDialog } from "@/components/patients/share-dialog";
 
-export const Route = createFileRoute("/patients/$patientId")({
-  component: PatientProfilePage,
-});
-
-function PatientProfilePage() {
-  const { patientId } = Route.useParams();
+export default function PatientProfilePage({
+  params,
+}: {
+  params: Promise<{ patientId: string }>;
+}) {
+  const { patientId } = use(params);
   const [shareOpen, setShareOpen] = useState(false);
 
   const {
@@ -71,7 +73,7 @@ function PatientProfilePage() {
     return (
       <div className="p-4 sm:p-6">
         <Link
-          to="/patients"
+          href="/patients"
           className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -94,7 +96,7 @@ function PatientProfilePage() {
     return (
       <div className="p-4 sm:p-6">
         <Link
-          to="/patients"
+          href="/patients"
           className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -121,7 +123,7 @@ function PatientProfilePage() {
   return (
     <div className="p-4 sm:p-6">
       <Link
-        to="/patients"
+        href="/patients"
         className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
