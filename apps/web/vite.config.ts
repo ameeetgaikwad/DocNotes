@@ -15,7 +15,7 @@ const config = defineConfig({
   },
   plugins: [
     devtools(),
-    nitro(),
+    nitro({ preset: process.env.VERCEL ? "vercel" : undefined }),
     tailwindcss(),
     viteTsConfigPaths({
       projects: ["./tsconfig.json"],

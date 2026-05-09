@@ -71,7 +71,12 @@ app.get("/health", (c) => {
 
 // Root endpoint
 app.get("/", (c) => {
-  return c.json({ message: "DocNotes API", version: "0.0.1" });
+  return c.json({
+    message: "DocNotes API",
+    version: "0.0.2",
+    env: process.env.NODE_ENV ?? "unknown",
+    sha: process.env.GIT_SHA ?? "dev",
+  });
 });
 
 // tRPC API
