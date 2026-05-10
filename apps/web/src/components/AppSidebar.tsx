@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useUser, UserButton } from "@clerk/nextjs";
 import {
   LayoutDashboard,
   Users,
@@ -11,16 +12,13 @@ import {
   Settings,
   Search,
   FileText,
-  LogOut,
   Menu,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -37,22 +35,7 @@ const bottomItems = [
 export function AppSidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const currentPath = usePathname() ?? "";
-  const { user, logout } = useAuth();
-  const router = useRouter();
-
-  const handleLogout = async () => {
-    await logout();
-    router.push("/auth/login");
-  };
-
-  const initials = user
-    ? user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
-    : "";
+  const { user } = useUser();
 
   const sidebarContent = (
     <>
@@ -145,25 +128,15 @@ export function AppSidebar() {
         <>
           <Separator />
           <div className="flex items-center gap-3 px-4 py-3">
-            <Avatar className="h-8 w-8 text-xs">
-              <AvatarFallback>{initials}</AvatarFallback>
-            </Avatar>
+            <UserButton />
             <div className="flex-1 overflow-hidden">
               <p className="truncate text-sm font-medium text-sidebar-foreground">
-                {user.name}
+                {user.fullName ?? user.primaryEmailAddress?.emailAddress ?? ""}
               </p>
               <p className="truncate text-xs text-muted-foreground">
-                {user.role.toUpperCase()}
+                {user.primaryEmailAddress?.emailAddress ?? ""}
               </p>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
           </div>
         </>
       )}

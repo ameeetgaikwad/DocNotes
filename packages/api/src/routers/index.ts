@@ -1,5 +1,4 @@
 import { router } from "../trpc.js";
-import { authRouter } from "./auth.js";
 import { dashboardRouter } from "./dashboard.js";
 import { patientRouter } from "./patient.js";
 import { medicalRecordRouter } from "./medical-record.js";
@@ -10,7 +9,6 @@ import { exportRouter } from "./export.js";
 import { shareRouter } from "./share.js";
 
 export const appRouter = router({
-  auth: authRouter,
   dashboard: dashboardRouter,
   patient: patientRouter,
   medicalRecord: medicalRecordRouter,

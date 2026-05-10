@@ -5,6 +5,7 @@ import {
   integer,
   boolean,
   timestamp,
+  text,
   index,
 } from "drizzle-orm/pg-core";
 import { users } from "./users.js";
@@ -21,7 +22,7 @@ export const shareLinks = pgTable(
     accessCount: integer("access_count").notNull().default(0),
     maxAccesses: integer("max_accesses"),
     isRevoked: boolean("is_revoked").notNull().default(false),
-    createdBy: uuid("created_by")
+    createdBy: text("created_by")
       .notNull()
       .references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true })

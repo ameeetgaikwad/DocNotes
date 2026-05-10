@@ -17,7 +17,7 @@ export const appointments = pgTable(
     patientId: uuid("patient_id")
       .notNull()
       .references(() => patients.id),
-    providerId: uuid("provider_id")
+    providerId: text("provider_id")
       .notNull()
       .references(() => users.id),
     type: varchar("type", { length: 50 }).notNull(),
@@ -26,7 +26,7 @@ export const appointments = pgTable(
     durationMinutes: integer("duration_minutes").notNull().default(15),
     reason: varchar("reason", { length: 500 }),
     notes: text("notes"),
-    createdBy: uuid("created_by")
+    createdBy: text("created_by")
       .notNull()
       .references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true })

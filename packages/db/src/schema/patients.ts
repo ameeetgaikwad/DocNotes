@@ -29,7 +29,7 @@ export const patients = pgTable(
     activeConditions: jsonb("active_conditions").notNull().default([]),
     notes: text("notes"),
     isActive: boolean("is_active").notNull().default(true),
-    createdBy: uuid("created_by")
+    createdBy: text("created_by")
       .notNull()
       .references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true })

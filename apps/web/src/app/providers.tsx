@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import {
   QueryClient,
   QueryClientProvider,
@@ -9,19 +10,14 @@ import {
   MutationCache,
 } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider, useAuth } from "@/lib/auth-context";
-import { clearToken } from "@/lib/auth";
 import { AppSidebar } from "@/components/AppSidebar";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => {
     function handleUnauthorized(error: unknown) {
       const code = (error as { data?: { code?: string } }).data?.code;
-      if (code === "UNAUTHORIZED") {
-        clearToken();
-        if (typeof window !== "undefined") {
-          window.location.href = "/auth/login";
-        }
+      if (code === "UNAUTHORIZED" && typeof window !== "undefined") {
+        window.location.href = "/auth/login";
       }
     }
 
@@ -44,23 +40,20 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <AuthenticatedLayout>{children}</AuthenticatedLayout>
-        </TooltipProvider>
-      </AuthProvider>
+      <TooltipProvider>
+        <Shell>{children}</Shell>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }
 
-function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
+function Shell({ children }: { children: React.ReactNode }) {
+  const { isLoaded, isSignedIn } = useAuth();
   const pathname = usePathname() ?? "";
-  const router = useRouter();
   const isAuthPage = pathname.startsWith("/auth");
   const isPublicPage = pathname.startsWith("/share");
 
-  if (isLoading && !isPublicPage) {
+  if (!isLoaded && !isPublicPage) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -72,8 +65,8 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  if (!user) {
-    router.replace("/auth/login");
+  if (!isSignedIn) {
+    // Middleware will have already redirected, but guard the render path too.
     return null;
   }
 

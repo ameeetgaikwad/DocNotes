@@ -5,16 +5,24 @@ import type { AppRouter } from "@docnotes/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+async function getClerkSessionToken(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  const clerk = (
+    window as unknown as {
+      Clerk?: { session?: { getToken: () => Promise<string | null> } };
+    }
+  ).Clerk;
+  if (!clerk?.session) return null;
+  return clerk.session.getToken();
+}
+
 export const trpcClient = createTRPCClient<AppRouter>({
   links: [
     httpBatchLink({
       url: `${API_URL}/trpc`,
       transformer: superjson,
-      headers() {
-        const token =
-          typeof window !== "undefined"
-            ? localStorage.getItem("docnotes_token")
-            : null;
+      async headers() {
+        const token = await getClerkSessionToken();
         return token ? { authorization: `Bearer ${token}` } : {};
       },
     }),
