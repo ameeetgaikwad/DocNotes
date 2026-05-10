@@ -1,11 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { FileText } from "lucide-react";
 
-export const Route = createFileRoute("/reports/")({
-  component: ReportsPage,
-});
-
-function ReportsPage() {
+export default function ReportsPage() {
   return (
     <div className="p-6">
       <div className="mb-6">

@@ -1,5 +1,6 @@
+"use client";
+
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   Calendar,
@@ -15,10 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { NewAppointmentDialog } from "@/components/schedule/new-appointment-dialog";
-
-export const Route = createFileRoute("/schedule/")({
-  component: SchedulePage,
-});
 
 function toDateString(date: Date): string {
   const y = date.getFullYear();
@@ -94,7 +91,7 @@ const typeLabels: Record<string, string> = {
   telehealth: "Telehealth",
 };
 
-function SchedulePage() {
+export default function SchedulePage() {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
 

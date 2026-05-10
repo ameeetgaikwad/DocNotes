@@ -1,5 +1,5 @@
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
-import { appRouter, resolveSession, type Context } from "@docnotes/api";
+import { appRouter, resolveClerkSession, type Context } from "@docnotes/api";
 import { db } from "@docnotes/db";
 import type { Context as HonoContext } from "hono";
 
@@ -14,7 +14,7 @@ export const trpcHandler = async (c: HonoContext) => {
       const authHeader = req.headers.get("authorization");
       if (authHeader?.startsWith("Bearer ")) {
         const token = authHeader.slice(7);
-        session = await resolveSession(db, token);
+        session = await resolveClerkSession(db, token);
       }
 
       return {

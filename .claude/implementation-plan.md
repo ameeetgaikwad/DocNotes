@@ -107,6 +107,48 @@ DocNotes is a medical records app for GPs (small practice EHR). Target market: I
 
 ---
 
+## Phase 4.5: Next.js Migration — IN PROGRESS (2026-05-09)
+
+Decision: migrate the web app from TanStack Start (Vite + Nitro) to Next.js 15 App Router. Driven by owner request; owner accepts the rewrite cost.
+
+### Planned Tasks
+
+1. Swap build stack: remove `vite`, `nitro`, `@tanstack/react-start`, `@tanstack/router-plugin`, `@tanstack/react-router-ssr-query`, `@tailwindcss/vite`, `vite-tsconfig-paths`. Add `next`, `eslint-config-next`, `@tailwindcss/postcss`.
+2. Replace `vite.config.ts` with `next.config.ts`. Update `tsconfig.json` (Next conventions: `jsx: preserve`, `plugins: [{name: "next"}]`). Update `vercel.json` (`framework: nextjs`, drop custom build/output overrides). Update `package.json` scripts (`next dev` / `next build` / `next start`).
+3. Translate all 11 route files from `apps/web/src/routes/` (TanStack file-based) to `apps/web/src/app/` (Next App Router). Mappings:
+   - `__root.tsx` → `app/layout.tsx` (+ a Client `Providers` component)
+   - `index.tsx` → `app/page.tsx`
+   - `auth/login.tsx` → `app/auth/login/page.tsx`
+   - `auth/register.tsx` → `app/auth/register/page.tsx`
+   - `patients/index.tsx` → `app/patients/page.tsx`
+   - `patients/$patientId.tsx` → `app/patients/[patientId]/page.tsx`
+   - `schedule/index.tsx` → `app/schedule/page.tsx`
+   - `reports/index.tsx` → `app/reports/page.tsx`
+   - `settings/index.tsx` → `app/settings/page.tsx`
+   - `tasks/index.tsx` → `app/tasks/page.tsx`
+   - `share/$token.tsx` → `app/share/[token]/page.tsx`
+4. Strip `createFileRoute`/`createRootRoute` calls. Add `"use client"` to pages that use hooks. Replace `Link` from `@tanstack/react-router` with `next/link`. Replace `useNavigate` with `next/navigation`'s `useRouter`.
+5. Re-wire tRPC + TanStack Query for Next: client-side `Providers` component wraps `QueryClientProvider` + tRPC Provider, mounted from root layout.
+6. Delete `router.tsx`, `routeTree.gen.ts`, `vite.config.ts`. Add `next-env.d.ts`.
+7. Verify: `pnpm install`, `pnpm --filter @docnotes/web check-types`, `pnpm --filter @docnotes/web lint`, `pnpm --filter @docnotes/web build`. Push to staging, watch CI, verify Vercel preview returns 200.
+
+---
+
+## Phase 4.6: Clerk Auth Integration — IN PROGRESS (2026-05-09)
+
+Decision: replace homemade auth (bcrypt + sessions table + AuthProvider context) with Clerk. Existing user data wipe approved by owner. Sign-in method: email magic link.
+
+### Planned Tasks
+
+1. **Web** (`apps/web`): install `@clerk/nextjs`. Wrap `app/layout.tsx` in `<ClerkProvider>`. Add `apps/web/src/middleware.ts` with `clerkMiddleware()` and protect non-auth routes. Replace `app/auth/login/page.tsx` with `<SignIn />` and `app/auth/register/page.tsx` with `<SignUp />`. Replace `AppSidebar`'s user info + logout block with `<UserButton />`. Delete `apps/web/src/lib/auth.ts` and `auth-context.tsx`.
+2. **Backend** (`apps/backend` + `packages/api`): install `@clerk/backend`. Replace `resolveSession()` in `packages/api/src/trpc.ts` with Clerk JWT verification (`verifyToken` from `@clerk/backend`). Delete `packages/api/src/routers/auth.ts` (Clerk owns login/register/logout/me).
+3. **DB** (`packages/db`): drop `sessions` table from schema. Switch `users.id` PK from internal id to Clerk user_id (text). Update FKs in `patients`, `medical_records`, `appointments`, `audit_logs`, `documents`, `share_links`. Generate Drizzle migration.
+4. **Env**: `CLERK_SECRET_KEY` already in `/opt/docnotes/.env` for staging backend. Owner sets `VITE_CLERK_PUBLISHABLE_KEY` (or whatever Next.js convention requires post-migration; Next.js exposes `NEXT_PUBLIC_*` so the var name will be `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`) in Vercel env vars. Owner sets local-dev `.env.local` files himself.
+5. **Migration execution**: I write the SQL migration but do NOT run it against Neon — staging and prod share one Neon DB, and CLAUDE.md requires explicit owner terminal approval before running migrations.
+6. **Verify**: push to staging, CI deploy, open PR `staging → main`, ping Amit (and Manoj when his id is captured) for testing.
+
+---
+
 ## Future Phases (Not Started)
 
 ### Phase 5: Advanced Features

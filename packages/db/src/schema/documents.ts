@@ -28,7 +28,7 @@ export const documents = pgTable(
     s3Key: varchar("s3_key", { length: 1024 }).notNull(),
     status: varchar("status", { length: 20 }).notNull().default("uploading"),
     notes: text("notes"),
-    uploadedBy: uuid("uploaded_by")
+    uploadedBy: text("uploaded_by")
       .notNull()
       .references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true })

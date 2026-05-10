@@ -1,4 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   Calendar,
@@ -10,10 +12,6 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
-
-export const Route = createFileRoute("/")({
-  component: Dashboard,
-});
 
 function StatCard({
   label,
@@ -62,7 +60,7 @@ const typeLabels: Record<string, string> = {
   telehealth: "Telehealth",
 };
 
-function Dashboard() {
+export default function Dashboard() {
   const { data, isLoading } = useQuery(trpc.dashboard.stats.queryOptions());
 
   return (
@@ -136,7 +134,7 @@ function Dashboard() {
                 </div>
               ))}
               <Link
-                to="/schedule"
+                href="/schedule"
                 className="block text-center text-sm text-primary hover:underline"
               >
                 View full schedule

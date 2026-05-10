@@ -5,6 +5,7 @@ import {
   integer,
   timestamp,
   jsonb,
+  text,
   index,
 } from "drizzle-orm/pg-core";
 import { patients } from "./patients.js";
@@ -25,7 +26,7 @@ export const medicalRecords = pgTable(
     version: integer("version").notNull().default(1),
     parentId: uuid("parent_id"),
     attachments: jsonb("attachments").notNull().default([]),
-    createdBy: uuid("created_by")
+    createdBy: text("created_by")
       .notNull()
       .references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true })

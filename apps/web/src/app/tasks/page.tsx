@@ -1,11 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { ClipboardList } from "lucide-react";
 
-export const Route = createFileRoute("/tasks/")({
-  component: TasksPage,
-});
-
-function TasksPage() {
+export default function TasksPage() {
   return (
     <div className="p-6">
       <div className="mb-6">

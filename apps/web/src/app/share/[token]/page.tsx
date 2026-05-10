@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+"use client";
+
+import { use, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   Loader2,
@@ -15,12 +16,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export const Route = createFileRoute("/share/$token")({
-  component: SharePage,
-});
-
-function SharePage() {
-  const { token } = Route.useParams();
+export default function SharePage({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}) {
+  const { token } = use(params);
   const [password, setPassword] = useState("");
   const [needsPassword, setNeedsPassword] = useState(false);
 
@@ -53,7 +54,6 @@ function SharePage() {
   const isNotFound = errorMessage.includes("not found");
   const isWrongPassword = errorMessage.includes("Incorrect password");
 
-  // Success state — PDF was downloaded
   const successData = accessMutation.data;
   const isSuccess =
     successData &&
@@ -74,7 +74,6 @@ function SharePage() {
             </p>
           </div>
 
-          {/* Error states */}
           {accessMutation.isError &&
             (isExpired || isRevoked || isLimitReached || isNotFound) && (
               <div className="flex flex-col items-center gap-3 text-center">
@@ -91,7 +90,6 @@ function SharePage() {
               </div>
             )}
 
-          {/* Password prompt */}
           {needsPassword && !isSuccess && (
             <div className="space-y-4">
               <div className="flex flex-col items-center gap-2 text-center">
@@ -140,7 +138,6 @@ function SharePage() {
             </div>
           )}
 
-          {/* Success state */}
           {isSuccess && (
             <div className="flex flex-col items-center gap-3 text-center">
               <Download className="h-10 w-10 text-green-500" />
@@ -157,7 +154,6 @@ function SharePage() {
             </div>
           )}
 
-          {/* Initial state — access without password */}
           {!needsPassword && !accessMutation.isError && !isSuccess && (
             <div className="flex flex-col items-center gap-4">
               {accessMutation.isPending ? (
@@ -184,7 +180,6 @@ function SharePage() {
             </div>
           )}
 
-          {/* Generic error */}
           {accessMutation.isError &&
             !isExpired &&
             !isRevoked &&

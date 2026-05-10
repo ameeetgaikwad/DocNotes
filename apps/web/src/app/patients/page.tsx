@@ -1,5 +1,7 @@
+"use client";
+
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   Plus,
@@ -26,11 +28,7 @@ import {
 } from "@/components/ui/table";
 import { NewPatientDialog } from "@/components/patients/new-patient-dialog";
 
-export const Route = createFileRoute("/patients/")({
-  component: PatientsPage,
-});
-
-function PatientsPage() {
+export default function PatientsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -139,8 +137,7 @@ function PatientsPage() {
                   <TableRow key={patient.id}>
                     <TableCell>
                       <Link
-                        to="/patients/$patientId"
-                        params={{ patientId: patient.id }}
+                        href={`/patients/${patient.id}`}
                         className="font-medium text-primary hover:underline"
                       >
                         {patient.firstName} {patient.lastName}

@@ -23,6 +23,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.985.0",
     "@aws-sdk/s3-request-presigner": "^3.985.0",
+    "@clerk/backend": "^3.4.7",
     "@docnotes/db": "workspace:*",
     "@docnotes/shared": "workspace:*",
     "@react-pdf/renderer": "^4.3.2",

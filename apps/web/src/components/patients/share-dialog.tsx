@@ -75,7 +75,7 @@ export function ShareDialog({
   });
 
   async function copyToClipboard(url: string) {
-    const webUrl = import.meta.env.VITE_WEB_URL || "http://localhost:3000";
+    const webUrl = process.env.NEXT_PUBLIC_WEB_URL || "http://localhost:3000";
     const token = url.startsWith("http") ? url : `${webUrl}/share/${url}`;
     await navigator.clipboard.writeText(token);
     setCopiedUrl(url);
