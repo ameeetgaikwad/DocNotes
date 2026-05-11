@@ -22,12 +22,15 @@ export const medicalRecordRouter = router({
       const { patientId, type, page, limit } = input;
       const offset = (page - 1) * limit;
 
-      const conditions = [eq(medicalRecords.patientId, patientId)];
+      const conditions = [
+        eq(medicalRecords.patientId, patientId),
+        eq(medicalRecords.createdBy, ctx.session.userId),
+      ];
       if (type) {
         conditions.push(eq(medicalRecords.type, type));
       }
 
-      const where = conditions.length > 1 ? and(...conditions) : conditions[0]!;
+      const where = and(...conditions);
 
       const [items, countResult] = await Promise.all([
         ctx.db
@@ -57,7 +60,12 @@ export const medicalRecordRouter = router({
       const result = await ctx.db
         .select()
         .from(medicalRecords)
-        .where(eq(medicalRecords.id, input.id))
+        .where(
+          and(
+            eq(medicalRecords.id, input.id),
+            eq(medicalRecords.createdBy, ctx.session.userId),
+          ),
+        )
         .limit(1);
 
       return result[0] ?? null;
@@ -94,7 +102,12 @@ export const medicalRecordRouter = router({
       const [current] = await ctx.db
         .select()
         .from(medicalRecords)
-        .where(eq(medicalRecords.id, input.id))
+        .where(
+          and(
+            eq(medicalRecords.id, input.id),
+            eq(medicalRecords.createdBy, ctx.session.userId),
+          ),
+        )
         .limit(1);
 
       if (!current) {

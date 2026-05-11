@@ -19,37 +19,48 @@ export const dashboardRouter = router({
     );
     weekStart.setHours(0, 0, 0, 0);
 
+    const userId = ctx.session.userId;
+
     const [patientCount, todayAppointments, weekRecords, todaySchedule] =
       await Promise.all([
-        // Total active patients
+        // Total active patients owned by this doctor
         ctx.db
           .select({ count: sql<number>`count(*)` })
           .from(patients)
-          .where(eq(patients.isActive, true)),
+          .where(
+            and(eq(patients.isActive, true), eq(patients.createdBy, userId)),
+          ),
 
-        // Today's appointments count
+        // Today's appointments count for this doctor
         ctx.db
           .select({ count: sql<number>`count(*)` })
           .from(appointments)
           .where(
             and(
+              eq(appointments.providerId, userId),
               gte(appointments.scheduledAt, todayStart),
               lte(appointments.scheduledAt, todayEnd),
             ),
           ),
 
-        // Medical records created this week
+        // Medical records this doctor created this week
         ctx.db
           .select({ count: sql<number>`count(*)` })
           .from(medicalRecords)
-          .where(gte(medicalRecords.createdAt, weekStart)),
+          .where(
+            and(
+              eq(medicalRecords.createdBy, userId),
+              gte(medicalRecords.createdAt, weekStart),
+            ),
+          ),
 
-        // Today's appointments list (for schedule panel)
+        // Today's appointments list for this doctor (for schedule panel)
         ctx.db
           .select()
           .from(appointments)
           .where(
             and(
+              eq(appointments.providerId, userId),
               gte(appointments.scheduledAt, todayStart),
               lte(appointments.scheduledAt, todayEnd),
             ),

@@ -17,9 +17,14 @@ export const patientRouter = router({
       const { query, page, limit } = input;
       const offset = (page - 1) * limit;
 
+      const ownership = and(
+        eq(patients.isActive, true),
+        eq(patients.createdBy, ctx.session.userId),
+      );
+
       const where = query
         ? and(
-            eq(patients.isActive, true),
+            ownership,
             or(
               ilike(patients.firstName, `%${query}%`),
               ilike(patients.lastName, `%${query}%`),
@@ -27,7 +32,7 @@ export const patientRouter = router({
               ilike(patients.phone, `%${query}%`),
             ),
           )
-        : eq(patients.isActive, true);
+        : ownership;
 
       const [items, countResult] = await Promise.all([
         ctx.db
@@ -57,7 +62,12 @@ export const patientRouter = router({
       const result = await ctx.db
         .select()
         .from(patients)
-        .where(eq(patients.id, input.id))
+        .where(
+          and(
+            eq(patients.id, input.id),
+            eq(patients.createdBy, ctx.session.userId),
+          ),
+        )
         .limit(1);
 
       if (!result[0]) {
@@ -125,7 +135,12 @@ export const patientRouter = router({
       const [patient] = await ctx.db
         .update(patients)
         .set(updateData)
-        .where(eq(patients.id, input.id))
+        .where(
+          and(
+            eq(patients.id, input.id),
+            eq(patients.createdBy, ctx.session.userId),
+          ),
+        )
         .returning();
 
       logAudit(ctx, {
@@ -143,7 +158,12 @@ export const patientRouter = router({
       const [patient] = await ctx.db
         .update(patients)
         .set({ isActive: false })
-        .where(eq(patients.id, input.id))
+        .where(
+          and(
+            eq(patients.id, input.id),
+            eq(patients.createdBy, ctx.session.userId),
+          ),
+        )
         .returning();
 
       logAudit(ctx, {

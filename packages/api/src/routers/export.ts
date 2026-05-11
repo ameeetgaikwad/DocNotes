@@ -1,4 +1,4 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { patients, medicalRecords } from "@docnotes/db";
 import {
   exportPatientSummarySchema,
@@ -16,7 +16,12 @@ export const exportRouter = router({
       const patientResult = await ctx.db
         .select()
         .from(patients)
-        .where(eq(patients.id, input.patientId))
+        .where(
+          and(
+            eq(patients.id, input.patientId),
+            eq(patients.createdBy, ctx.session.userId),
+          ),
+        )
         .limit(1);
 
       const patient = patientResult[0];
@@ -30,7 +35,12 @@ export const exportRouter = router({
       const records = await ctx.db
         .select()
         .from(medicalRecords)
-        .where(eq(medicalRecords.patientId, input.patientId))
+        .where(
+          and(
+            eq(medicalRecords.patientId, input.patientId),
+            eq(medicalRecords.createdBy, ctx.session.userId),
+          ),
+        )
         .orderBy(desc(medicalRecords.createdAt))
         .limit(50);
 
@@ -77,7 +87,12 @@ export const exportRouter = router({
       const recordResult = await ctx.db
         .select()
         .from(medicalRecords)
-        .where(eq(medicalRecords.id, input.recordId))
+        .where(
+          and(
+            eq(medicalRecords.id, input.recordId),
+            eq(medicalRecords.createdBy, ctx.session.userId),
+          ),
+        )
         .limit(1);
 
       const record = recordResult[0];
@@ -91,7 +106,12 @@ export const exportRouter = router({
       const patientResult = await ctx.db
         .select()
         .from(patients)
-        .where(eq(patients.id, record.patientId))
+        .where(
+          and(
+            eq(patients.id, record.patientId),
+            eq(patients.createdBy, ctx.session.userId),
+          ),
+        )
         .limit(1);
 
       const patient = patientResult[0];

@@ -13,22 +13,19 @@ export const appointmentRouter = router({
   list: protectedProcedure
     .input(appointmentQuerySchema)
     .query(async ({ ctx, input }) => {
-      const { providerId, patientId, status, from, to, page, limit } = input;
+      const { patientId, status, from, to, page, limit } = input;
       const offset = (page - 1) * limit;
 
-      const conditions = [];
-      if (providerId) conditions.push(eq(appointments.providerId, providerId));
+      const conditions = [eq(appointments.providerId, ctx.session.userId)];
       if (patientId) conditions.push(eq(appointments.patientId, patientId));
       if (status) conditions.push(eq(appointments.status, status));
       if (from) conditions.push(gte(appointments.scheduledAt, from));
       if (to) conditions.push(lte(appointments.scheduledAt, to));
 
-      const where = conditions.length > 0 ? and(...conditions) : undefined;
-
       const items = await ctx.db
         .select()
         .from(appointments)
-        .where(where)
+        .where(and(...conditions))
         .orderBy(desc(appointments.scheduledAt))
         .limit(limit)
         .offset(offset);
@@ -42,7 +39,12 @@ export const appointmentRouter = router({
       const result = await ctx.db
         .select()
         .from(appointments)
-        .where(eq(appointments.id, input.id))
+        .where(
+          and(
+            eq(appointments.id, input.id),
+            eq(appointments.providerId, ctx.session.userId),
+          ),
+        )
         .limit(1);
 
       return result[0] ?? null;
@@ -74,7 +76,12 @@ export const appointmentRouter = router({
       const [appointment] = await ctx.db
         .update(appointments)
         .set(input.data)
-        .where(eq(appointments.id, input.id))
+        .where(
+          and(
+            eq(appointments.id, input.id),
+            eq(appointments.providerId, ctx.session.userId),
+          ),
+        )
         .returning();
 
       logAudit(ctx, {
@@ -92,7 +99,12 @@ export const appointmentRouter = router({
       const [appointment] = await ctx.db
         .update(appointments)
         .set({ status: "cancelled" })
-        .where(eq(appointments.id, input.id))
+        .where(
+          and(
+            eq(appointments.id, input.id),
+            eq(appointments.providerId, ctx.session.userId),
+          ),
+        )
         .returning();
 
       logAudit(ctx, {

@@ -22,7 +22,10 @@ export const documentRouter = router({
       const { patientId, medicalRecordId, category, page, limit } = input;
       const offset = (page - 1) * limit;
 
-      const conditions = [eq(documents.patientId, patientId)];
+      const conditions = [
+        eq(documents.patientId, patientId),
+        eq(documents.uploadedBy, ctx.session.userId),
+      ];
       if (medicalRecordId) {
         conditions.push(eq(documents.medicalRecordId, medicalRecordId));
       }
@@ -64,7 +67,12 @@ export const documentRouter = router({
       const result = await ctx.db
         .select()
         .from(documents)
-        .where(eq(documents.id, input.id))
+        .where(
+          and(
+            eq(documents.id, input.id),
+            eq(documents.uploadedBy, ctx.session.userId),
+          ),
+        )
         .limit(1);
 
       return result[0] ?? null;
@@ -117,7 +125,11 @@ export const documentRouter = router({
         .update(documents)
         .set({ status: "active" })
         .where(
-          and(eq(documents.id, input.id), eq(documents.status, "uploading")),
+          and(
+            eq(documents.id, input.id),
+            eq(documents.status, "uploading"),
+            eq(documents.uploadedBy, ctx.session.userId),
+          ),
         )
         .returning();
 
@@ -130,7 +142,13 @@ export const documentRouter = router({
       const result = await ctx.db
         .select()
         .from(documents)
-        .where(and(eq(documents.id, input.id), eq(documents.status, "active")))
+        .where(
+          and(
+            eq(documents.id, input.id),
+            eq(documents.status, "active"),
+            eq(documents.uploadedBy, ctx.session.userId),
+          ),
+        )
         .limit(1);
 
       const doc = result[0];
@@ -153,7 +171,12 @@ export const documentRouter = router({
       const [doc] = await ctx.db
         .update(documents)
         .set(input.data)
-        .where(eq(documents.id, input.id))
+        .where(
+          and(
+            eq(documents.id, input.id),
+            eq(documents.uploadedBy, ctx.session.userId),
+          ),
+        )
         .returning();
 
       logAudit(ctx, {
@@ -171,7 +194,12 @@ export const documentRouter = router({
       const [doc] = await ctx.db
         .update(documents)
         .set({ status: "archived" })
-        .where(eq(documents.id, input.id))
+        .where(
+          and(
+            eq(documents.id, input.id),
+            eq(documents.uploadedBy, ctx.session.userId),
+          ),
+        )
         .returning();
 
       logAudit(ctx, {
@@ -189,7 +217,12 @@ export const documentRouter = router({
       const result = await ctx.db
         .select()
         .from(documents)
-        .where(eq(documents.id, input.id))
+        .where(
+          and(
+            eq(documents.id, input.id),
+            eq(documents.uploadedBy, ctx.session.userId),
+          ),
+        )
         .limit(1);
 
       const doc = result[0];
