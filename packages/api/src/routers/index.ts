@@ -7,6 +7,7 @@ import { auditRouter } from "./audit.js";
 import { documentRouter } from "./document.js";
 import { exportRouter } from "./export.js";
 import { shareRouter } from "./share.js";
+import { dailyRegisterRouter } from "./daily-register.js";
 
 export const appRouter = router({
   dashboard: dashboardRouter,
@@ -17,6 +18,7 @@ export const appRouter = router({
   document: documentRouter,
   export: exportRouter,
   share: shareRouter,
+  dailyRegister: dailyRegisterRouter,
 });
 
 export type AppRouter = typeof appRouter;
