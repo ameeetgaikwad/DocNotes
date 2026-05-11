@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import {
   QueryClient,
@@ -50,8 +50,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
 function Shell({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth();
   const pathname = usePathname() ?? "";
+  const router = useRouter();
   const isAuthPage = pathname.startsWith("/auth");
   const isPublicPage = pathname.startsWith("/share");
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (isAuthPage || isPublicPage) return;
+    if (!isSignedIn) {
+      router.replace("/auth/login");
+    }
+  }, [isLoaded, isSignedIn, isAuthPage, isPublicPage, router]);
 
   if (!isLoaded && !isPublicPage) {
     return (
@@ -66,8 +75,11 @@ function Shell({ children }: { children: React.ReactNode }) {
   }
 
   if (!isSignedIn) {
-    // Middleware will have already redirected, but guard the render path too.
-    return null;
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
   }
 
   return (
