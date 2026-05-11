@@ -140,9 +140,14 @@ export default function PatientProfilePage({
               {patient.firstName} {patient.lastName}
             </h1>
             <p className="text-sm text-muted-foreground sm:text-base">
-              {formatGender(patient.gender)} &middot;{" "}
-              {calculateAge(patient.dateOfBirth)} years &middot; DOB:{" "}
-              {formatDate(patient.dateOfBirth)}
+              {formatGender(patient.gender)}
+              {patient.dateOfBirth && (
+                <>
+                  {" "}
+                  &middot; {calculateAge(patient.dateOfBirth)} years &middot;
+                  DOB: {formatDate(patient.dateOfBirth)}
+                </>
+              )}
               {patient.bloodType && (
                 <>
                   {" "}

@@ -13,8 +13,8 @@ export const patientSchema = z.object({
   id: z.string().uuid(),
   firstName: z.string().min(1).max(255),
   lastName: z.string().min(1).max(255),
-  dateOfBirth: z.coerce.date(),
-  gender: Gender,
+  dateOfBirth: z.coerce.date().nullable(),
+  gender: Gender.nullable(),
   email: z.string().email().nullable(),
   phone: z.string().max(20).nullable(),
   address: z.string().max(500).nullable(),
@@ -66,3 +66,10 @@ export const patientSearchSchema = z.object({
 });
 
 export type PatientSearch = z.infer<typeof patientSearchSchema>;
+
+export const quickCreatePatientSchema = z.object({
+  firstName: z.string().min(1).max(255),
+  lastName: z.string().max(255).optional().default(""),
+});
+
+export type QuickCreatePatient = z.infer<typeof quickCreatePatientSchema>;

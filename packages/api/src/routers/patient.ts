@@ -5,6 +5,7 @@ import {
   createPatientSchema,
   updatePatientSchema,
   patientSearchSchema,
+  quickCreatePatientSchema,
 } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
@@ -84,6 +85,29 @@ export const patientRouter = router({
         resource: "patient",
         resourceId: patient!.id,
       });
+
+      return patient;
+    }),
+
+  quickCreate: protectedProcedure
+    .input(quickCreatePatientSchema)
+    .mutation(async ({ ctx, input }) => {
+      const [patient] = await ctx.db
+        .insert(patients)
+        .values({
+          firstName: input.firstName,
+          lastName: input.lastName ?? "",
+          createdBy: ctx.session.userId,
+        })
+        .returning();
+
+      if (patient) {
+        logAudit(ctx, {
+          action: "create",
+          resource: "patient",
+          resourceId: patient.id,
+        });
+      }
 
       return patient;
     }),

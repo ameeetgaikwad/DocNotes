@@ -144,12 +144,18 @@ export default function PatientsPage() {
                       </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      <span className="font-medium text-foreground">
-                        {calculateAge(patient.dateOfBirth)} yrs
-                      </span>{" "}
-                      <span className="hidden sm:inline">
-                        &middot; {formatDate(patient.dateOfBirth)}
-                      </span>
+                      {patient.dateOfBirth ? (
+                        <>
+                          <span className="font-medium text-foreground">
+                            {calculateAge(patient.dateOfBirth)} yrs
+                          </span>{" "}
+                          <span className="hidden sm:inline">
+                            &middot; {formatDate(patient.dateOfBirth)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground sm:table-cell">
                       {formatGender(patient.gender)}

@@ -13,12 +13,16 @@ const MONTHS = [
   "Dec",
 ];
 
-export function formatDate(date: Date | string): string {
+export function formatDate(date: Date | string | null | undefined): string {
+  if (!date) return "—";
   const d = new Date(date);
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-export function calculateAge(dob: Date | string): number {
+export function calculateAge(
+  dob: Date | string | null | undefined,
+): number | null {
+  if (!dob) return null;
   const birthDate = new Date(dob);
   const today = new Date();
   let age = today.getFullYear() - birthDate.getFullYear();
@@ -32,7 +36,8 @@ export function calculateAge(dob: Date | string): number {
   return age;
 }
 
-export function formatGender(gender: string): string {
+export function formatGender(gender: string | null | undefined): string {
+  if (!gender) return "—";
   return gender === "prefer_not_to_say"
     ? "Not specified"
     : gender.charAt(0).toUpperCase() + gender.slice(1);

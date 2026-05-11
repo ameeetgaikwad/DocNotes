@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, UserPlus } from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Button } from "@/components/ui/button";
@@ -82,6 +82,38 @@ export function NewDailyRegisterEntryDialog({
     },
   });
 
+  const quickCreatePatient = useMutation({
+    mutationFn: async (typed: string) => {
+      const parts = typed.trim().split(/\s+/);
+      const firstName = parts[0] ?? "";
+      const lastName = parts.slice(1).join(" ");
+      const created = await trpcClient.patient.quickCreate.mutate({
+        firstName,
+        lastName,
+      });
+      return created;
+    },
+    onSuccess: (created) => {
+      if (!created) return;
+      queryClient.invalidateQueries({ queryKey: [["patient"]] });
+      setPatientId(created.id);
+      setPatientLabel(
+        `${created.firstName}${created.lastName ? " " + created.lastName : ""}`,
+      );
+    },
+    onError: (e) => {
+      setServerError(e.message);
+    },
+  });
+
+  const typedName = debouncedSearch.trim();
+  const existingNames =
+    patientsQuery.data?.items.map((p) =>
+      `${p.firstName} ${p.lastName}`.toLowerCase().trim(),
+    ) ?? [];
+  const exactMatchExists = existingNames.includes(typedName.toLowerCase());
+  const canQuickCreate = typedName.length > 0 && !exactMatchExists;
+
   const canSubmit =
     patientId !== null && feeAmount !== "" && Number(feeAmount) >= 0;
 
@@ -143,12 +175,6 @@ export function NewDailyRegisterEntryDialog({
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       </div>
                     )}
-                    {patientsQuery.data &&
-                      patientsQuery.data.items.length === 0 && (
-                        <div className="px-3 py-2 text-sm text-muted-foreground">
-                          No patients found
-                        </div>
-                      )}
                     {patientsQuery.data?.items.map((p) => (
                       <button
                         key={p.id}
@@ -157,7 +183,7 @@ export function NewDailyRegisterEntryDialog({
                           setPatientId(p.id);
                           setPatientLabel(`${p.firstName} ${p.lastName}`);
                         }}
-                        className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-accent"
+                        className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-accent"
                       >
                         <span>
                           {p.firstName} {p.lastName}
@@ -169,6 +195,25 @@ export function NewDailyRegisterEntryDialog({
                         )}
                       </button>
                     ))}
+                    {canQuickCreate && (
+                      <button
+                        type="button"
+                        onClick={() => quickCreatePatient.mutate(typedName)}
+                        disabled={quickCreatePatient.isPending}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-primary hover:bg-accent disabled:opacity-50"
+                      >
+                        {quickCreatePatient.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <UserPlus className="h-4 w-4" />
+                        )}
+                        <span>
+                          Add new patient: &ldquo;
+                          <span className="font-medium">{typedName}</span>
+                          &rdquo;
+                        </span>
+                      </button>
+                    )}
                   </div>
                 )}
               </>

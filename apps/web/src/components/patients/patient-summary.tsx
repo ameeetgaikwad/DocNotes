@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge";
 interface PatientData {
   firstName: string;
   lastName: string;
-  dateOfBirth: string;
-  gender: string;
+  dateOfBirth: string | null;
+  gender: string | null;
   email: string | null;
   phone: string | null;
   address: string | null;

@@ -108,7 +108,8 @@ const styles = StyleSheet.create({
   },
 });
 
-function formatDateDDMMYYYY(date: Date | string): string {
+function formatDateDDMMYYYY(date: Date | string | null | undefined): string {
+  if (!date) return "—";
   const d = typeof date === "string" ? new Date(date) : date;
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
@@ -116,7 +117,8 @@ function formatDateDDMMYYYY(date: Date | string): string {
   return `${day}/${month}/${year}`;
 }
 
-function calculateAge(dob: Date | string): number {
+function calculateAge(dob: Date | string | null | undefined): number | null {
+  if (!dob) return null;
   const d = typeof dob === "string" ? new Date(dob) : dob;
   const today = new Date();
   let age = today.getFullYear() - d.getFullYear();
@@ -132,8 +134,8 @@ const e = React.createElement;
 interface PatientData {
   firstName: string;
   lastName: string;
-  dateOfBirth: Date | string;
-  gender: string;
+  dateOfBirth: Date | string | null;
+  gender: string | null;
   email?: string | null;
   phone?: string | null;
   address?: string | null;
@@ -205,14 +207,16 @@ export async function renderPatientSummaryPdf(
           e(
             Text,
             { style: styles.value },
-            `${formatDateDDMMYYYY(patient.dateOfBirth)} (${calculateAge(patient.dateOfBirth)} years)`,
+            patient.dateOfBirth
+              ? `${formatDateDDMMYYYY(patient.dateOfBirth)} (${calculateAge(patient.dateOfBirth)} years)`
+              : "—",
           ),
         ),
         e(
           View,
           { style: styles.row },
           e(Text, { style: styles.label }, "Gender:"),
-          e(Text, { style: styles.value }, patient.gender),
+          e(Text, { style: styles.value }, patient.gender ?? "—"),
         ),
         patient.bloodType
           ? e(
