@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, ilike, or, desc, sql } from "drizzle-orm";
+import { and, eq, ilike, or, desc, sql } from "drizzle-orm";
 import { patients } from "@docnotes/db";
 import {
   createPatientSchema,
@@ -16,23 +16,17 @@ export const patientRouter = router({
       const { query, page, limit } = input;
       const offset = (page - 1) * limit;
 
-      const conditions = [eq(patients.isActive, true)];
-
-      if (query) {
-        conditions.push(
-          or(
-            ilike(patients.firstName, `%${query}%`),
-            ilike(patients.lastName, `%${query}%`),
-            ilike(patients.email, `%${query}%`),
-            ilike(patients.phone, `%${query}%`),
-          )!,
-        );
-      }
-
-      const where =
-        conditions.length > 1
-          ? sql`${conditions.map((c, i) => (i === 0 ? c : sql` AND ${c}`))}`
-          : conditions[0];
+      const where = query
+        ? and(
+            eq(patients.isActive, true),
+            or(
+              ilike(patients.firstName, `%${query}%`),
+              ilike(patients.lastName, `%${query}%`),
+              ilike(patients.email, `%${query}%`),
+              ilike(patients.phone, `%${query}%`),
+            ),
+          )
+        : eq(patients.isActive, true);
 
       const [items, countResult] = await Promise.all([
         ctx.db

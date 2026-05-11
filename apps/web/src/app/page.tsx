@@ -18,29 +18,42 @@ function StatCard({
   value,
   icon: Icon,
   isLoading,
+  href,
 }: {
   label: string;
   value: string | number;
   icon: React.ComponentType<{ className?: string }>;
   isLoading?: boolean;
+  href?: string;
 }) {
-  return (
-    <div className="rounded-xl border bg-card p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">{label}</p>
-          {isLoading ? (
-            <Loader2 className="mt-2 h-5 w-5 animate-spin text-muted-foreground" />
-          ) : (
-            <p className="mt-1 text-2xl font-semibold">{value}</p>
-          )}
-        </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-          <Icon className="h-5 w-5 text-primary" />
-        </div>
+  const body = (
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm text-muted-foreground">{label}</p>
+        {isLoading ? (
+          <Loader2 className="mt-2 h-5 w-5 animate-spin text-muted-foreground" />
+        ) : (
+          <p className="mt-1 text-2xl font-semibold">{value}</p>
+        )}
+      </div>
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+        <Icon className="h-5 w-5 text-primary" />
       </div>
     </div>
   );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="block rounded-xl border bg-card p-6 transition hover:border-primary/40 hover:bg-accent/40"
+      >
+        {body}
+      </Link>
+    );
+  }
+
+  return <div className="rounded-xl border bg-card p-6">{body}</div>;
 }
 
 function formatTime(date: Date | string): string {
@@ -76,19 +89,27 @@ export default function Dashboard() {
           value={data?.todayAppointments ?? 0}
           icon={Calendar}
           isLoading={isLoading}
+          href="/schedule"
         />
         <StatCard
           label="Total Patients"
           value={data?.totalPatients ?? 0}
           icon={Users}
           isLoading={isLoading}
+          href="/patients"
         />
-        <StatCard label="Pending Tasks" value="0" icon={ClipboardList} />
+        <StatCard
+          label="Pending Tasks"
+          value="0"
+          icon={ClipboardList}
+          href="/tasks"
+        />
         <StatCard
           label="Records This Week"
           value={data?.recordsThisWeek ?? 0}
           icon={Activity}
           isLoading={isLoading}
+          href="/reports"
         />
       </div>
 
