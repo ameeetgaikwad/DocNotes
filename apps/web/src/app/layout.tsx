@@ -26,7 +26,7 @@ export default function RootLayout({
       signUpFallbackRedirectUrl="/"
       afterSignOutUrl="/auth/login"
     >
-      <html lang="en">
+      <html lang="en-IN">
         <head>
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link
