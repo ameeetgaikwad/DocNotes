@@ -129,12 +129,20 @@ export const patientRouter = router({
   updateDob: protectedProcedure
     .input(updatePatientDobSchema)
     .mutation(async ({ ctx, input }) => {
+      const d = input.dobDay ?? null;
+      const m = input.dobMonth ?? null;
+      const y = input.dobYear ?? null;
+      const fullDate =
+        d !== null && m !== null && y !== null
+          ? `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`
+          : null;
       const [patient] = await ctx.db
         .update(patients)
         .set({
-          dobDay: input.dobDay ?? null,
-          dobMonth: input.dobMonth ?? null,
-          dobYear: input.dobYear ?? null,
+          dobDay: d,
+          dobMonth: m,
+          dobYear: y,
+          dateOfBirth: fullDate,
         })
         .where(
           and(

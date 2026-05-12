@@ -51,6 +51,15 @@ function sanitizeDigits(value: string, maxLen: number): string {
   return value.replace(/\D/g, "").slice(0, maxLen);
 }
 
+function parseIsoDate(
+  iso: string | null | undefined,
+): { day: number; month: number; year: number } | null {
+  if (!iso) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return null;
+  return { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) };
+}
+
 export function NewDailyRegisterEntryDialog({
   open,
   onOpenChange,
@@ -277,31 +286,34 @@ export function NewDailyRegisterEntryDialog({
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       </div>
                     )}
-                    {patientsQuery.data?.items.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() =>
-                          selectPatient({
-                            id: p.id,
-                            label: `${p.firstName} ${p.lastName}`,
-                            dobDay: p.dobDay ?? null,
-                            dobMonth: p.dobMonth ?? null,
-                            dobYear: p.dobYear ?? null,
-                          })
-                        }
-                        className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-accent md:px-4 md:py-3 md:text-base"
-                      >
-                        <span>
-                          {p.firstName} {p.lastName}
-                        </span>
-                        {p.phone && (
-                          <span className="text-xs text-muted-foreground md:text-sm">
-                            {p.phone}
+                    {patientsQuery.data?.items.map((p) => {
+                      const derived = parseIsoDate(p.dateOfBirth);
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() =>
+                            selectPatient({
+                              id: p.id,
+                              label: `${p.firstName} ${p.lastName}`,
+                              dobDay: p.dobDay ?? derived?.day ?? null,
+                              dobMonth: p.dobMonth ?? derived?.month ?? null,
+                              dobYear: p.dobYear ?? derived?.year ?? null,
+                            })
+                          }
+                          className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-accent md:px-4 md:py-3 md:text-base"
+                        >
+                          <span>
+                            {p.firstName} {p.lastName}
                           </span>
-                        )}
-                      </button>
-                    ))}
+                          {p.phone && (
+                            <span className="text-xs text-muted-foreground md:text-sm">
+                              {p.phone}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                     {canQuickCreate && (
                       <button
                         type="button"
