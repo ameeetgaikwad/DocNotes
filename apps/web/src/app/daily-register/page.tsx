@@ -45,21 +45,24 @@ export default function DailyRegisterPage() {
   const isToday = useMemo(() => visitDate === todayLocalIsoDate(), [visitDate]);
 
   return (
-    <div className="p-4 sm:p-6">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="p-4 sm:p-6 md:p-8">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between md:mb-8">
         <div>
-          <h1 className="text-2xl font-semibold">Daily Register</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-semibold md:text-3xl">Daily Register</h1>
+          <p className="text-muted-foreground md:text-base">
             Daily case register (Form 25) — patient visits and fees received
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)} className="self-start">
-          <Plus className="h-4 w-4" />
+        <Button
+          onClick={() => setDialogOpen(true)}
+          className="self-start md:h-12 md:px-6 md:text-base"
+        >
+          <Plus className="h-4 w-4 md:h-5 md:w-5" />
           Add Entry
         </Button>
       </div>
 
-      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end">
+      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end md:mb-8 md:gap-4">
         <div className="flex flex-col gap-1">
           <label
             htmlFor="visit-date"
@@ -73,7 +76,7 @@ export default function DailyRegisterPage() {
             value={visitDate}
             onChange={(e) => setVisitDate(e.target.value)}
             max={todayLocalIsoDate()}
-            className="w-auto"
+            className="w-auto md:h-12 md:text-base"
           />
         </div>
         {!isToday && (
@@ -81,6 +84,7 @@ export default function DailyRegisterPage() {
             variant="outline"
             size="sm"
             onClick={() => setVisitDate(todayLocalIsoDate())}
+            className="md:h-12 md:px-4 md:text-base"
           >
             Jump to today
           </Button>
@@ -109,14 +113,19 @@ export default function DailyRegisterPage() {
 
       {data && data.items.length === 0 && (
         <div className="rounded-xl border bg-card">
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-            <BookOpen className="mb-3 h-12 w-12" />
-            <p className="text-lg font-medium">No entries for this date</p>
-            <p className="mb-4 text-sm">
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground md:py-24">
+            <BookOpen className="mb-3 h-12 w-12 md:mb-4 md:h-16 md:w-16" />
+            <p className="text-lg font-medium md:text-xl">
+              No entries for this date
+            </p>
+            <p className="mb-4 text-sm md:mb-6 md:text-base">
               Add today&apos;s first patient visit to get started
             </p>
-            <Button onClick={() => setDialogOpen(true)}>
-              <Plus className="h-4 w-4" />
+            <Button
+              onClick={() => setDialogOpen(true)}
+              className="md:h-12 md:px-6 md:text-base"
+            >
+              <Plus className="h-4 w-4 md:h-5 md:w-5" />
               Add Entry
             </Button>
           </div>
@@ -126,18 +135,18 @@ export default function DailyRegisterPage() {
       {data && data.items.length > 0 && (
         <>
           <div className="overflow-x-auto rounded-xl border bg-card">
-            <Table>
+            <Table className="md:text-base">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">#</TableHead>
                   <TableHead>Patient</TableHead>
-                  <TableHead className="hidden md:table-cell">
+                  <TableHead className="hidden sm:table-cell">
                     Service
                   </TableHead>
                   <TableHead>Fee</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="hidden sm:table-cell">Mode</TableHead>
-                  <TableHead className="hidden lg:table-cell">
+                  <TableHead className="hidden md:table-cell">
                     Remarks
                   </TableHead>
                   <TableHead className="w-10" />
@@ -146,21 +155,21 @@ export default function DailyRegisterPage() {
               <TableBody>
                 {data.items.map((entry, idx) => (
                   <TableRow key={entry.id}>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="text-muted-foreground md:py-4">
                       {idx + 1}
                     </TableCell>
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium md:py-4">
                       {entry.patient.firstName} {entry.patient.lastName}
                     </TableCell>
-                    <TableCell className="hidden text-muted-foreground md:table-cell">
+                    <TableCell className="hidden text-muted-foreground sm:table-cell md:py-4">
                       {entry.serviceType || "—"}
                     </TableCell>
-                    <TableCell className="font-mono">
+                    <TableCell className="font-mono md:py-4">
                       {entry.paymentStatus === "nil"
                         ? "—"
                         : formatINR(Number(entry.feeAmount))}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="md:py-4">
                       <Badge
                         variant={
                           entry.paymentStatus === "paid"
@@ -177,7 +186,7 @@ export default function DailyRegisterPage() {
                             : "Nil"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell">
+                    <TableCell className="hidden sm:table-cell md:py-4">
                       {entry.paymentStatus === "nil" ? (
                         <span className="text-muted-foreground">—</span>
                       ) : (
@@ -194,15 +203,15 @@ export default function DailyRegisterPage() {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="hidden text-muted-foreground lg:table-cell">
+                    <TableCell className="hidden text-muted-foreground md:table-cell md:py-4">
                       {entry.notes || "—"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="md:py-4">
                       <DeleteEntryButton
                         entryId={entry.id}
                         visitDate={visitDate}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 md:h-5 md:w-5" />
                       </DeleteEntryButton>
                     </TableCell>
                   </TableRow>
@@ -211,28 +220,28 @@ export default function DailyRegisterPage() {
             </Table>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border bg-card p-4">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 md:mt-6 md:grid-cols-4 md:gap-4">
+            <div className="rounded-xl border bg-card p-4 md:p-5">
               <p className="text-sm text-muted-foreground">Total Cash</p>
-              <p className="mt-1 text-xl font-semibold">
+              <p className="mt-1 text-xl font-semibold md:text-2xl">
                 {formatINR(data.totals.cash)}
               </p>
             </div>
-            <div className="rounded-xl border bg-card p-4">
+            <div className="rounded-xl border bg-card p-4 md:p-5">
               <p className="text-sm text-muted-foreground">Total Digital</p>
-              <p className="mt-1 text-xl font-semibold">
+              <p className="mt-1 text-xl font-semibold md:text-2xl">
                 {formatINR(data.totals.digital)}
               </p>
             </div>
-            <div className="rounded-xl border bg-card p-4">
+            <div className="rounded-xl border bg-card p-4 md:p-5">
               <p className="text-sm text-muted-foreground">Outstanding (Due)</p>
-              <p className="mt-1 text-xl font-semibold">
+              <p className="mt-1 text-xl font-semibold md:text-2xl">
                 {formatINR(data.totals.due)}
               </p>
             </div>
-            <div className="rounded-xl border bg-primary/10 p-4">
+            <div className="rounded-xl border bg-primary/10 p-4 md:p-5">
               <p className="text-sm text-muted-foreground">Received Today</p>
-              <p className="mt-1 text-xl font-semibold">
+              <p className="mt-1 text-xl font-semibold md:text-2xl">
                 {formatINR(data.totals.all)}
               </p>
             </div>

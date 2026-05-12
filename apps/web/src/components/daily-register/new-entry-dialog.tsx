@@ -214,10 +214,10 @@ export function NewDailyRegisterEntryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md md:max-w-xl lg:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Add Register Entry</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="md:text-2xl">Add Register Entry</DialogTitle>
+          <DialogDescription className="md:text-base">
             Record a patient visit, service, and fees received.
           </DialogDescription>
         </DialogHeader>
@@ -227,7 +227,7 @@ export function NewDailyRegisterEntryDialog({
             e.preventDefault();
             if (canSubmit && !createMutation.isPending) createMutation.mutate();
           }}
-          className="space-y-4"
+          className="space-y-4 md:space-y-5"
         >
           {serverError && (
             <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
@@ -236,15 +236,18 @@ export function NewDailyRegisterEntryDialog({
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="patient-search">Patient *</Label>
+            <Label htmlFor="patient-search" className="md:text-base">
+              Patient *
+            </Label>
             {patient ? (
-              <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-sm">
+              <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-sm md:px-4 md:py-3 md:text-base">
                 <span className="font-medium">{patient.label}</span>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={clearPatient}
+                  className="md:h-10 md:px-4"
                 >
                   Change
                 </Button>
@@ -258,6 +261,7 @@ export function NewDailyRegisterEntryDialog({
                   value={patientSearch}
                   onChange={(e) => setPatientSearch(e.target.value)}
                   autoFocus
+                  className="md:h-12 md:text-base"
                 />
                 {debouncedSearch && (
                   <div className="max-h-48 overflow-y-auto rounded-md border">
@@ -279,13 +283,13 @@ export function NewDailyRegisterEntryDialog({
                             dobYear: p.dobYear ?? null,
                           })
                         }
-                        className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-accent"
+                        className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-accent md:px-4 md:py-3 md:text-base"
                       >
                         <span>
                           {p.firstName} {p.lastName}
                         </span>
                         {p.phone && (
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-muted-foreground md:text-sm">
                             {p.phone}
                           </span>
                         )}
@@ -296,7 +300,7 @@ export function NewDailyRegisterEntryDialog({
                         type="button"
                         onClick={() => quickCreatePatient.mutate(typedName)}
                         disabled={quickCreatePatient.isPending}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-primary hover:bg-accent disabled:opacity-50"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-primary hover:bg-accent disabled:opacity-50 md:px-4 md:py-3 md:text-base"
                       >
                         {quickCreatePatient.isPending ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -317,34 +321,34 @@ export function NewDailyRegisterEntryDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Date of Birth (optional)</Label>
-            <div className="flex items-center gap-2">
+            <Label className="md:text-base">Date of Birth (optional)</Label>
+            <div className="flex items-center gap-2 md:gap-3">
               <Input
                 aria-label="Day"
                 inputMode="numeric"
                 placeholder="DD"
                 maxLength={2}
-                className="w-16 text-center"
+                className="w-16 text-center md:h-12 md:w-20 md:text-base"
                 value={dobDay}
                 onChange={(e) => setDobDay(clampInt(e.target.value, 1, 31))}
               />
-              <span className="text-muted-foreground">/</span>
+              <span className="text-muted-foreground md:text-lg">/</span>
               <Input
                 aria-label="Month"
                 inputMode="numeric"
                 placeholder="MM"
                 maxLength={2}
-                className="w-16 text-center"
+                className="w-16 text-center md:h-12 md:w-20 md:text-base"
                 value={dobMonth}
                 onChange={(e) => setDobMonth(clampInt(e.target.value, 1, 12))}
               />
-              <span className="text-muted-foreground">/</span>
+              <span className="text-muted-foreground md:text-lg">/</span>
               <Input
                 aria-label="Year"
                 inputMode="numeric"
                 placeholder="YYYY"
                 maxLength={4}
-                className="w-24 text-center"
+                className="w-24 text-center md:h-12 md:w-28 md:text-base"
                 value={dobYear}
                 onChange={(e) =>
                   setDobYear(
@@ -353,19 +357,20 @@ export function NewDailyRegisterEntryDialog({
                 }
               />
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground md:text-sm">
               Year alone is fine — leave day or month blank if unknown.
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="service-type">
+            <Label htmlFor="service-type" className="md:text-base">
               Nature of Professional Services Rendered *
             </Label>
             <Select
               id="service-type"
               value={serviceType}
               onChange={(e) => setServiceType(e.target.value)}
+              className="md:h-12 md:text-base"
             >
               <option value="">— Select service —</option>
               {SERVICE_TYPES.map((s) => (
@@ -377,8 +382,10 @@ export function NewDailyRegisterEntryDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="fee">Fees Received (₹) *</Label>
-            <div className="flex flex-wrap items-stretch gap-2">
+            <Label htmlFor="fee" className="md:text-base">
+              Fees Received (₹) *
+            </Label>
+            <div className="flex flex-wrap items-stretch gap-2 md:gap-3">
               <Input
                 id="fee"
                 type="number"
@@ -389,9 +396,9 @@ export function NewDailyRegisterEntryDialog({
                 value={paymentStatus === "nil" ? "" : feeAmount}
                 onChange={(e) => setFeeAmount(e.target.value)}
                 disabled={paymentStatus === "nil"}
-                className="min-w-[8rem] flex-1"
+                className="min-w-[8rem] flex-1 md:h-12 md:text-base"
               />
-              <div className="flex gap-1 rounded-md border p-1">
+              <div className="flex gap-1 rounded-md border p-1 md:gap-2 md:p-1.5">
                 {(
                   [
                     { key: "paid", label: "Paid", Icon: Check },
@@ -403,13 +410,13 @@ export function NewDailyRegisterEntryDialog({
                     key={key}
                     type="button"
                     onClick={() => setPaymentStatus(key)}
-                    className={`flex flex-col items-center rounded-sm px-3 py-1.5 text-xs transition ${
+                    className={`flex flex-col items-center rounded-sm px-3 py-1.5 text-xs transition md:min-w-[4rem] md:px-4 md:py-2 md:text-sm ${
                       paymentStatus === key
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:bg-accent"
                     }`}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-4 w-4 md:h-5 md:w-5" />
                     <span className="mt-0.5">{label}</span>
                   </button>
                 ))}
@@ -419,8 +426,8 @@ export function NewDailyRegisterEntryDialog({
 
           {paymentStatus !== "nil" && (
             <div className="space-y-2">
-              <Label>Payment Mode *</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <Label className="md:text-base">Payment Mode *</Label>
+              <div className="grid grid-cols-2 gap-2 md:gap-3">
                 {(
                   [
                     { key: "cash", label: "Cash", Icon: Banknote },
@@ -435,13 +442,13 @@ export function NewDailyRegisterEntryDialog({
                     key={key}
                     type="button"
                     onClick={() => setPaymentMode(key)}
-                    className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm transition ${
+                    className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm transition md:py-3 md:text-base ${
                       paymentMode === key
                         ? "border-primary bg-primary/10 text-primary"
                         : "text-muted-foreground hover:bg-accent"
                     }`}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-4 w-4 md:h-5 md:w-5" />
                     {label}
                   </button>
                 ))}
@@ -450,18 +457,23 @@ export function NewDailyRegisterEntryDialog({
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="receipt-date">Date of Receipt of Fees *</Label>
+            <Label htmlFor="receipt-date" className="md:text-base">
+              Date of Receipt of Fees *
+            </Label>
             <Input
               id="receipt-date"
               type="date"
               value={receiptDate}
               onChange={(e) => setReceiptDate(e.target.value)}
               max={new Date().toISOString().split("T")[0]}
+              className="md:h-12 md:text-base"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="notes">Remarks (optional)</Label>
+            <Label htmlFor="notes" className="md:text-base">
+              Remarks (optional)
+            </Label>
             <Textarea
               id="notes"
               rows={2}
@@ -469,26 +481,33 @@ export function NewDailyRegisterEntryDialog({
               placeholder="Referral, notes, medicine given."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+              className="md:min-h-[5rem] md:text-base"
             />
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 md:gap-3">
             <DialogClose asChild>
-              <Button type="button" variant="outline">
+              <Button
+                type="button"
+                variant="outline"
+                className="md:h-12 md:px-6 md:text-base"
+              >
                 Cancel
               </Button>
             </DialogClose>
             <Button
               type="submit"
               disabled={!canSubmit || createMutation.isPending}
+              className="md:h-12 md:px-6 md:text-base"
             >
               {createMutation.isPending ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Saving
+                  <Loader2 className="h-4 w-4 animate-spin md:h-5 md:w-5" />{" "}
+                  Saving
                 </>
               ) : (
                 <>
-                  <Save className="h-4 w-4" /> Save to Register
+                  <Save className="h-4 w-4 md:h-5 md:w-5" /> Save to Register
                 </>
               )}
             </Button>
