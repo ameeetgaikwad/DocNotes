@@ -1,13 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Loader2, UserPlus } from "lucide-react";
+import {
+  Loader2,
+  UserPlus,
+  Check,
+  Clock,
+  Ban,
+  Banknote,
+  Smartphone,
+  Save,
+} from "lucide-react";
+import { SERVICE_TYPES } from "@docnotes/shared";
 import { trpc, trpcClient } from "@/lib/trpc";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -25,6 +36,26 @@ interface NewEntryDialogProps {
   visitDate: string;
 }
 
+type PaymentStatus = "paid" | "due" | "nil";
+type PaymentMode = "cash" | "digital";
+
+interface SelectedPatient {
+  id: string;
+  label: string;
+  dobDay: number | null;
+  dobMonth: number | null;
+  dobYear: number | null;
+}
+
+function clampInt(value: string, min: number, max: number): string {
+  if (value === "") return "";
+  const n = Number(value.replace(/\D/g, ""));
+  if (!Number.isFinite(n)) return "";
+  if (n < min) return String(min);
+  if (n > max) return String(max);
+  return String(n);
+}
+
 export function NewDailyRegisterEntryDialog({
   open,
   onOpenChange,
@@ -32,10 +63,15 @@ export function NewDailyRegisterEntryDialog({
 }: NewEntryDialogProps) {
   const queryClient = useQueryClient();
   const [patientSearch, setPatientSearch] = useState("");
-  const [patientId, setPatientId] = useState<string | null>(null);
-  const [patientLabel, setPatientLabel] = useState("");
+  const [patient, setPatient] = useState<SelectedPatient | null>(null);
+  const [dobDay, setDobDay] = useState("");
+  const [dobMonth, setDobMonth] = useState("");
+  const [dobYear, setDobYear] = useState("");
+  const [serviceType, setServiceType] = useState("");
   const [feeAmount, setFeeAmount] = useState("");
-  const [paymentMode, setPaymentMode] = useState<"cash" | "digital">("cash");
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("paid");
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>("cash");
+  const [receiptDate, setReceiptDate] = useState(visitDate);
   const [notes, setNotes] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -53,28 +89,79 @@ export function NewDailyRegisterEntryDialog({
   useEffect(() => {
     if (!open) {
       setPatientSearch("");
-      setPatientId(null);
-      setPatientLabel("");
+      setPatient(null);
+      setDobDay("");
+      setDobMonth("");
+      setDobYear("");
+      setServiceType("");
       setFeeAmount("");
+      setPaymentStatus("paid");
       setPaymentMode("cash");
+      setReceiptDate(visitDate);
       setNotes("");
       setServerError(null);
+    } else {
+      setReceiptDate(visitDate);
     }
-  }, [open]);
+  }, [open, visitDate]);
+
+  function selectPatient(p: SelectedPatient) {
+    setPatient(p);
+    setDobDay(p.dobDay != null ? String(p.dobDay) : "");
+    setDobMonth(p.dobMonth != null ? String(p.dobMonth) : "");
+    setDobYear(p.dobYear != null ? String(p.dobYear) : "");
+  }
+
+  function clearPatient() {
+    setPatient(null);
+    setPatientSearch("");
+    setDobDay("");
+    setDobMonth("");
+    setDobYear("");
+  }
+
+  const parsedDob = useMemo(() => {
+    const d = dobDay === "" ? null : Number(dobDay);
+    const m = dobMonth === "" ? null : Number(dobMonth);
+    const y = dobYear === "" ? null : Number(dobYear);
+    return { d, m, y };
+  }, [dobDay, dobMonth, dobYear]);
+
+  const dobChanged = useMemo(() => {
+    if (!patient) return false;
+    return (
+      parsedDob.d !== patient.dobDay ||
+      parsedDob.m !== patient.dobMonth ||
+      parsedDob.y !== patient.dobYear
+    );
+  }, [patient, parsedDob]);
 
   const createMutation = useMutation({
-    mutationFn: () => {
-      if (!patientId) throw new Error("Pick a patient first");
-      return trpcClient.dailyRegister.create.mutate({
-        patientId,
-        visitDate,
-        feeAmount: Number(feeAmount),
+    mutationFn: async () => {
+      if (!patient) throw new Error("Pick a patient first");
+      const fee = paymentStatus === "nil" ? 0 : Number(feeAmount);
+      const entry = await trpcClient.dailyRegister.create.mutate({
+        patientId: patient.id,
+        visitDate: receiptDate,
+        serviceType: serviceType || null,
+        feeAmount: fee,
         paymentMode,
+        paymentStatus,
         notes: notes.trim() || null,
       });
+      if (dobChanged) {
+        await trpcClient.patient.updateDob.mutate({
+          id: patient.id,
+          dobDay: parsedDob.d,
+          dobMonth: parsedDob.m,
+          dobYear: parsedDob.y,
+        });
+      }
+      return entry;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [["dailyRegister"]] });
+      queryClient.invalidateQueries({ queryKey: [["patient"]] });
       onOpenChange(false);
     },
     onError: (e) => {
@@ -96,10 +183,13 @@ export function NewDailyRegisterEntryDialog({
     onSuccess: (created) => {
       if (!created) return;
       queryClient.invalidateQueries({ queryKey: [["patient"]] });
-      setPatientId(created.id);
-      setPatientLabel(
-        `${created.firstName}${created.lastName ? " " + created.lastName : ""}`,
-      );
+      selectPatient({
+        id: created.id,
+        label: `${created.firstName}${created.lastName ? " " + created.lastName : ""}`,
+        dobDay: created.dobDay ?? null,
+        dobMonth: created.dobMonth ?? null,
+        dobYear: created.dobYear ?? null,
+      });
     },
     onError: (e) => {
       setServerError(e.message);
@@ -114,8 +204,13 @@ export function NewDailyRegisterEntryDialog({
   const exactMatchExists = existingNames.includes(typedName.toLowerCase());
   const canQuickCreate = typedName.length > 0 && !exactMatchExists;
 
+  const feeOk =
+    paymentStatus === "nil" || (feeAmount !== "" && Number(feeAmount) >= 0);
   const canSubmit =
-    patientId !== null && feeAmount !== "" && Number(feeAmount) >= 0;
+    patient !== null &&
+    serviceType !== "" &&
+    feeOk &&
+    /^\d{4}-\d{2}-\d{2}$/.test(receiptDate);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -123,7 +218,7 @@ export function NewDailyRegisterEntryDialog({
         <DialogHeader>
           <DialogTitle>Add Register Entry</DialogTitle>
           <DialogDescription>
-            Record a patient visit with fees received on {visitDate}.
+            Record a patient visit, service, and fees received.
           </DialogDescription>
         </DialogHeader>
 
@@ -142,18 +237,14 @@ export function NewDailyRegisterEntryDialog({
 
           <div className="space-y-2">
             <Label htmlFor="patient-search">Patient *</Label>
-            {patientId ? (
+            {patient ? (
               <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-sm">
-                <span className="font-medium">{patientLabel}</span>
+                <span className="font-medium">{patient.label}</span>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    setPatientId(null);
-                    setPatientLabel("");
-                    setPatientSearch("");
-                  }}
+                  onClick={clearPatient}
                 >
                   Change
                 </Button>
@@ -179,10 +270,15 @@ export function NewDailyRegisterEntryDialog({
                       <button
                         key={p.id}
                         type="button"
-                        onClick={() => {
-                          setPatientId(p.id);
-                          setPatientLabel(`${p.firstName} ${p.lastName}`);
-                        }}
+                        onClick={() =>
+                          selectPatient({
+                            id: p.id,
+                            label: `${p.firstName} ${p.lastName}`,
+                            dobDay: p.dobDay ?? null,
+                            dobMonth: p.dobMonth ?? null,
+                            dobYear: p.dobYear ?? null,
+                          })
+                        }
                         className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-accent"
                       >
                         <span>
@@ -220,9 +316,69 @@ export function NewDailyRegisterEntryDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="fee">Fee (₹) *</Label>
+          <div className="space-y-2">
+            <Label>Date of Birth (optional)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                aria-label="Day"
+                inputMode="numeric"
+                placeholder="DD"
+                maxLength={2}
+                className="w-16 text-center"
+                value={dobDay}
+                onChange={(e) => setDobDay(clampInt(e.target.value, 1, 31))}
+              />
+              <span className="text-muted-foreground">/</span>
+              <Input
+                aria-label="Month"
+                inputMode="numeric"
+                placeholder="MM"
+                maxLength={2}
+                className="w-16 text-center"
+                value={dobMonth}
+                onChange={(e) => setDobMonth(clampInt(e.target.value, 1, 12))}
+              />
+              <span className="text-muted-foreground">/</span>
+              <Input
+                aria-label="Year"
+                inputMode="numeric"
+                placeholder="YYYY"
+                maxLength={4}
+                className="w-24 text-center"
+                value={dobYear}
+                onChange={(e) =>
+                  setDobYear(
+                    clampInt(e.target.value, 1900, new Date().getFullYear()),
+                  )
+                }
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Year alone is fine — leave day or month blank if unknown.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="service-type">
+              Nature of Professional Services Rendered *
+            </Label>
+            <Select
+              id="service-type"
+              value={serviceType}
+              onChange={(e) => setServiceType(e.target.value)}
+            >
+              <option value="">— Select service —</option>
+              {SERVICE_TYPES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="fee">Fees Received (₹) *</Label>
+            <div className="flex flex-wrap items-stretch gap-2">
               <Input
                 id="fee"
                 type="number"
@@ -230,38 +386,87 @@ export function NewDailyRegisterEntryDialog({
                 step="0.01"
                 inputMode="decimal"
                 placeholder="0.00"
-                value={feeAmount}
+                value={paymentStatus === "nil" ? "" : feeAmount}
                 onChange={(e) => setFeeAmount(e.target.value)}
+                disabled={paymentStatus === "nil"}
+                className="min-w-[8rem] flex-1"
               />
-            </div>
-            <div className="space-y-2">
-              <Label>Payment Mode *</Label>
               <div className="flex gap-1 rounded-md border p-1">
-                {(["cash", "digital"] as const).map((mode) => (
+                {(
+                  [
+                    { key: "paid", label: "Paid", Icon: Check },
+                    { key: "due", label: "Due", Icon: Clock },
+                    { key: "nil", label: "Nil", Icon: Ban },
+                  ] as const
+                ).map(({ key, label, Icon }) => (
                   <button
-                    key={mode}
+                    key={key}
                     type="button"
-                    onClick={() => setPaymentMode(mode)}
-                    className={`flex-1 rounded-sm px-3 py-1.5 text-sm transition ${
-                      paymentMode === mode
+                    onClick={() => setPaymentStatus(key)}
+                    className={`flex flex-col items-center rounded-sm px-3 py-1.5 text-xs transition ${
+                      paymentStatus === key
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:bg-accent"
                     }`}
                   >
-                    {mode === "cash" ? "Cash" : "Digital"}
+                    <Icon className="h-4 w-4" />
+                    <span className="mt-0.5">{label}</span>
                   </button>
                 ))}
               </div>
             </div>
           </div>
 
+          {paymentStatus !== "nil" && (
+            <div className="space-y-2">
+              <Label>Payment Mode *</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    { key: "cash", label: "Cash", Icon: Banknote },
+                    {
+                      key: "digital",
+                      label: "Digital / UPI",
+                      Icon: Smartphone,
+                    },
+                  ] as const
+                ).map(({ key, label, Icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setPaymentMode(key)}
+                    className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm transition ${
+                      paymentMode === key
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-accent"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes (optional)</Label>
+            <Label htmlFor="receipt-date">Date of Receipt of Fees *</Label>
+            <Input
+              id="receipt-date"
+              type="date"
+              value={receiptDate}
+              onChange={(e) => setReceiptDate(e.target.value)}
+              max={new Date().toISOString().split("T")[0]}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="notes">Remarks (optional)</Label>
             <Textarea
               id="notes"
               rows={2}
               maxLength={1000}
-              placeholder="Any short notes about the visit"
+              placeholder="Referral, notes, medicine given."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
@@ -282,7 +487,9 @@ export function NewDailyRegisterEntryDialog({
                   <Loader2 className="h-4 w-4 animate-spin" /> Saving
                 </>
               ) : (
-                "Save Entry"
+                <>
+                  <Save className="h-4 w-4" /> Save to Register
+                </>
               )}
             </Button>
           </DialogFooter>

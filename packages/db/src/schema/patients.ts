@@ -7,6 +7,7 @@ import {
   boolean,
   timestamp,
   jsonb,
+  smallint,
   index,
 } from "drizzle-orm/pg-core";
 import { users } from "./users.js";
@@ -18,6 +19,9 @@ export const patients = pgTable(
     firstName: varchar("first_name", { length: 255 }).notNull(),
     lastName: varchar("last_name", { length: 255 }).notNull(),
     dateOfBirth: date("date_of_birth"),
+    dobDay: smallint("dob_day"),
+    dobMonth: smallint("dob_month"),
+    dobYear: smallint("dob_year"),
     gender: varchar("gender", { length: 20 }),
     email: varchar("email", { length: 255 }),
     phone: varchar("phone", { length: 20 }),

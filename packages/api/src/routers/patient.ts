@@ -6,6 +6,7 @@ import {
   updatePatientSchema,
   patientSearchSchema,
   quickCreatePatientSchema,
+  updatePatientDobSchema,
 } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
@@ -107,6 +108,9 @@ export const patientRouter = router({
         .values({
           firstName: input.firstName,
           lastName: input.lastName ?? "",
+          dobDay: input.dobDay ?? null,
+          dobMonth: input.dobMonth ?? null,
+          dobYear: input.dobYear ?? null,
           createdBy: ctx.session.userId,
         })
         .returning();
@@ -120,6 +124,35 @@ export const patientRouter = router({
       }
 
       return patient;
+    }),
+
+  updateDob: protectedProcedure
+    .input(updatePatientDobSchema)
+    .mutation(async ({ ctx, input }) => {
+      const [patient] = await ctx.db
+        .update(patients)
+        .set({
+          dobDay: input.dobDay ?? null,
+          dobMonth: input.dobMonth ?? null,
+          dobYear: input.dobYear ?? null,
+        })
+        .where(
+          and(
+            eq(patients.id, input.id),
+            eq(patients.createdBy, ctx.session.userId),
+          ),
+        )
+        .returning();
+
+      if (patient) {
+        logAudit(ctx, {
+          action: "update",
+          resource: "patient",
+          resourceId: patient.id,
+        });
+      }
+
+      return patient ?? null;
     }),
 
   update: protectedProcedure

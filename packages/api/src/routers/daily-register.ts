@@ -36,8 +36,14 @@ export const dailyRegisterRouter = router({
 
       let cashTotal = 0;
       let digitalTotal = 0;
+      let dueTotal = 0;
       for (const r of items) {
         const amount = Number(r.feeAmount);
+        if (r.paymentStatus === "nil") continue;
+        if (r.paymentStatus === "due") {
+          dueTotal += amount;
+          continue;
+        }
         if (r.paymentMode === "cash") cashTotal += amount;
         else if (r.paymentMode === "digital") digitalTotal += amount;
       }
@@ -47,6 +53,7 @@ export const dailyRegisterRouter = router({
         totals: {
           cash: cashTotal,
           digital: digitalTotal,
+          due: dueTotal,
           all: cashTotal + digitalTotal,
         },
       };
@@ -71,8 +78,10 @@ export const dailyRegisterRouter = router({
           providerId: ctx.session.userId,
           visitDate: input.visitDate,
           patientId: input.patientId,
+          serviceType: input.serviceType ?? null,
           feeAmount: input.feeAmount.toFixed(2),
           paymentMode: input.paymentMode,
+          paymentStatus: input.paymentStatus,
           notes: input.notes ?? null,
         })
         .returning();
@@ -97,14 +106,20 @@ export const dailyRegisterRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const patch: {
+        serviceType?: string | null;
         feeAmount?: string;
         paymentMode?: "cash" | "digital";
+        paymentStatus?: "paid" | "due" | "nil";
         notes?: string | null;
       } = {};
+      if (input.data.serviceType !== undefined)
+        patch.serviceType = input.data.serviceType;
       if (input.data.feeAmount !== undefined)
         patch.feeAmount = input.data.feeAmount.toFixed(2);
       if (input.data.paymentMode !== undefined)
         patch.paymentMode = input.data.paymentMode;
+      if (input.data.paymentStatus !== undefined)
+        patch.paymentStatus = input.data.paymentStatus;
       if (input.data.notes !== undefined) patch.notes = input.data.notes;
 
       const [entry] = await ctx.db

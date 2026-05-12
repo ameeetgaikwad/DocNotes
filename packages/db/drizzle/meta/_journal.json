@@ -29,6 +29,13 @@
       "when": 1778524800000,
       "tag": "0003_patient_dob_gender_optional",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778688000000,
+      "tag": "0004_register_service_dob_partial",
+      "breakpoints": true
     }
   ]
 }

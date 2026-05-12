@@ -9,11 +9,27 @@ export const allergySchema = z.object({
 
 export type Allergy = z.infer<typeof allergySchema>;
 
+const currentYear = new Date().getUTCFullYear();
+export const dobDaySchema = z.number().int().min(1).max(31);
+export const dobMonthSchema = z.number().int().min(1).max(12);
+export const dobYearSchema = z.number().int().min(1900).max(currentYear);
+
+export const partialDobSchema = z.object({
+  dobDay: dobDaySchema.nullable().optional(),
+  dobMonth: dobMonthSchema.nullable().optional(),
+  dobYear: dobYearSchema.nullable().optional(),
+});
+
+export type PartialDob = z.infer<typeof partialDobSchema>;
+
 export const patientSchema = z.object({
   id: z.string().uuid(),
   firstName: z.string().min(1).max(255),
   lastName: z.string().min(1).max(255),
   dateOfBirth: z.coerce.date().nullable(),
+  dobDay: z.number().int().nullable(),
+  dobMonth: z.number().int().nullable(),
+  dobYear: z.number().int().nullable(),
   gender: Gender.nullable(),
   email: z.string().email().nullable(),
   phone: z.string().max(20).nullable(),
@@ -70,6 +86,18 @@ export type PatientSearch = z.infer<typeof patientSearchSchema>;
 export const quickCreatePatientSchema = z.object({
   firstName: z.string().min(1).max(255),
   lastName: z.string().max(255).optional().default(""),
+  dobDay: dobDaySchema.nullable().optional(),
+  dobMonth: dobMonthSchema.nullable().optional(),
+  dobYear: dobYearSchema.nullable().optional(),
 });
 
 export type QuickCreatePatient = z.infer<typeof quickCreatePatientSchema>;
+
+export const updatePatientDobSchema = z.object({
+  id: z.string().uuid(),
+  dobDay: dobDaySchema.nullable().optional(),
+  dobMonth: dobMonthSchema.nullable().optional(),
+  dobYear: dobYearSchema.nullable().optional(),
+});
+
+export type UpdatePatientDob = z.infer<typeof updatePatientDobSchema>;

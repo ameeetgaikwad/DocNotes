@@ -22,8 +22,12 @@ export const dailyRegisterEntries = pgTable(
     patientId: uuid("patient_id")
       .notNull()
       .references(() => patients.id),
+    serviceType: varchar("service_type", { length: 64 }),
     feeAmount: numeric("fee_amount", { precision: 10, scale: 2 }).notNull(),
     paymentMode: varchar("payment_mode", { length: 16 }).notNull(),
+    paymentStatus: varchar("payment_status", { length: 16 })
+      .notNull()
+      .default("paid"),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

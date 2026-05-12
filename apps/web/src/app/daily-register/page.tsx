@@ -131,9 +131,15 @@ export default function DailyRegisterPage() {
                 <TableRow>
                   <TableHead className="w-10">#</TableHead>
                   <TableHead>Patient</TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    Service
+                  </TableHead>
                   <TableHead>Fee</TableHead>
-                  <TableHead>Mode</TableHead>
-                  <TableHead className="hidden sm:table-cell">Notes</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="hidden sm:table-cell">Mode</TableHead>
+                  <TableHead className="hidden lg:table-cell">
+                    Remarks
+                  </TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
@@ -146,19 +152,49 @@ export default function DailyRegisterPage() {
                     <TableCell className="font-medium">
                       {entry.patient.firstName} {entry.patient.lastName}
                     </TableCell>
+                    <TableCell className="hidden text-muted-foreground md:table-cell">
+                      {entry.serviceType || "—"}
+                    </TableCell>
                     <TableCell className="font-mono">
-                      {formatINR(Number(entry.feeAmount))}
+                      {entry.paymentStatus === "nil"
+                        ? "—"
+                        : formatINR(Number(entry.feeAmount))}
                     </TableCell>
                     <TableCell>
                       <Badge
                         variant={
-                          entry.paymentMode === "cash" ? "secondary" : "outline"
+                          entry.paymentStatus === "paid"
+                            ? "default"
+                            : entry.paymentStatus === "due"
+                              ? "outline"
+                              : "secondary"
                         }
                       >
-                        {entry.paymentMode === "cash" ? "Cash" : "Digital"}
+                        {entry.paymentStatus === "paid"
+                          ? "Paid"
+                          : entry.paymentStatus === "due"
+                            ? "Due"
+                            : "Nil"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden text-muted-foreground sm:table-cell">
+                    <TableCell className="hidden sm:table-cell">
+                      {entry.paymentStatus === "nil" ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <Badge
+                          variant={
+                            entry.paymentMode === "cash"
+                              ? "secondary"
+                              : "outline"
+                          }
+                        >
+                          {entry.paymentMode === "cash"
+                            ? "Cash"
+                            : "Digital / UPI"}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden text-muted-foreground lg:table-cell">
                       {entry.notes || "—"}
                     </TableCell>
                     <TableCell>
@@ -175,7 +211,7 @@ export default function DailyRegisterPage() {
             </Table>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl border bg-card p-4">
               <p className="text-sm text-muted-foreground">Total Cash</p>
               <p className="mt-1 text-xl font-semibold">
@@ -188,8 +224,14 @@ export default function DailyRegisterPage() {
                 {formatINR(data.totals.digital)}
               </p>
             </div>
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-sm text-muted-foreground">Outstanding (Due)</p>
+              <p className="mt-1 text-xl font-semibold">
+                {formatINR(data.totals.due)}
+              </p>
+            </div>
             <div className="rounded-xl border bg-primary/10 p-4">
-              <p className="text-sm text-muted-foreground">Total</p>
+              <p className="text-sm text-muted-foreground">Received Today</p>
               <p className="mt-1 text-xl font-semibold">
                 {formatINR(data.totals.all)}
               </p>
