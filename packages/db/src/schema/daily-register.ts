@@ -28,6 +28,7 @@ export const dailyRegisterEntries = pgTable(
     paymentStatus: varchar("payment_status", { length: 16 })
       .notNull()
       .default("paid"),
+    feeReceivedAt: date("fee_received_at"),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

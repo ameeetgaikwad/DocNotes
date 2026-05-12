@@ -21,6 +21,10 @@ export type ServiceType = (typeof SERVICE_TYPES)[number];
 
 export const serviceTypeSchema = z.string().min(1).max(64);
 
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD");
+
 export const dailyRegisterEntrySchema = z.object({
   id: z.string().uuid(),
   providerId: z.string(),
@@ -30,6 +34,7 @@ export const dailyRegisterEntrySchema = z.object({
   feeAmount: z.string(),
   paymentMode: paymentModeSchema,
   paymentStatus: paymentStatusSchema,
+  feeReceivedAt: z.string().nullable(),
   notes: z.string().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -39,13 +44,12 @@ export type DailyRegisterEntry = z.infer<typeof dailyRegisterEntrySchema>;
 
 export const createDailyRegisterEntrySchema = z.object({
   patientId: z.string().uuid(),
-  visitDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "visitDate must be YYYY-MM-DD"),
+  visitDate: isoDate,
   serviceType: serviceTypeSchema.nullable().optional(),
   feeAmount: z.number().nonnegative().max(1_000_000),
   paymentMode: paymentModeSchema,
   paymentStatus: paymentStatusSchema.default("paid"),
+  feeReceivedAt: isoDate.nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
 });
 
@@ -58,6 +62,7 @@ export const updateDailyRegisterEntrySchema = z.object({
   feeAmount: z.number().nonnegative().max(1_000_000).optional(),
   paymentMode: paymentModeSchema.optional(),
   paymentStatus: paymentStatusSchema.optional(),
+  feeReceivedAt: isoDate.nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
 });
 

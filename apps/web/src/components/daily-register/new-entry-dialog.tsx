@@ -47,13 +47,8 @@ interface SelectedPatient {
   dobYear: number | null;
 }
 
-function clampInt(value: string, min: number, max: number): string {
-  if (value === "") return "";
-  const n = Number(value.replace(/\D/g, ""));
-  if (!Number.isFinite(n)) return "";
-  if (n < min) return String(min);
-  if (n > max) return String(max);
-  return String(n);
+function sanitizeDigits(value: string, maxLen: number): string {
+  return value.replace(/\D/g, "").slice(0, maxLen);
 }
 
 export function NewDailyRegisterEntryDialog({
@@ -71,7 +66,7 @@ export function NewDailyRegisterEntryDialog({
   const [feeAmount, setFeeAmount] = useState("");
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("paid");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("cash");
-  const [receiptDate, setReceiptDate] = useState(visitDate);
+  const [receiptDate, setReceiptDate] = useState("");
   const [notes, setNotes] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -97,13 +92,11 @@ export function NewDailyRegisterEntryDialog({
       setFeeAmount("");
       setPaymentStatus("paid");
       setPaymentMode("cash");
-      setReceiptDate(visitDate);
+      setReceiptDate("");
       setNotes("");
       setServerError(null);
-    } else {
-      setReceiptDate(visitDate);
     }
-  }, [open, visitDate]);
+  }, [open]);
 
   function selectPatient(p: SelectedPatient) {
     setPatient(p);
@@ -127,6 +120,16 @@ export function NewDailyRegisterEntryDialog({
     return { d, m, y };
   }, [dobDay, dobMonth, dobYear]);
 
+  const dobError = useMemo(() => {
+    const { d, m, y } = parsedDob;
+    if (d !== null && (d < 1 || d > 31)) return "Day must be 1-31";
+    if (m !== null && (m < 1 || m > 12)) return "Month must be 1-12";
+    const thisYear = new Date().getFullYear();
+    if (y !== null && (y < 1900 || y > thisYear))
+      return `Year must be 1900-${thisYear}`;
+    return null;
+  }, [parsedDob]);
+
   const dobChanged = useMemo(() => {
     if (!patient) return false;
     return (
@@ -142,11 +145,12 @@ export function NewDailyRegisterEntryDialog({
       const fee = paymentStatus === "nil" ? 0 : Number(feeAmount);
       const entry = await trpcClient.dailyRegister.create.mutate({
         patientId: patient.id,
-        visitDate: receiptDate,
+        visitDate,
         serviceType: serviceType || null,
         feeAmount: fee,
         paymentMode,
         paymentStatus,
+        feeReceivedAt: receiptDate || null,
         notes: notes.trim() || null,
       });
       if (dobChanged) {
@@ -206,11 +210,14 @@ export function NewDailyRegisterEntryDialog({
 
   const feeOk =
     paymentStatus === "nil" || (feeAmount !== "" && Number(feeAmount) >= 0);
+  const receiptDateOk =
+    receiptDate === "" || /^\d{4}-\d{2}-\d{2}$/.test(receiptDate);
   const canSubmit =
     patient !== null &&
     serviceType !== "" &&
     feeOk &&
-    /^\d{4}-\d{2}-\d{2}$/.test(receiptDate);
+    receiptDateOk &&
+    dobError === null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -330,7 +337,7 @@ export function NewDailyRegisterEntryDialog({
                 maxLength={2}
                 className="w-16 text-center md:h-12 md:w-20 md:text-base"
                 value={dobDay}
-                onChange={(e) => setDobDay(clampInt(e.target.value, 1, 31))}
+                onChange={(e) => setDobDay(sanitizeDigits(e.target.value, 2))}
               />
               <span className="text-muted-foreground md:text-lg">/</span>
               <Input
@@ -340,7 +347,7 @@ export function NewDailyRegisterEntryDialog({
                 maxLength={2}
                 className="w-16 text-center md:h-12 md:w-20 md:text-base"
                 value={dobMonth}
-                onChange={(e) => setDobMonth(clampInt(e.target.value, 1, 12))}
+                onChange={(e) => setDobMonth(sanitizeDigits(e.target.value, 2))}
               />
               <span className="text-muted-foreground md:text-lg">/</span>
               <Input
@@ -350,16 +357,15 @@ export function NewDailyRegisterEntryDialog({
                 maxLength={4}
                 className="w-24 text-center md:h-12 md:w-28 md:text-base"
                 value={dobYear}
-                onChange={(e) =>
-                  setDobYear(
-                    clampInt(e.target.value, 1900, new Date().getFullYear()),
-                  )
-                }
+                onChange={(e) => setDobYear(sanitizeDigits(e.target.value, 4))}
               />
             </div>
             <p className="text-xs text-muted-foreground md:text-sm">
               Year alone is fine — leave day or month blank if unknown.
             </p>
+            {dobError && (
+              <p className="text-xs text-destructive md:text-sm">{dobError}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -456,19 +462,38 @@ export function NewDailyRegisterEntryDialog({
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="receipt-date" className="md:text-base">
-              Date of Receipt of Fees *
-            </Label>
-            <Input
-              id="receipt-date"
-              type="date"
-              value={receiptDate}
-              onChange={(e) => setReceiptDate(e.target.value)}
-              max={new Date().toISOString().split("T")[0]}
-              className="md:h-12 md:text-base"
-            />
-          </div>
+          {paymentStatus !== "nil" && (
+            <div className="space-y-2">
+              <Label htmlFor="receipt-date" className="md:text-base">
+                Date of Receipt of Fees (optional)
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="receipt-date"
+                  type="date"
+                  value={receiptDate}
+                  onChange={(e) => setReceiptDate(e.target.value)}
+                  max={new Date().toISOString().split("T")[0]}
+                  className="md:h-12 md:text-base"
+                />
+                {receiptDate && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setReceiptDate("")}
+                    className="md:h-12 md:px-3"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground md:text-sm">
+                Leave blank if fees haven&apos;t been received yet (e.g. when
+                marked Due).
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="notes" className="md:text-base">

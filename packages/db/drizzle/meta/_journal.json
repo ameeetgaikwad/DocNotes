@@ -36,6 +36,13 @@
       "when": 1778688000000,
       "tag": "0004_register_service_dob_partial",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778702400000,
+      "tag": "0005_register_fee_received_at",
+      "breakpoints": true
     }
   ]
 }
