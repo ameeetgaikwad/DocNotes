@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { trpcClient } from "@/lib/trpc";
+import { todayLocalIsoDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,12 +47,13 @@ export function NewAppointmentDialog({
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayLocalIsoDate();
 
   const {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<AppointmentFormValues>({
     resolver: zodResolver(appointmentFormSchema),
@@ -135,7 +138,17 @@ export function NewAppointmentDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="date">Date *</Label>
-              <Input id="date" type="date" {...register("date")} />
+              <Controller
+                control={control}
+                name="date"
+                render={({ field }) => (
+                  <DateInput
+                    id="date"
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
               {errors.date && (
                 <p className="text-xs text-destructive">
                   {errors.date.message}

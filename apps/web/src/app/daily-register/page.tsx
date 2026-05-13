@@ -7,7 +7,7 @@ import { Plus, Loader2, AlertCircle, BookOpen, Trash2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { todayLocalIsoDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -64,13 +64,12 @@ export default function DailyRegisterPage() {
           >
             Date
           </label>
-          <Input
+          <DateInput
             id="visit-date"
-            type="date"
             value={visitDate}
-            onChange={(e) => setVisitDate(e.target.value)}
+            onChange={(v) => v && setVisitDate(v)}
             max={todayLocalIsoDate()}
-            className="w-auto md:h-12 md:text-base"
+            className="w-40 md:h-12 md:text-base"
           />
         </div>
         {!isToday && (

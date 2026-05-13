@@ -17,6 +17,7 @@ import { trpc, trpcClient } from "@/lib/trpc";
 import { todayLocalIsoDate } from "@/lib/format";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -504,11 +505,10 @@ export function NewDailyRegisterEntryDialog({
                 Date of Receipt of Fees (optional)
               </Label>
               <div className="flex items-center gap-2">
-                <Input
+                <DateInput
                   id="receipt-date"
-                  type="date"
                   value={receiptDate}
-                  onChange={(e) => setReceiptDate(e.target.value)}
+                  onChange={setReceiptDate}
                   max={todayLocalIsoDate()}
                   className="md:h-12 md:text-base"
                 />

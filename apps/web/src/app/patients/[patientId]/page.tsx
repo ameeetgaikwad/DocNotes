@@ -31,6 +31,7 @@ import {
 import { PatientSummary } from "@/components/patients/patient-summary";
 import { PatientHistory } from "@/components/patients/patient-history";
 import { PatientDocuments } from "@/components/patients/patient-documents";
+import { PatientDiet } from "@/components/patients/patient-diet";
 import { ShareDialog } from "@/components/patients/share-dialog";
 
 export default function PatientProfilePage({
@@ -234,6 +235,7 @@ export default function PatientProfilePage({
           <TabsTrigger value="summary">Summary</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
+          <TabsTrigger value="diet">Diet</TabsTrigger>
           <TabsTrigger value="appointments">Appointments</TabsTrigger>
         </TabsList>
 
@@ -247,6 +249,13 @@ export default function PatientProfilePage({
 
         <TabsContent value="documents">
           <PatientDocuments patientId={patient.id} />
+        </TabsContent>
+
+        <TabsContent value="diet">
+          <PatientDiet
+            patientId={patient.id}
+            initialDietNotes={patient.dietNotes ?? null}
+          />
         </TabsContent>
 
         <TabsContent value="appointments">

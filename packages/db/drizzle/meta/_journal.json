@@ -50,6 +50,13 @@
       "when": 1778775600000,
       "tag": "0006_register_diagnosis",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778796000000,
+      "tag": "0007_patient_diet_notes",
+      "breakpoints": true
     }
   ]
 }

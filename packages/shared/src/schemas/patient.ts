@@ -41,6 +41,7 @@ export const patientSchema = z.object({
     .nullable(),
   allergies: z.array(allergySchema),
   activeConditions: z.array(z.string()),
+  dietNotes: z.string().nullable(),
   notes: z.string().nullable(),
   isActive: z.boolean(),
   createdBy: z.string().uuid(),
@@ -66,6 +67,7 @@ export const createPatientSchema = z.object({
     .optional(),
   allergies: z.array(allergySchema).optional(),
   activeConditions: z.array(z.string()).optional(),
+  dietNotes: z.string().max(5000).nullable().optional(),
   notes: z.string().nullable().optional(),
 });
 

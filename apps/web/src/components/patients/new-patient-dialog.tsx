@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { createPatientSchema, type CreatePatient } from "@docnotes/shared";
 import { trpcClient } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,6 +36,7 @@ export function NewPatientDialog({
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<CreatePatient>({
     resolver: zodResolver(createPatientSchema),
@@ -133,10 +135,30 @@ export function NewPatientDialog({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="dateOfBirth">Date of Birth *</Label>
-                <Input
-                  id="dateOfBirth"
-                  type="date"
-                  {...register("dateOfBirth")}
+                <Controller
+                  control={control}
+                  name="dateOfBirth"
+                  render={({ field }) => {
+                    const display =
+                      field.value instanceof Date
+                        ? `${field.value.getUTCFullYear()}-${String(
+                            field.value.getUTCMonth() + 1,
+                          ).padStart(2, "0")}-${String(
+                            field.value.getUTCDate(),
+                          ).padStart(2, "0")}`
+                        : typeof field.value === "string"
+                          ? field.value
+                          : "";
+                    return (
+                      <DateInput
+                        id="dateOfBirth"
+                        value={display}
+                        onChange={(v) =>
+                          field.onChange(v ? new Date(v + "T00:00:00Z") : null)
+                        }
+                      />
+                    );
+                  }}
                 />
                 {errors.dateOfBirth && (
                   <p className="text-xs text-destructive">

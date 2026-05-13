@@ -31,6 +31,7 @@ export const patients = pgTable(
     bloodType: varchar("blood_type", { length: 5 }),
     allergies: jsonb("allergies").notNull().default([]),
     activeConditions: jsonb("active_conditions").notNull().default([]),
+    dietNotes: text("diet_notes"),
     notes: text("notes"),
     isActive: boolean("is_active").notNull().default(true),
     createdBy: text("created_by")
