@@ -7,3 +7,4 @@ export * from "./document.js";
 export * from "./share-link.js";
 export * from "./export.js";
 export * from "./daily-register.js";
+export * from "./patient-visit.js";

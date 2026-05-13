@@ -6,3 +6,4 @@ export * from "./audit-logs.js";
 export * from "./documents.js";
 export * from "./share-links.js";
 export * from "./daily-register.js";
+export * from "./patient-visits.js";

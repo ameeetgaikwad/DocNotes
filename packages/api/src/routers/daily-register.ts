@@ -9,6 +9,7 @@ import {
 } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
+import { ensureVisitForDate } from "./patient-visit.js";
 
 export const dailyRegisterRouter = router({
   list: protectedProcedure
@@ -107,6 +108,12 @@ export const dailyRegisterRouter = router({
         .returning();
 
       if (entry) {
+        await ensureVisitForDate(
+          ctx.db,
+          ctx.session.userId,
+          input.patientId,
+          input.visitDate,
+        );
         logAudit(ctx, {
           action: "create",
           resource: "daily_register_entry",
