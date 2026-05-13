@@ -70,7 +70,6 @@ export function NewAppointmentDialog({
       const scheduledAt = new Date(`${data.date}T${data.time}:00`);
       return trpcClient.appointment.create.mutate({
         patientId: data.patientId,
-        providerId: "00000000-0000-0000-0000-000000000000", // TODO: Use auth session
         type: data.type,
         scheduledAt,
         durationMinutes: data.durationMinutes,

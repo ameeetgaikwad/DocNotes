@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { SERVICE_TYPES } from "@docnotes/shared";
 import { trpc, trpcClient } from "@/lib/trpc";
+import { todayLocalIsoDate } from "@/lib/format";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -138,6 +139,16 @@ export function NewDailyRegisterEntryDialog({
     const thisYear = new Date().getFullYear();
     if (y !== null && (y < 1900 || y > thisYear))
       return `Year must be 1900-${thisYear}`;
+    if (d !== null && m !== null && y !== null) {
+      const probe = new Date(Date.UTC(y, m - 1, d));
+      if (
+        probe.getUTCFullYear() !== y ||
+        probe.getUTCMonth() !== m - 1 ||
+        probe.getUTCDate() !== d
+      ) {
+        return "That date doesn't exist in the calendar";
+      }
+    }
     return null;
   }, [parsedDob]);
 
@@ -153,6 +164,24 @@ export function NewDailyRegisterEntryDialog({
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!patient) throw new Error("Pick a patient first");
+      // Save DOB first so a server-side DOB rejection can't leave a
+      // committed register entry behind.
+      if (dobChanged) {
+        const updated = await trpcClient.patient.updateDob.mutate({
+          id: patient.id,
+          dobDay: parsedDob.d,
+          dobMonth: parsedDob.m,
+          dobYear: parsedDob.y,
+        });
+        if (updated) {
+          setPatient({
+            ...patient,
+            dobDay: updated.dobDay ?? null,
+            dobMonth: updated.dobMonth ?? null,
+            dobYear: updated.dobYear ?? null,
+          });
+        }
+      }
       const fee = paymentStatus === "nil" ? 0 : Number(feeAmount);
       const entry = await trpcClient.dailyRegister.create.mutate({
         patientId: patient.id,
@@ -165,14 +194,6 @@ export function NewDailyRegisterEntryDialog({
         diagnosis: diagnosis.trim() || null,
         notes: notes.trim() || null,
       });
-      if (dobChanged) {
-        await trpcClient.patient.updateDob.mutate({
-          id: patient.id,
-          dobDay: parsedDob.d,
-          dobMonth: parsedDob.m,
-          dobYear: parsedDob.y,
-        });
-      }
       return entry;
     },
     onSuccess: () => {
@@ -488,7 +509,7 @@ export function NewDailyRegisterEntryDialog({
                   type="date"
                   value={receiptDate}
                   onChange={(e) => setReceiptDate(e.target.value)}
-                  max={new Date().toISOString().split("T")[0]}
+                  max={todayLocalIsoDate()}
                   className="md:h-12 md:text-base"
                 />
                 {receiptDate && (

@@ -20,7 +20,6 @@ export type Appointment = z.infer<typeof appointmentSchema>;
 
 export const createAppointmentSchema = z.object({
   patientId: z.string().uuid(),
-  providerId: z.string().uuid(),
   type: AppointmentType,
   scheduledAt: z.coerce.date(),
   durationMinutes: z.number().int().positive().default(15),

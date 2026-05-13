@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
-import { appointments } from "@docnotes/db";
+import { TRPCError } from "@trpc/server";
+import { appointments, patients } from "@docnotes/db";
 import {
   createAppointmentSchema,
   updateAppointmentSchema,
@@ -53,10 +54,28 @@ export const appointmentRouter = router({
   create: protectedProcedure
     .input(createAppointmentSchema)
     .mutation(async ({ ctx, input }) => {
+      const owned = await ctx.db
+        .select({ id: patients.id })
+        .from(patients)
+        .where(
+          and(
+            eq(patients.id, input.patientId),
+            eq(patients.createdBy, ctx.session.userId),
+          ),
+        )
+        .limit(1);
+      if (owned.length === 0) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Patient not found",
+        });
+      }
+
       const [appointment] = await ctx.db
         .insert(appointments)
         .values({
           ...input,
+          providerId: ctx.session.userId,
           createdBy: ctx.session.userId,
         })
         .returning();

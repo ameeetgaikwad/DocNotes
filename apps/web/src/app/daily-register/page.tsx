@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Loader2, AlertCircle, BookOpen, Trash2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { todayLocalIsoDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -17,14 +18,6 @@ import {
 } from "@/components/ui/table";
 import { NewDailyRegisterEntryDialog } from "@/components/daily-register/new-entry-dialog";
 import { DeleteEntryButton } from "@/components/daily-register/delete-entry-button";
-
-function todayLocalIsoDate(): string {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
 
 function formatINR(amount: number): string {
   return new Intl.NumberFormat("en-IN", {

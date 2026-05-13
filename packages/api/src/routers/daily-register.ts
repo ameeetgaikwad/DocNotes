@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { eq, and, desc, asc } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { dailyRegisterEntries, patients } from "@docnotes/db";
 import {
   createDailyRegisterEntrySchema,
@@ -72,6 +73,23 @@ export const dailyRegisterRouter = router({
   create: protectedProcedure
     .input(createDailyRegisterEntrySchema)
     .mutation(async ({ ctx, input }) => {
+      const owned = await ctx.db
+        .select({ id: patients.id })
+        .from(patients)
+        .where(
+          and(
+            eq(patients.id, input.patientId),
+            eq(patients.createdBy, ctx.session.userId),
+          ),
+        )
+        .limit(1);
+      if (owned.length === 0) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Patient not found",
+        });
+      }
+
       const [entry] = await ctx.db
         .insert(dailyRegisterEntries)
         .values({
