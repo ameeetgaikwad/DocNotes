@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Loader2, AlertCircle, BookOpen, Trash2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -155,7 +156,12 @@ export default function DailyRegisterPage() {
                       {idx + 1}
                     </TableCell>
                     <TableCell className="font-medium md:py-4">
-                      {entry.patient.firstName} {entry.patient.lastName}
+                      <Link
+                        href={`/patients/${entry.patient.id}`}
+                        className="text-primary hover:underline"
+                      >
+                        {entry.patient.firstName} {entry.patient.lastName}
+                      </Link>
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground sm:table-cell md:py-4">
                       {entry.serviceType || "—"}
