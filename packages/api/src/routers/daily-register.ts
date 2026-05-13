@@ -83,6 +83,7 @@ export const dailyRegisterRouter = router({
           paymentMode: input.paymentMode,
           paymentStatus: input.paymentStatus,
           feeReceivedAt: input.feeReceivedAt ?? null,
+          diagnosis: input.diagnosis?.trim() ? input.diagnosis.trim() : null,
           notes: input.notes ?? null,
         })
         .returning();
@@ -112,6 +113,7 @@ export const dailyRegisterRouter = router({
         paymentMode?: "cash" | "digital";
         paymentStatus?: "paid" | "due" | "nil";
         feeReceivedAt?: string | null;
+        diagnosis?: string | null;
         notes?: string | null;
       } = {};
       if (input.data.serviceType !== undefined)
@@ -124,6 +126,10 @@ export const dailyRegisterRouter = router({
         patch.paymentStatus = input.data.paymentStatus;
       if (input.data.feeReceivedAt !== undefined)
         patch.feeReceivedAt = input.data.feeReceivedAt;
+      if (input.data.diagnosis !== undefined)
+        patch.diagnosis = input.data.diagnosis?.trim()
+          ? input.data.diagnosis.trim()
+          : null;
       if (input.data.notes !== undefined) patch.notes = input.data.notes;
 
       const [entry] = await ctx.db

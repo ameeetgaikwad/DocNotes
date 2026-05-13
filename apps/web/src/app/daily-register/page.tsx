@@ -147,6 +147,9 @@ export default function DailyRegisterPage() {
                   <TableHead>Status</TableHead>
                   <TableHead className="hidden sm:table-cell">Mode</TableHead>
                   <TableHead className="hidden md:table-cell">
+                    Diagnosis
+                  </TableHead>
+                  <TableHead className="hidden lg:table-cell">
                     Remarks
                   </TableHead>
                   <TableHead className="w-10" />
@@ -204,6 +207,9 @@ export default function DailyRegisterPage() {
                       )}
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground md:table-cell md:py-4">
+                      {entry.diagnosis || "—"}
+                    </TableCell>
+                    <TableCell className="hidden text-muted-foreground lg:table-cell md:py-4">
                       {entry.notes || "—"}
                     </TableCell>
                     <TableCell className="md:py-4">

@@ -35,6 +35,7 @@ export const dailyRegisterEntrySchema = z.object({
   paymentMode: paymentModeSchema,
   paymentStatus: paymentStatusSchema,
   feeReceivedAt: z.string().nullable(),
+  diagnosis: z.string().nullable(),
   notes: z.string().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -50,6 +51,7 @@ export const createDailyRegisterEntrySchema = z.object({
   paymentMode: paymentModeSchema,
   paymentStatus: paymentStatusSchema.default("paid"),
   feeReceivedAt: isoDate.nullable().optional(),
+  diagnosis: z.string().max(500).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
 });
 
@@ -63,6 +65,7 @@ export const updateDailyRegisterEntrySchema = z.object({
   paymentMode: paymentModeSchema.optional(),
   paymentStatus: paymentStatusSchema.optional(),
   feeReceivedAt: isoDate.nullable().optional(),
+  diagnosis: z.string().max(500).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
 });
 

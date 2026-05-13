@@ -43,6 +43,13 @@
       "when": 1778702400000,
       "tag": "0005_register_fee_received_at",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778775600000,
+      "tag": "0006_register_diagnosis",
+      "breakpoints": true
     }
   ]
 }

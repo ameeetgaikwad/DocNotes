@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { and, eq, ilike, or, desc, sql } from "drizzle-orm";
-import { patients } from "@docnotes/db";
+import { and, eq, ilike, or, desc, sql, exists } from "drizzle-orm";
+import { patients, dailyRegisterEntries } from "@docnotes/db";
 import {
   createPatientSchema,
   updatePatientSchema,
@@ -23,17 +23,30 @@ export const patientRouter = router({
         eq(patients.createdBy, ctx.session.userId),
       );
 
-      const where = query
-        ? and(
-            ownership,
-            or(
-              ilike(patients.firstName, `%${query}%`),
-              ilike(patients.lastName, `%${query}%`),
-              ilike(patients.email, `%${query}%`),
-              ilike(patients.phone, `%${query}%`),
-            ),
-          )
-        : ownership;
+      const like = query ? `%${query}%` : null;
+      const where =
+        query && like
+          ? and(
+              ownership,
+              or(
+                ilike(patients.firstName, like),
+                ilike(patients.lastName, like),
+                ilike(patients.phone, like),
+                sql`${patients.activeConditions}::text ILIKE ${like}`,
+                exists(
+                  ctx.db
+                    .select({ one: sql`1` })
+                    .from(dailyRegisterEntries)
+                    .where(
+                      and(
+                        eq(dailyRegisterEntries.patientId, patients.id),
+                        ilike(dailyRegisterEntries.diagnosis, like),
+                      ),
+                    ),
+                ),
+              ),
+            )
+          : ownership;
 
       const [items, countResult] = await Promise.all([
         ctx.db

@@ -76,6 +76,7 @@ export function NewDailyRegisterEntryDialog({
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("paid");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("cash");
   const [receiptDate, setReceiptDate] = useState("");
+  const [diagnosis, setDiagnosis] = useState("");
   const [notes, setNotes] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -102,6 +103,7 @@ export function NewDailyRegisterEntryDialog({
       setPaymentStatus("paid");
       setPaymentMode("cash");
       setReceiptDate("");
+      setDiagnosis("");
       setNotes("");
       setServerError(null);
     }
@@ -160,6 +162,7 @@ export function NewDailyRegisterEntryDialog({
         paymentMode,
         paymentStatus,
         feeReceivedAt: receiptDate || null,
+        diagnosis: diagnosis.trim() || null,
         notes: notes.trim() || null,
       });
       if (dobChanged) {
@@ -273,7 +276,7 @@ export function NewDailyRegisterEntryDialog({
                 <Input
                   id="patient-search"
                   type="text"
-                  placeholder="Search by name, phone, or email"
+                  placeholder="Search by name, phone, or diagnosis"
                   value={patientSearch}
                   onChange={(e) => setPatientSearch(e.target.value)}
                   autoFocus
@@ -506,6 +509,21 @@ export function NewDailyRegisterEntryDialog({
               </p>
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="diagnosis" className="md:text-base">
+              Diagnosis (optional)
+            </Label>
+            <Input
+              id="diagnosis"
+              type="text"
+              maxLength={500}
+              placeholder="e.g. Type 2 Diabetes, Hypertension"
+              value={diagnosis}
+              onChange={(e) => setDiagnosis(e.target.value)}
+              className="md:h-12 md:text-base"
+            />
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="notes" className="md:text-base">

@@ -29,6 +29,7 @@ export const dailyRegisterEntries = pgTable(
       .notNull()
       .default("paid"),
     feeReceivedAt: date("fee_received_at"),
+    diagnosis: text("diagnosis"),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
