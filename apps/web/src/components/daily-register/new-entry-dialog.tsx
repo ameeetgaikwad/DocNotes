@@ -17,7 +17,6 @@ import { trpc, trpcClient } from "@/lib/trpc";
 import { todayLocalIsoDate } from "@/lib/format";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Button } from "@/components/ui/button";
-import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -285,15 +284,19 @@ export function NewDailyRegisterEntryDialog({
             <Label htmlFor="entry-date" className="md:text-base">
               Date *
             </Label>
-            <DateInput
+            <Input
               id="entry-date"
+              type="date"
               value={entryDate}
-              onChange={(v) => setEntryDate(v || todayLocalIsoDate())}
+              onChange={(e) =>
+                setEntryDate(e.target.value || todayLocalIsoDate())
+              }
               max={todayLocalIsoDate()}
               className="w-40 md:h-12 md:text-base"
             />
             <p className="text-xs text-muted-foreground md:text-sm">
-              Defaults to today. Tap to change for back-dated entries.
+              Defaults to today. Tap to open the calendar for back-dated
+              entries.
             </p>
           </div>
 
@@ -523,13 +526,17 @@ export function NewDailyRegisterEntryDialog({
           {paymentStatus !== "nil" && (
             <div className="space-y-2">
               <Label htmlFor="receipt-date" className="md:text-base">
-                Date of Receipt of Fees (optional)
+                Date of Receipt of Fees
               </Label>
               <div className="flex items-center gap-2">
-                <DateInput
+                <Input
                   id="receipt-date"
+                  type="date"
                   value={receiptDate}
-                  onChange={setReceiptDate}
+                  onChange={(e) => setReceiptDate(e.target.value)}
+                  onFocus={() => {
+                    if (!receiptDate) setReceiptDate(todayLocalIsoDate());
+                  }}
                   max={todayLocalIsoDate()}
                   className="md:h-12 md:text-base"
                 />
