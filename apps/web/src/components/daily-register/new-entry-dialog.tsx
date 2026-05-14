@@ -68,6 +68,7 @@ export function NewDailyRegisterEntryDialog({
   visitDate,
 }: NewEntryDialogProps) {
   const queryClient = useQueryClient();
+  const [entryDate, setEntryDate] = useState(visitDate);
   const [patientSearch, setPatientSearch] = useState("");
   const [patient, setPatient] = useState<SelectedPatient | null>(null);
   const [dobDay, setDobDay] = useState("");
@@ -94,7 +95,9 @@ export function NewDailyRegisterEntryDialog({
   });
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      setEntryDate(visitDate);
+    } else {
       setPatientSearch("");
       setPatient(null);
       setDobDay("");
@@ -109,7 +112,7 @@ export function NewDailyRegisterEntryDialog({
       setNotes("");
       setServerError(null);
     }
-  }, [open]);
+  }, [open, visitDate]);
 
   function selectPatient(p: SelectedPatient) {
     setPatient(p);
@@ -186,7 +189,7 @@ export function NewDailyRegisterEntryDialog({
       const fee = paymentStatus === "nil" ? 0 : Number(feeAmount);
       const entry = await trpcClient.dailyRegister.create.mutate({
         patientId: patient.id,
-        visitDate,
+        visitDate: entryDate,
         serviceType: serviceType || null,
         feeAmount: fee,
         paymentMode,
@@ -246,8 +249,10 @@ export function NewDailyRegisterEntryDialog({
     paymentStatus === "nil" || (feeAmount !== "" && Number(feeAmount) >= 0);
   const receiptDateOk =
     receiptDate === "" || /^\d{4}-\d{2}-\d{2}$/.test(receiptDate);
+  const entryDateOk = /^\d{4}-\d{2}-\d{2}$/.test(entryDate);
   const canSubmit =
     patient !== null &&
+    entryDateOk &&
     serviceType !== "" &&
     feeOk &&
     receiptDateOk &&
@@ -275,6 +280,22 @@ export function NewDailyRegisterEntryDialog({
               {serverError}
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="entry-date" className="md:text-base">
+              Date *
+            </Label>
+            <DateInput
+              id="entry-date"
+              value={entryDate}
+              onChange={(v) => setEntryDate(v || todayLocalIsoDate())}
+              max={todayLocalIsoDate()}
+              className="w-40 md:h-12 md:text-base"
+            />
+            <p className="text-xs text-muted-foreground md:text-sm">
+              Defaults to today. Tap to change for back-dated entries.
+            </p>
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="patient-search" className="md:text-base">
