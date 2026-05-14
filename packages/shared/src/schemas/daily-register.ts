@@ -83,3 +83,17 @@ export const dailyRegisterQuerySchema = z.object({
 });
 
 export type DailyRegisterQuery = z.infer<typeof dailyRegisterQuerySchema>;
+
+export const dailyRegisterSummaryQuerySchema = z
+  .object({
+    startDate: isoDate,
+    endDate: isoDate,
+  })
+  .refine((v) => v.startDate <= v.endDate, {
+    message: "startDate must be on or before endDate",
+    path: ["startDate"],
+  });
+
+export type DailyRegisterSummaryQuery = z.infer<
+  typeof dailyRegisterSummaryQuerySchema
+>;

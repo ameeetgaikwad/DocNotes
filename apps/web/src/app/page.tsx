@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -9,9 +10,15 @@ import {
   Activity,
   Loader2,
   Clock,
+  Receipt,
+  IndianRupee,
+  AlertCircle,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { todayLocalIsoDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
+import { Select } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 function StatCard({
   label,
@@ -19,12 +26,16 @@ function StatCard({
   icon: Icon,
   isLoading,
   href,
+  onClick,
+  active,
 }: {
   label: string;
   value: string | number;
   icon: React.ComponentType<{ className?: string }>;
   isLoading?: boolean;
   href?: string;
+  onClick?: () => void;
+  active?: boolean;
 }) {
   const body = (
     <div className="flex items-center justify-between">
@@ -53,6 +64,21 @@ function StatCard({
     );
   }
 
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-expanded={active}
+        className={`block w-full rounded-xl border bg-card p-6 text-left transition hover:border-primary/40 hover:bg-accent/40 ${
+          active ? "border-primary/60 bg-accent/30" : ""
+        }`}
+      >
+        {body}
+      </button>
+    );
+  }
+
   return <div className="rounded-xl border bg-card p-6">{body}</div>;
 }
 
@@ -65,6 +91,39 @@ function formatTime(date: Date | string): string {
   });
 }
 
+function formatINR(amount: number): string {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function currentFinancialYear(): number {
+  const now = new Date();
+  return now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+}
+
+function fyLabel(y: number): string {
+  return `FY ${y}-${String(y + 1).slice(2)}`;
+}
+
+function fyRange(y: number): { startDate: string; endDate: string } {
+  return { startDate: `${y}-04-01`, endDate: `${y + 1}-03-31` };
+}
+
+function thisMonthRange(): { startDate: string; endDate: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const last = new Date(y, m + 1, 0).getDate();
+  const mm = String(m + 1).padStart(2, "0");
+  return {
+    startDate: `${y}-${mm}-01`,
+    endDate: `${y}-${mm}-${String(last).padStart(2, "0")}`,
+  };
+}
+
 const typeLabels: Record<string, string> = {
   new_patient: "New Patient",
   follow_up: "Follow-up",
@@ -73,8 +132,154 @@ const typeLabels: Record<string, string> = {
   telehealth: "Telehealth",
 };
 
+function MetricTile({
+  label,
+  value,
+  icon: Icon,
+  isLoading,
+}: {
+  label: string;
+  value: string;
+  icon: React.ComponentType<{ className?: string }>;
+  isLoading?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border bg-background p-4 md:p-5">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </div>
+      {isLoading ? (
+        <Loader2 className="mt-2 h-5 w-5 animate-spin text-muted-foreground" />
+      ) : (
+        <p className="mt-1 text-xl font-semibold md:text-2xl">{value}</p>
+      )}
+    </div>
+  );
+}
+
+function RegisterSummaryPanel() {
+  const [tab, setTab] = useState<"today" | "month" | "fy">("today");
+  const currentFy = currentFinancialYear();
+  const [fy, setFy] = useState<number | "">("");
+
+  const range = useMemo<{ startDate: string; endDate: string } | null>(() => {
+    if (tab === "today") {
+      const d = todayLocalIsoDate();
+      return { startDate: d, endDate: d };
+    }
+    if (tab === "month") return thisMonthRange();
+    return fy === "" ? null : fyRange(Number(fy));
+  }, [tab, fy]);
+
+  const summaryQuery = useQuery({
+    ...trpc.dailyRegister.summary.queryOptions(
+      range ?? { startDate: "1970-01-01", endDate: "1970-01-01" },
+    ),
+    enabled: range !== null,
+  });
+
+  const fyOptions = useMemo(() => {
+    const out: number[] = [];
+    for (let y = currentFy; y >= currentFy - 4; y--) out.push(y);
+    return out;
+  }, [currentFy]);
+
+  const metrics = (
+    <div className="mt-4 grid gap-3 sm:grid-cols-3 md:gap-4">
+      <MetricTile
+        label="Total Cases"
+        value={String(summaryQuery.data?.totalCases ?? 0)}
+        icon={ClipboardList}
+        isLoading={summaryQuery.isLoading && range !== null}
+      />
+      <MetricTile
+        label="Receipts"
+        value={formatINR(summaryQuery.data?.receipts ?? 0)}
+        icon={IndianRupee}
+        isLoading={summaryQuery.isLoading && range !== null}
+      />
+      <MetricTile
+        label="Pending Dues"
+        value={formatINR(summaryQuery.data?.pendingDues ?? 0)}
+        icon={AlertCircle}
+        isLoading={summaryQuery.isLoading && range !== null}
+      />
+    </div>
+  );
+
+  return (
+    <div className="mb-8 rounded-xl border bg-card p-4 sm:p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Register Summary</h2>
+        <Link
+          href="/daily-register"
+          className="text-sm text-primary hover:underline"
+        >
+          Open register
+        </Link>
+      </div>
+
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as "today" | "month" | "fy")}
+      >
+        <TabsList>
+          <TabsTrigger value="today">Today</TabsTrigger>
+          <TabsTrigger value="month">This Month</TabsTrigger>
+          <TabsTrigger value="fy">F. Year</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="today">{metrics}</TabsContent>
+        <TabsContent value="month">{metrics}</TabsContent>
+        <TabsContent value="fy">
+          <div className="mt-3 flex items-center gap-2">
+            <label
+              htmlFor="fy-select"
+              className="text-sm font-medium text-muted-foreground"
+            >
+              Financial Year
+            </label>
+            <Select
+              id="fy-select"
+              value={fy === "" ? "" : String(fy)}
+              onChange={(e) =>
+                setFy(e.target.value === "" ? "" : Number(e.target.value))
+              }
+              className="w-40"
+            >
+              <option value="">— Select FY —</option>
+              {fyOptions.map((y) => (
+                <option key={y} value={y}>
+                  {fyLabel(y)}
+                </option>
+              ))}
+            </Select>
+          </div>
+          {fy === "" ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Pick a financial year to see its summary.
+            </p>
+          ) : (
+            metrics
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { data, isLoading } = useQuery(trpc.dashboard.stats.queryOptions());
+  const [registerSummaryOpen, setRegisterSummaryOpen] = useState(false);
+
+  const todayIso = todayLocalIsoDate();
+  const todayRegister = useQuery(
+    trpc.dailyRegister.summary.queryOptions({
+      startDate: todayIso,
+      endDate: todayIso,
+    }),
+  );
 
   return (
     <div className="p-4 sm:p-6">
@@ -83,7 +288,7 @@ export default function Dashboard() {
         <p className="text-muted-foreground">Welcome back, Doctor</p>
       </div>
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard
           label="Today's Appointments"
           value={data?.todayAppointments ?? 0}
@@ -99,6 +304,14 @@ export default function Dashboard() {
           href="/patients"
         />
         <StatCard
+          label="Register Summary"
+          value={todayRegister.data?.totalCases ?? 0}
+          icon={Receipt}
+          isLoading={todayRegister.isLoading}
+          active={registerSummaryOpen}
+          onClick={() => setRegisterSummaryOpen((v) => !v)}
+        />
+        <StatCard
           label="Pending Tasks"
           value="0"
           icon={ClipboardList}
@@ -112,6 +325,8 @@ export default function Dashboard() {
           href="/reports"
         />
       </div>
+
+      {registerSummaryOpen && <RegisterSummaryPanel />}
 
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="rounded-xl border bg-card p-6 lg:col-span-3">

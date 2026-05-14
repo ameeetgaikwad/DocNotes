@@ -1,11 +1,12 @@
 import { z } from "zod";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { dailyRegisterEntries, patients } from "@docnotes/db";
 import {
   createDailyRegisterEntrySchema,
   updateDailyRegisterEntrySchema,
   dailyRegisterQuerySchema,
+  dailyRegisterSummaryQuerySchema,
 } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
@@ -58,6 +59,32 @@ export const dailyRegisterRouter = router({
           due: dueTotal,
           all: cashTotal + digitalTotal,
         },
+      };
+    }),
+
+  summary: protectedProcedure
+    .input(dailyRegisterSummaryQuerySchema)
+    .query(async ({ ctx, input }) => {
+      const rows = await ctx.db
+        .select({
+          totalCases: sql<number>`count(*)`,
+          receipts: sql<string>`coalesce(sum(case when ${dailyRegisterEntries.paymentStatus} = 'paid' then ${dailyRegisterEntries.feeAmount} else 0 end), 0)`,
+          pendingDues: sql<string>`coalesce(sum(case when ${dailyRegisterEntries.paymentStatus} = 'due' then ${dailyRegisterEntries.feeAmount} else 0 end), 0)`,
+        })
+        .from(dailyRegisterEntries)
+        .where(
+          and(
+            eq(dailyRegisterEntries.providerId, ctx.session.userId),
+            gte(dailyRegisterEntries.visitDate, input.startDate),
+            lte(dailyRegisterEntries.visitDate, input.endDate),
+          ),
+        );
+
+      const r = rows[0];
+      return {
+        totalCases: Number(r?.totalCases ?? 0),
+        receipts: Number(r?.receipts ?? 0),
+        pendingDues: Number(r?.pendingDues ?? 0),
       };
     }),
 
