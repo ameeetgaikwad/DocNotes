@@ -134,6 +134,70 @@ export const dailyRegisterRouter = router({
       return { items, total };
     }),
 
+  overdueDues: protectedProcedure
+    .input(z.object({ days: z.number().int().min(0).max(365).default(7) }))
+    .query(async ({ ctx, input }) => {
+      const cutoffDays = input.days;
+      const rows = await ctx.db
+        .select({
+          patientId: dailyRegisterEntries.patientId,
+          firstName: patients.firstName,
+          middleName: patients.middleName,
+          lastName: patients.lastName,
+          phone: patients.phone,
+          oldestDueDate: sql<string>`min(${dailyRegisterEntries.visitDate})`,
+          outstanding: sql<string>`coalesce(sum(greatest(${dailyRegisterEntries.feeAmount} - ${dailyRegisterEntries.paidAmount}, 0)), 0)`,
+        })
+        .from(dailyRegisterEntries)
+        .innerJoin(patients, eq(patients.id, dailyRegisterEntries.patientId))
+        .where(
+          and(
+            eq(dailyRegisterEntries.providerId, ctx.session.userId),
+            eq(dailyRegisterEntries.paymentStatus, "due"),
+          ),
+        )
+        .groupBy(
+          dailyRegisterEntries.patientId,
+          patients.firstName,
+          patients.middleName,
+          patients.lastName,
+          patients.phone,
+        )
+        .having(
+          sql`coalesce(sum(greatest(${dailyRegisterEntries.feeAmount} - ${dailyRegisterEntries.paidAmount}, 0)), 0) > 0 AND min(${dailyRegisterEntries.visitDate}) <= (current_date - (${cutoffDays} || ' days')::interval)`,
+        )
+        .orderBy(asc(sql`min(${dailyRegisterEntries.visitDate})`));
+
+      const today = new Date();
+      const todayUtc = Date.UTC(
+        today.getUTCFullYear(),
+        today.getUTCMonth(),
+        today.getUTCDate(),
+      );
+      return rows.map((r) => {
+        const oldest = new Date(r.oldestDueDate);
+        const oldestUtc = Date.UTC(
+          oldest.getUTCFullYear(),
+          oldest.getUTCMonth(),
+          oldest.getUTCDate(),
+        );
+        const daysOverdue = Math.max(
+          Math.floor((todayUtc - oldestUtc) / (24 * 60 * 60 * 1000)),
+          0,
+        );
+        return {
+          patientId: r.patientId,
+          firstName: r.firstName,
+          middleName: r.middleName,
+          lastName: r.lastName,
+          phone: r.phone,
+          oldestDueDate: r.oldestDueDate,
+          outstanding: Number(r.outstanding),
+          daysOverdue,
+        };
+      });
+    }),
+
   allPendingDues: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db
       .select({

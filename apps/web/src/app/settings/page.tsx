@@ -6,6 +6,7 @@ import { Stethoscope, Loader2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { formatDate } from "@/lib/format";
 import { MedicineDealersSection } from "@/components/settings/medicine-dealers-section";
+import { ReminderTemplatesSection } from "@/components/settings/reminder-templates-section";
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -102,6 +103,8 @@ export default function SettingsPage() {
           </div>
 
           <MedicineDealersSection />
+
+          <ReminderTemplatesSection />
         </div>
       )}
     </div>
