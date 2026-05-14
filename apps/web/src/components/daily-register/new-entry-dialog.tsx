@@ -17,6 +17,7 @@ import { trpc, trpcClient } from "@/lib/trpc";
 import { todayLocalIsoDate } from "@/lib/format";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Button } from "@/components/ui/button";
+import { CalendarInput } from "@/components/ui/calendar-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -284,15 +285,12 @@ export function NewDailyRegisterEntryDialog({
             <Label htmlFor="entry-date" className="md:text-base">
               Date *
             </Label>
-            <Input
+            <CalendarInput
               id="entry-date"
-              type="date"
               value={entryDate}
-              onChange={(e) =>
-                setEntryDate(e.target.value || todayLocalIsoDate())
-              }
+              onChange={(v) => setEntryDate(v || todayLocalIsoDate())}
               max={todayLocalIsoDate()}
-              className="w-40 md:h-12 md:text-base"
+              className="w-44 md:h-12 md:text-base"
             />
             <p className="text-xs text-muted-foreground md:text-sm">
               Defaults to today. Tap to open the calendar for back-dated
@@ -529,11 +527,10 @@ export function NewDailyRegisterEntryDialog({
                 Date of Receipt of Fees
               </Label>
               <div className="flex items-center gap-2">
-                <Input
+                <CalendarInput
                   id="receipt-date"
-                  type="date"
                   value={receiptDate}
-                  onChange={(e) => setReceiptDate(e.target.value)}
+                  onChange={setReceiptDate}
                   onFocus={() => {
                     if (!receiptDate) setReceiptDate(todayLocalIsoDate());
                   }}
