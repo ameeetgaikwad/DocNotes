@@ -210,7 +210,10 @@ If a request mentions a UI change, layout tweak, color, or visual bug and the de
 ### Database & Data
 
 - Staging and production currently share **one Neon database**. Destructive operations on staging hit prod data — treat the staging DB as if it were prod.
-- Do not run database migrations without the project owner's explicit approval, regardless of which branch you're on.
+- **Migrations — owner runs them (policy set 2026-05-14, supersedes the earlier additive carve-out).**
+  - Claude does **not** apply migrations against the Neon DB, regardless of whether they are additive or destructive. The owner (Amit) runs every migration himself.
+  - When a feature needs a schema change: generate the migration SQL, commit it to the repo, push to staging, and **tag Amit on Telegram** with the path to the `.sql` file (and a one-line summary of what it does). Wait for Amit's confirmation that he's applied it before reporting the feature ready or asking the requester to test on staging.
+  - Operationally this means: design the schema change, run `drizzle-kit generate` (or write the SQL by hand) and update `packages/db/drizzle/meta/_journal.json`, but stop short of `db:migrate`. The host shell on the Hetzner box also can't reach Neon on `:5432` anyway, so trying is futile.
 - Do not delete or drop collections/documents.
 - Do not modify production data or seeds.
 - Do not connect to additional production databases beyond the one already configured.

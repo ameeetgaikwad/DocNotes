@@ -64,6 +64,13 @@
       "when": 1778803200000,
       "tag": "0008_patient_visits",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1778803400000,
+      "tag": "0009_doctor_profiles",
+      "breakpoints": true
     }
   ]
 }
