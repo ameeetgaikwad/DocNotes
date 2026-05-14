@@ -14,7 +14,12 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useDebounce } from "@/hooks/use-debounce";
-import { formatDate, calculateAge, formatGender } from "@/lib/format";
+import {
+  formatDate,
+  calculateAge,
+  formatGender,
+  formatPatientName,
+} from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -140,7 +145,7 @@ export default function PatientsPage() {
                         href={`/patients/${patient.id}`}
                         className="font-medium text-primary hover:underline"
                       >
-                        {patient.firstName} {patient.lastName}
+                        {formatPatientName(patient)}
                       </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground">

@@ -42,6 +42,7 @@ export function NewPatientDialog({
     resolver: zodResolver(createPatientSchema),
     defaultValues: {
       firstName: "",
+      middleName: null,
       lastName: "",
       gender: "male",
       email: null,
@@ -103,7 +104,7 @@ export function NewPatientDialog({
               Personal Information
             </h3>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="firstName">First Name *</Label>
                 <Input
@@ -118,10 +119,20 @@ export function NewPatientDialog({
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Last Name *</Label>
+                <Label htmlFor="middleName">Middle Name</Label>
+                <Input
+                  id="middleName"
+                  placeholder="Optional"
+                  {...register("middleName", {
+                    setValueAs: (v) => v || null,
+                  })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Surname *</Label>
                 <Input
                   id="lastName"
-                  placeholder="Last name"
+                  placeholder="Surname"
                   {...register("lastName")}
                 />
                 {errors.lastName && (

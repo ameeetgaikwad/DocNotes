@@ -38,3 +38,11 @@ export function formatGender(gender: string | null | undefined): string {
     ? "Not specified"
     : gender.charAt(0).toUpperCase() + gender.slice(1);
 }
+
+export function formatPatientName(p: {
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+}): string {
+  return [p.firstName, p.middleName, p.lastName].filter(Boolean).join(" ");
+}

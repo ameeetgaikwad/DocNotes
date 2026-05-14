@@ -25,6 +25,7 @@ export type PartialDob = z.infer<typeof partialDobSchema>;
 export const patientSchema = z.object({
   id: z.string().uuid(),
   firstName: z.string().min(1).max(255),
+  middleName: z.string().max(255).nullable(),
   lastName: z.string().min(1).max(255),
   dateOfBirth: z.coerce.date().nullable(),
   dobDay: z.number().int().nullable(),
@@ -53,6 +54,7 @@ export type Patient = z.infer<typeof patientSchema>;
 
 export const createPatientSchema = z.object({
   firstName: z.string().min(1).max(255),
+  middleName: z.string().max(255).nullable().optional(),
   lastName: z.string().min(1).max(255),
   dateOfBirth: z.coerce.date(),
   gender: Gender,
@@ -87,6 +89,7 @@ export type PatientSearch = z.infer<typeof patientSearchSchema>;
 
 export const quickCreatePatientSchema = z.object({
   firstName: z.string().min(1).max(255),
+  middleName: z.string().max(255).optional().default(""),
   lastName: z.string().max(255).optional().default(""),
   dobDay: dobDaySchema.nullable().optional(),
   dobMonth: dobMonthSchema.nullable().optional(),

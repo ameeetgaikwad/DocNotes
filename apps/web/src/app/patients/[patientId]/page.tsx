@@ -15,7 +15,12 @@ import {
   Share2,
 } from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
-import { formatDate, calculateAge, formatGender } from "@/lib/format";
+import {
+  formatDate,
+  calculateAge,
+  formatGender,
+  formatPatientName,
+} from "@/lib/format";
 import { downloadBase64File, printBase64Pdf } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -114,6 +119,7 @@ export default function PatientProfilePage({
   }
 
   const initials = (patient.firstName[0] ?? "") + (patient.lastName[0] ?? "");
+  const fullName = formatPatientName(patient);
   const allergies = (patient.allergies ?? []) as Array<{
     name: string;
     severity: string;
@@ -138,7 +144,7 @@ export default function PatientProfilePage({
           </Avatar>
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-xl font-semibold sm:text-2xl">
-              {patient.firstName} {patient.lastName}
+              {fullName}
             </h1>
             <p className="text-sm text-muted-foreground sm:text-base">
               {formatGender(patient.gender)}
@@ -276,7 +282,7 @@ export default function PatientProfilePage({
         onOpenChange={setShareOpen}
         resourceType="patient_summary"
         resourceId={patientId}
-        resourceLabel={`${patient.firstName} ${patient.lastName}'s records`}
+        resourceLabel={`${fullName}'s records`}
       />
     </div>
   );

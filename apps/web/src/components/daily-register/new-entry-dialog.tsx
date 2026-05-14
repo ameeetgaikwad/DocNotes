@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { SERVICE_TYPES } from "@docnotes/shared";
 import { trpc, trpcClient } from "@/lib/trpc";
-import { todayLocalIsoDate } from "@/lib/format";
+import { todayLocalIsoDate, formatPatientName } from "@/lib/format";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Button } from "@/components/ui/button";
 import { CalendarInput } from "@/components/ui/calendar-input";
@@ -214,9 +214,11 @@ export function NewDailyRegisterEntryDialog({
     mutationFn: async (typed: string) => {
       const parts = typed.trim().split(/\s+/);
       const firstName = parts[0] ?? "";
-      const lastName = parts.slice(1).join(" ");
+      const middleName = parts.length >= 3 ? parts.slice(1, -1).join(" ") : "";
+      const lastName = parts.length >= 2 ? parts[parts.length - 1] : "";
       const created = await trpcClient.patient.quickCreate.mutate({
         firstName,
+        middleName,
         lastName,
       });
       return created;
@@ -226,7 +228,7 @@ export function NewDailyRegisterEntryDialog({
       queryClient.invalidateQueries({ queryKey: [["patient"]] });
       selectPatient({
         id: created.id,
-        label: `${created.firstName}${created.lastName ? " " + created.lastName : ""}`,
+        label: formatPatientName(created),
         dobDay: created.dobDay ?? null,
         dobMonth: created.dobMonth ?? null,
         dobYear: created.dobYear ?? null,
@@ -240,7 +242,7 @@ export function NewDailyRegisterEntryDialog({
   const typedName = debouncedSearch.trim();
   const existingNames =
     patientsQuery.data?.items.map((p) =>
-      `${p.firstName} ${p.lastName}`.toLowerCase().trim(),
+      formatPatientName(p).toLowerCase().trim(),
     ) ?? [];
   const exactMatchExists = existingNames.includes(typedName.toLowerCase());
   const canQuickCreate = typedName.length > 0 && !exactMatchExists;
@@ -342,7 +344,7 @@ export function NewDailyRegisterEntryDialog({
                           onClick={() =>
                             selectPatient({
                               id: p.id,
-                              label: `${p.firstName} ${p.lastName}`,
+                              label: formatPatientName(p),
                               dobDay: p.dobDay ?? derived?.day ?? null,
                               dobMonth: p.dobMonth ?? derived?.month ?? null,
                               dobYear: p.dobYear ?? derived?.year ?? null,
@@ -350,9 +352,7 @@ export function NewDailyRegisterEntryDialog({
                           }
                           className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-accent md:px-4 md:py-3 md:text-base"
                         >
-                          <span>
-                            {p.firstName} {p.lastName}
-                          </span>
+                          <span>{formatPatientName(p)}</span>
                           {p.phone && (
                             <span className="text-xs text-muted-foreground md:text-sm">
                               {p.phone}

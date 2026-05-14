@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Loader2, AlertCircle, BookOpen, Trash2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { todayLocalIsoDate } from "@/lib/format";
+import { todayLocalIsoDate, formatPatientName } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
 import { Badge } from "@/components/ui/badge";
@@ -159,7 +159,7 @@ export default function DailyRegisterPage() {
                         href={`/patients/${entry.patient.id}`}
                         className="text-primary hover:underline"
                       >
-                        {entry.patient.firstName} {entry.patient.lastName}
+                        {formatPatientName(entry.patient)}
                       </Link>
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground sm:table-cell md:py-4">

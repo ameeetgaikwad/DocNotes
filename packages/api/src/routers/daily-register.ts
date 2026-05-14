@@ -22,6 +22,7 @@ export const dailyRegisterRouter = router({
           patient: {
             id: patients.id,
             firstName: patients.firstName,
+            middleName: patients.middleName,
             lastName: patients.lastName,
           },
         })

@@ -30,6 +30,7 @@ export const patientRouter = router({
               ownership,
               or(
                 ilike(patients.firstName, like),
+                ilike(patients.middleName, like),
                 ilike(patients.lastName, like),
                 ilike(patients.phone, like),
                 sql`${patients.activeConditions}::text ILIKE ${like}`,
@@ -116,10 +117,14 @@ export const patientRouter = router({
   quickCreate: protectedProcedure
     .input(quickCreatePatientSchema)
     .mutation(async ({ ctx, input }) => {
+      const middleName = input.middleName?.trim()
+        ? input.middleName.trim()
+        : null;
       const [patient] = await ctx.db
         .insert(patients)
         .values({
           firstName: input.firstName,
+          middleName,
           lastName: input.lastName ?? "",
           dobDay: input.dobDay ?? null,
           dobMonth: input.dobMonth ?? null,

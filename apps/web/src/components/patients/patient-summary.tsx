@@ -1,9 +1,10 @@
-import { formatDate, formatGender } from "@/lib/format";
+import { formatDate, formatGender, formatPatientName } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 interface PatientData {
   firstName: string;
+  middleName?: string | null;
   lastName: string;
   dateOfBirth: string | null;
   gender: string | null;
@@ -40,9 +41,7 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
           <CardTitle className="text-base">Demographics</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <InfoRow label="Full Name">
-            {patient.firstName} {patient.lastName}
-          </InfoRow>
+          <InfoRow label="Full Name">{formatPatientName(patient)}</InfoRow>
           <InfoRow label="Date of Birth">
             {formatDate(patient.dateOfBirth)}
           </InfoRow>

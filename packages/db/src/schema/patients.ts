@@ -17,6 +17,7 @@ export const patients = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     firstName: varchar("first_name", { length: 255 }).notNull(),
+    middleName: varchar("middle_name", { length: 255 }),
     lastName: varchar("last_name", { length: 255 }).notNull(),
     dateOfBirth: date("date_of_birth"),
     dobDay: smallint("dob_day"),
