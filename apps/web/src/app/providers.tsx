@@ -8,7 +8,9 @@ import {
   QueryClientProvider,
   QueryCache,
   MutationCache,
+  useQuery,
 } from "@tanstack/react-query";
+import { trpc } from "@/lib/trpc";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/AppSidebar";
 
@@ -53,14 +55,36 @@ function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const isAuthPage = pathname.startsWith("/auth");
   const isPublicPage = pathname.startsWith("/share");
+  const isOnboardingPage = pathname === "/onboarding";
+
+  const profileQuery = useQuery({
+    ...trpc.doctorProfile.me.queryOptions(),
+    enabled: !!(isLoaded && isSignedIn && !isAuthPage && !isPublicPage),
+  });
 
   useEffect(() => {
     if (!isLoaded) return;
     if (isAuthPage || isPublicPage) return;
     if (!isSignedIn) {
       router.replace("/auth/login");
+      return;
     }
-  }, [isLoaded, isSignedIn, isAuthPage, isPublicPage, router]);
+    if (profileQuery.isLoading) return;
+    if (profileQuery.data === null && !isOnboardingPage) {
+      router.replace("/onboarding");
+    } else if (profileQuery.data && isOnboardingPage) {
+      router.replace("/");
+    }
+  }, [
+    isLoaded,
+    isSignedIn,
+    isAuthPage,
+    isPublicPage,
+    isOnboardingPage,
+    profileQuery.isLoading,
+    profileQuery.data,
+    router,
+  ]);
 
   if (!isLoaded && !isPublicPage) {
     return (
@@ -75,6 +99,18 @@ function Shell({ children }: { children: React.ReactNode }) {
   }
 
   if (!isSignedIn) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (isOnboardingPage) {
+    return <>{children}</>;
+  }
+
+  if (profileQuery.isLoading || profileQuery.data === null) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />

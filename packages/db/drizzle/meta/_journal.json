@@ -15,6 +15,62 @@
       "when": 1778431200000,
       "tag": "0001_clerk_auth_rewipe",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778514000000,
+      "tag": "0002_add_daily_register",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778524800000,
+      "tag": "0003_patient_dob_gender_optional",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778688000000,
+      "tag": "0004_register_service_dob_partial",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778702400000,
+      "tag": "0005_register_fee_received_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778775600000,
+      "tag": "0006_register_diagnosis",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778796000000,
+      "tag": "0007_patient_diet_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1778803200000,
+      "tag": "0008_patient_visits",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1778803400000,
+      "tag": "0009_doctor_profiles",
+      "breakpoints": true
     }
   ]
 }

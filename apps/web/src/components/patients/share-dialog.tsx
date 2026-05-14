@@ -11,6 +11,7 @@ import {
   Eye,
 } from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
+import { formatDate } from "@/lib/format";
 import {
   Dialog,
   DialogContent,
@@ -201,10 +202,7 @@ export function ShareDialog({
                   >
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
-                      <span>
-                        Expires{" "}
-                        {new Date(link.expiresAt).toLocaleDateString("en-IN")}
-                      </span>
+                      <span>Expires {formatDate(link.expiresAt)}</span>
                       <Eye className="h-3 w-3" />
                       <span>
                         {link.accessCount}

@@ -19,6 +19,11 @@ coverage
 # Vercel
 .vercel
 
+# Claude Code harness state (per-session, never commit)
+.claude/scheduled_tasks.lock
+.claude/scheduled_tasks.json
+.claude/state/
+
 # Build Outputs
 dist
 build

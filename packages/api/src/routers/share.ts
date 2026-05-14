@@ -76,6 +76,7 @@ export const shareRouter = router({
           and(
             eq(shareLinks.resourceType, input.resourceType),
             eq(shareLinks.resourceId, input.resourceId),
+            eq(shareLinks.createdBy, ctx.session.userId),
           ),
         )
         .orderBy(desc(shareLinks.createdAt));
@@ -89,7 +90,12 @@ export const shareRouter = router({
       const [link] = await ctx.db
         .update(shareLinks)
         .set({ isRevoked: true })
-        .where(eq(shareLinks.id, input.id))
+        .where(
+          and(
+            eq(shareLinks.id, input.id),
+            eq(shareLinks.createdBy, ctx.session.userId),
+          ),
+        )
         .returning();
 
       logAudit(ctx, {

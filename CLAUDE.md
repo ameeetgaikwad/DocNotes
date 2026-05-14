@@ -68,15 +68,17 @@ pnpm --filter @docnotes/mobile android    # Run on Android
 
 This section is updated as significant decisions or in-flight work changes. New Claude sessions should read it to understand the current state of the project before acting.
 
-### Current Architecture (as of 2026-05-08)
+### Current Architecture (as of 2026-05-11)
 
 - **Backend host:** Single Hetzner box at `49.12.187.121`, deployed as `root` via SSH from GitHub Actions
 - **Container runtime:** Docker + `docker compose` (single compose file at `deploy/docker-compose.yml`)
 - **Two environments on one box:** `backend-staging` and `backend-prod` containers, fronted by a single Caddy reverse-proxy on `:80`/`:443`
-- **Domain strategy:** sslip.io (free, no domain purchase). Hostnames: `api-49-12-187-121.sslip.io` (prod) and `staging-api-49-12-187-121.sslip.io` (staging). Caddy auto-issues Let's Encrypt certs.
+- **Backend domains:** sslip.io. `api-49-12-187-121.sslip.io` (prod) and `staging-api-49-12-187-121.sslip.io` (staging). Caddy auto-issues Let's Encrypt certs.
+- **Web domains (as of 2026-05-11):** custom on `ameeet.com` — `docnotes.ameeet.com` (prod) and `staging.docnotes.ameeet.com` (staging Vercel preview branch). DNS hosted at Cloudflare; the `docnotes.ameeet.com` subdomain is NS-delegated to Vercel. Five Clerk CNAMEs (`accounts`, `clerk`, `clkmail`, `clk._domainkey`, `clk2._domainkey`) live in Cloudflare with proxy DISABLED (must be DNS-only — proxying breaks Clerk's TLS).
+- **Auth:** Clerk **production** instance with primary domain `docnotes.ameeet.com` and `staging.docnotes.ameeet.com` listed under "Allowed subdomains" (free feature; satellite domains are Pro). Same `pk_live_…` / `sk_live_…` keys serve both. Frontend API at `clerk.docnotes.ameeet.com`. The old Clerk dev instance (`pk_test_…` → `romantic-louse-37.clerk.accounts.dev`) has been retired — it caused a dev-browser-handshake reload loop on Vercel preview URLs.
 - **Image registry:** GitHub Container Registry (GHCR). Tagged by commit SHA + `latest` for main, `staging` for staging branch.
 - **Database:** **One** Neon Postgres, shared between staging and prod. Per-env CORS_ORIGINS via `CORS_ORIGINS_PROD` / `CORS_ORIGINS_STAGING`. Treat staging as production for destructive operations.
-- **Web app:** Vercel (separate deploy target, not part of this pipeline).
+- **Web app:** Vercel (separate deploy target, not part of this pipeline). Clerk keys must be set in BOTH Production and Preview scopes — both scopes use the same `pk_live_…` / `sk_live_…` since the prod Clerk instance covers staging via Allowed Subdomains.
 - **Mobile app:** No deploy target wired up yet; CI builds only when added.
 
 ### Workflow
@@ -96,6 +98,10 @@ Things already done:
 - ✅ `deploy/docker-compose.yml`, `deploy/Caddyfile`, `deploy/.env.example`
 - ✅ GitHub Actions secrets: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` (private key for `~/.ssh/gha_deploy`)
 - ✅ `gh` CLI authenticated as `ameeetgaikwad` (repo + workflow scopes)
+- ✅ Clerk production instance created with primary `docnotes.ameeet.com` + allowed subdomain `staging.docnotes.ameeet.com` (2026-05-11)
+- ✅ Custom domains `docnotes.ameeet.com` / `staging.docnotes.ameeet.com` added to Vercel and CNAME/Clerk DNS records wired up (2026-05-11)
+- ✅ Vercel env vars updated to `pk_live_…` / `sk_live_…` for Production + Preview scopes (2026-05-11)
+- ✅ `docker-compose.yml` now passes `CLERK_SECRET_KEY` into both backend containers — without this, every JWT verification silently failed with empty secret and protected routes 401'd (fix landed 2026-05-11)
 
 In-flight / pending:
 
@@ -204,7 +210,10 @@ If a request mentions a UI change, layout tweak, color, or visual bug and the de
 ### Database & Data
 
 - Staging and production currently share **one Neon database**. Destructive operations on staging hit prod data — treat the staging DB as if it were prod.
-- Do not run database migrations without the project owner's explicit approval, regardless of which branch you're on.
+- **Migrations — owner runs them (policy set 2026-05-14, supersedes the earlier additive carve-out).**
+  - Claude does **not** apply migrations against the Neon DB, regardless of whether they are additive or destructive. The owner (Amit) runs every migration himself.
+  - When a feature needs a schema change: generate the migration SQL, commit it to the repo, push to staging, and **tag Amit on Telegram** with the path to the `.sql` file (and a one-line summary of what it does). Wait for Amit's confirmation that he's applied it before reporting the feature ready or asking the requester to test on staging.
+  - Operationally this means: design the schema change, run `drizzle-kit generate` (or write the SQL by hand) and update `packages/db/drizzle/meta/_journal.json`, but stop short of `db:migrate`. The host shell on the Hetzner box also can't reach Neon on `:5432` anyway, so trying is futile.
 - Do not delete or drop collections/documents.
 - Do not modify production data or seeds.
 - Do not connect to additional production databases beyond the one already configured.

@@ -1,10 +1,12 @@
 import { z } from "zod";
-import { eq, ilike, or, desc, sql } from "drizzle-orm";
-import { patients } from "@docnotes/db";
+import { and, eq, ilike, or, desc, sql, exists } from "drizzle-orm";
+import { patients, dailyRegisterEntries } from "@docnotes/db";
 import {
   createPatientSchema,
   updatePatientSchema,
   patientSearchSchema,
+  quickCreatePatientSchema,
+  updatePatientDobSchema,
 } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
@@ -16,23 +18,35 @@ export const patientRouter = router({
       const { query, page, limit } = input;
       const offset = (page - 1) * limit;
 
-      const conditions = [eq(patients.isActive, true)];
+      const ownership = and(
+        eq(patients.isActive, true),
+        eq(patients.createdBy, ctx.session.userId),
+      );
 
-      if (query) {
-        conditions.push(
-          or(
-            ilike(patients.firstName, `%${query}%`),
-            ilike(patients.lastName, `%${query}%`),
-            ilike(patients.email, `%${query}%`),
-            ilike(patients.phone, `%${query}%`),
-          )!,
-        );
-      }
-
+      const like = query ? `%${query}%` : null;
       const where =
-        conditions.length > 1
-          ? sql`${conditions.map((c, i) => (i === 0 ? c : sql` AND ${c}`))}`
-          : conditions[0];
+        query && like
+          ? and(
+              ownership,
+              or(
+                ilike(patients.firstName, like),
+                ilike(patients.lastName, like),
+                ilike(patients.phone, like),
+                sql`${patients.activeConditions}::text ILIKE ${like}`,
+                exists(
+                  ctx.db
+                    .select({ one: sql`1` })
+                    .from(dailyRegisterEntries)
+                    .where(
+                      and(
+                        eq(dailyRegisterEntries.patientId, patients.id),
+                        ilike(dailyRegisterEntries.diagnosis, like),
+                      ),
+                    ),
+                ),
+              ),
+            )
+          : ownership;
 
       const [items, countResult] = await Promise.all([
         ctx.db
@@ -62,7 +76,12 @@ export const patientRouter = router({
       const result = await ctx.db
         .select()
         .from(patients)
-        .where(eq(patients.id, input.id))
+        .where(
+          and(
+            eq(patients.id, input.id),
+            eq(patients.createdBy, ctx.session.userId),
+          ),
+        )
         .limit(1);
 
       if (!result[0]) {
@@ -94,6 +113,69 @@ export const patientRouter = router({
       return patient;
     }),
 
+  quickCreate: protectedProcedure
+    .input(quickCreatePatientSchema)
+    .mutation(async ({ ctx, input }) => {
+      const [patient] = await ctx.db
+        .insert(patients)
+        .values({
+          firstName: input.firstName,
+          lastName: input.lastName ?? "",
+          dobDay: input.dobDay ?? null,
+          dobMonth: input.dobMonth ?? null,
+          dobYear: input.dobYear ?? null,
+          createdBy: ctx.session.userId,
+        })
+        .returning();
+
+      if (patient) {
+        logAudit(ctx, {
+          action: "create",
+          resource: "patient",
+          resourceId: patient.id,
+        });
+      }
+
+      return patient;
+    }),
+
+  updateDob: protectedProcedure
+    .input(updatePatientDobSchema)
+    .mutation(async ({ ctx, input }) => {
+      const d = input.dobDay ?? null;
+      const m = input.dobMonth ?? null;
+      const y = input.dobYear ?? null;
+      const fullDate =
+        d !== null && m !== null && y !== null
+          ? `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`
+          : null;
+      const [patient] = await ctx.db
+        .update(patients)
+        .set({
+          dobDay: d,
+          dobMonth: m,
+          dobYear: y,
+          dateOfBirth: fullDate,
+        })
+        .where(
+          and(
+            eq(patients.id, input.id),
+            eq(patients.createdBy, ctx.session.userId),
+          ),
+        )
+        .returning();
+
+      if (patient) {
+        logAudit(ctx, {
+          action: "update",
+          resource: "patient",
+          resourceId: patient.id,
+        });
+      }
+
+      return patient ?? null;
+    }),
+
   update: protectedProcedure
     .input(z.object({ id: z.string().uuid(), data: updatePatientSchema }))
     .mutation(async ({ ctx, input }) => {
@@ -107,7 +189,12 @@ export const patientRouter = router({
       const [patient] = await ctx.db
         .update(patients)
         .set(updateData)
-        .where(eq(patients.id, input.id))
+        .where(
+          and(
+            eq(patients.id, input.id),
+            eq(patients.createdBy, ctx.session.userId),
+          ),
+        )
         .returning();
 
       logAudit(ctx, {
@@ -125,7 +212,12 @@ export const patientRouter = router({
       const [patient] = await ctx.db
         .update(patients)
         .set({ isActive: false })
-        .where(eq(patients.id, input.id))
+        .where(
+          and(
+            eq(patients.id, input.id),
+            eq(patients.createdBy, ctx.session.userId),
+          ),
+        )
         .returning();
 
       logAudit(ctx, {

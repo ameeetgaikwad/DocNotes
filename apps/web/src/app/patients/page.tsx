@@ -64,7 +64,7 @@ export default function PatientsPage() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Search patients by name, phone, or email..."
+            placeholder="Search by name, phone, or diagnosis..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -144,12 +144,18 @@ export default function PatientsPage() {
                       </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      <span className="font-medium text-foreground">
-                        {calculateAge(patient.dateOfBirth)} yrs
-                      </span>{" "}
-                      <span className="hidden sm:inline">
-                        &middot; {formatDate(patient.dateOfBirth)}
-                      </span>
+                      {patient.dateOfBirth ? (
+                        <>
+                          <span className="font-medium text-foreground">
+                            {calculateAge(patient.dateOfBirth)} yrs
+                          </span>{" "}
+                          <span className="hidden sm:inline">
+                            &middot; {formatDate(patient.dateOfBirth)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground sm:table-cell">
                       {formatGender(patient.gender)}

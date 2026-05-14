@@ -31,6 +31,7 @@ import {
 import { PatientSummary } from "@/components/patients/patient-summary";
 import { PatientHistory } from "@/components/patients/patient-history";
 import { PatientDocuments } from "@/components/patients/patient-documents";
+import { PatientDiet } from "@/components/patients/patient-diet";
 import { ShareDialog } from "@/components/patients/share-dialog";
 
 export default function PatientProfilePage({
@@ -140,9 +141,14 @@ export default function PatientProfilePage({
               {patient.firstName} {patient.lastName}
             </h1>
             <p className="text-sm text-muted-foreground sm:text-base">
-              {formatGender(patient.gender)} &middot;{" "}
-              {calculateAge(patient.dateOfBirth)} years &middot; DOB:{" "}
-              {formatDate(patient.dateOfBirth)}
+              {formatGender(patient.gender)}
+              {patient.dateOfBirth && (
+                <>
+                  {" "}
+                  &middot; {calculateAge(patient.dateOfBirth)} years &middot;
+                  DOB: {formatDate(patient.dateOfBirth)}
+                </>
+              )}
               {patient.bloodType && (
                 <>
                   {" "}
@@ -229,6 +235,7 @@ export default function PatientProfilePage({
           <TabsTrigger value="summary">Summary</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
+          <TabsTrigger value="diet">Diet</TabsTrigger>
           <TabsTrigger value="appointments">Appointments</TabsTrigger>
         </TabsList>
 
@@ -242,6 +249,13 @@ export default function PatientProfilePage({
 
         <TabsContent value="documents">
           <PatientDocuments patientId={patient.id} />
+        </TabsContent>
+
+        <TabsContent value="diet">
+          <PatientDiet
+            patientId={patient.id}
+            initialDietNotes={patient.dietNotes ?? null}
+          />
         </TabsContent>
 
         <TabsContent value="appointments">
