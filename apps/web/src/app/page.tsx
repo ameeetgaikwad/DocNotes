@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -159,14 +159,52 @@ function MetricTile({
   );
 }
 
+const HIGHLIGHT_THRESHOLD_KEY = "docnotes.pendingDues.highlightThreshold";
+const HIGHLIGHT_DEFAULT = 1000;
+
+function readStoredThreshold(): number {
+  if (typeof window === "undefined") return HIGHLIGHT_DEFAULT;
+  const v = window.localStorage.getItem(HIGHLIGHT_THRESHOLD_KEY);
+  if (!v) return HIGHLIGHT_DEFAULT;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : HIGHLIGHT_DEFAULT;
+}
+
 function PendingDuesPanel() {
   const duesQuery = useQuery(trpc.dailyRegister.allPendingDues.queryOptions());
   const items = duesQuery.data ?? [];
   const total = items.reduce((acc, r) => acc + r.outstanding, 0);
 
+  const [threshold, setThreshold] = useState<number>(HIGHLIGHT_DEFAULT);
+  const [thresholdInput, setThresholdInput] = useState<string>(
+    String(HIGHLIGHT_DEFAULT),
+  );
+
+  useEffect(() => {
+    const v = readStoredThreshold();
+    setThreshold(v);
+    setThresholdInput(String(v));
+  }, []);
+
+  function commitThreshold(raw: string) {
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) {
+      setThresholdInput(String(threshold));
+      return;
+    }
+    setThreshold(n);
+    setThresholdInput(String(n));
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(HIGHLIGHT_THRESHOLD_KEY, String(n));
+    }
+  }
+
+  const high = items.filter((r) => r.outstanding > threshold);
+  const rest = items.filter((r) => r.outstanding <= threshold);
+
   return (
     <div className="mb-8 rounded-xl border bg-card">
-      <div className="flex items-center justify-between border-b p-4 sm:p-6">
+      <div className="flex flex-col gap-2 border-b p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div className="flex items-center gap-2">
           <Wallet className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">Pending Dues</h2>
@@ -181,6 +219,33 @@ function PendingDuesPanel() {
           </p>
         )}
       </div>
+      {!duesQuery.isLoading && items.length > 0 && (
+        <div className="flex items-center gap-2 border-b bg-muted/30 px-4 py-2 text-xs sm:px-6">
+          <label
+            htmlFor="dues-threshold"
+            className="font-medium text-muted-foreground"
+          >
+            Highlight above ₹
+          </label>
+          <input
+            id="dues-threshold"
+            type="number"
+            min="0"
+            step="100"
+            inputMode="numeric"
+            value={thresholdInput}
+            onChange={(e) => setThresholdInput(e.target.value)}
+            onBlur={(e) => commitThreshold(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitThreshold((e.target as HTMLInputElement).value);
+              }
+            }}
+            className="h-7 w-24 rounded border border-input bg-background px-2 text-right"
+          />
+        </div>
+      )}
       {duesQuery.isLoading ? (
         <div className="flex items-center justify-center py-10">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -191,26 +256,76 @@ function PendingDuesPanel() {
           <p className="text-sm">No outstanding dues from any patient.</p>
         </div>
       ) : (
-        <ul className="divide-y">
-          {items.map((row) => (
-            <li
-              key={row.patientId}
-              className="flex items-center justify-between px-4 py-3 sm:px-6"
-            >
-              <Link
-                href={`/patients/${row.patientId}#pending-dues`}
-                className="text-sm font-medium text-primary hover:underline md:text-base"
-              >
-                {formatPatientName(row)}
-              </Link>
-              <span className="font-mono text-sm md:text-base">
-                {formatINR(row.outstanding)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <>
+          {high.length > 0 && (
+            <div>
+              <p className="bg-amber-50 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-amber-800 sm:px-6 dark:bg-amber-950/40 dark:text-amber-200">
+                Above {formatINR(threshold)} ({high.length})
+              </p>
+              <ul className="divide-y">
+                {high.map((row) => (
+                  <DueRow key={row.patientId} row={row} highlighted />
+                ))}
+              </ul>
+            </div>
+          )}
+          {rest.length > 0 && (
+            <div>
+              {high.length > 0 && (
+                <p className="bg-muted/30 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:px-6">
+                  Other ({rest.length})
+                </p>
+              )}
+              <ul className="divide-y">
+                {rest.map((row) => (
+                  <DueRow key={row.patientId} row={row} />
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
       )}
     </div>
+  );
+}
+
+function DueRow({
+  row,
+  highlighted = false,
+}: {
+  row: {
+    patientId: string;
+    firstName: string;
+    middleName?: string | null;
+    lastName: string;
+    outstanding: number;
+  };
+  highlighted?: boolean;
+}) {
+  return (
+    <li
+      className={
+        highlighted
+          ? "flex items-center justify-between bg-amber-50/40 px-4 py-3 sm:px-6 dark:bg-amber-950/10"
+          : "flex items-center justify-between px-4 py-3 sm:px-6"
+      }
+    >
+      <Link
+        href={`/patients/${row.patientId}#pending-dues`}
+        className="text-sm font-medium text-primary hover:underline md:text-base"
+      >
+        {formatPatientName(row)}
+      </Link>
+      <span
+        className={
+          highlighted
+            ? "font-mono text-sm font-semibold md:text-base"
+            : "font-mono text-sm md:text-base"
+        }
+      >
+        {formatINR(row.outstanding)}
+      </span>
+    </li>
   );
 }
 
