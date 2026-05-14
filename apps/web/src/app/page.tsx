@@ -288,7 +288,13 @@ export default function Dashboard() {
         <p className="text-muted-foreground">Welcome back, Doctor</p>
       </div>
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div
+        className={
+          registerSummaryOpen
+            ? "mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+            : "mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+        }
+      >
         <StatCard
           label="Today's Appointments"
           value={data?.todayAppointments ?? 0}
@@ -311,22 +317,45 @@ export default function Dashboard() {
           active={registerSummaryOpen}
           onClick={() => setRegisterSummaryOpen((v) => !v)}
         />
-        <StatCard
-          label="Pending Tasks"
-          value="0"
-          icon={ClipboardList}
-          href="/tasks"
-        />
-        <StatCard
-          label="Records This Week"
-          value={data?.recordsThisWeek ?? 0}
-          icon={Activity}
-          isLoading={isLoading}
-          href="/reports"
-        />
+        {!registerSummaryOpen && (
+          <>
+            <StatCard
+              label="Pending Tasks"
+              value="0"
+              icon={ClipboardList}
+              href="/tasks"
+            />
+            <StatCard
+              label="Records This Week"
+              value={data?.recordsThisWeek ?? 0}
+              icon={Activity}
+              isLoading={isLoading}
+              href="/reports"
+            />
+          </>
+        )}
       </div>
 
-      {registerSummaryOpen && <RegisterSummaryPanel />}
+      {registerSummaryOpen && (
+        <>
+          <RegisterSummaryPanel />
+          <div className="mb-8 grid gap-4 sm:grid-cols-2">
+            <StatCard
+              label="Pending Tasks"
+              value="0"
+              icon={ClipboardList}
+              href="/tasks"
+            />
+            <StatCard
+              label="Records This Week"
+              value={data?.recordsThisWeek ?? 0}
+              icon={Activity}
+              isLoading={isLoading}
+              href="/reports"
+            />
+          </div>
+        </>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="rounded-xl border bg-card p-6 lg:col-span-3">
