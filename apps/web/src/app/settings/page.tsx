@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Stethoscope, Loader2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { formatDate } from "@/lib/format";
+import { MedicineDealersSection } from "@/components/settings/medicine-dealers-section";
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -99,6 +100,8 @@ export default function SettingsPage() {
               />
             </div>
           </div>
+
+          <MedicineDealersSection />
         </div>
       )}
     </div>

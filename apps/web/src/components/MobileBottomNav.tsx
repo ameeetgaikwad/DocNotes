@@ -15,6 +15,7 @@ import {
   Settings,
   LogOut,
   X,
+  ShoppingCart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +33,7 @@ const TABS: NavItem[] = [
 ];
 
 const MORE_ITEMS: NavItem[] = [
+  { to: "/purchase-list", label: "Purchase List", icon: ShoppingCart },
   { to: "/reports", label: "Reports", icon: FileText },
   { to: "/tasks", label: "Tasks", icon: ClipboardList },
   { to: "/settings", label: "Settings", icon: Settings },

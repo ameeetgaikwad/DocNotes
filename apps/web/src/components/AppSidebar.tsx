@@ -12,6 +12,7 @@ import {
   Search,
   FileText,
   BookOpen,
+  ShoppingCart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ const navItems = [
   { to: "/patients", label: "Patients", icon: Users },
   { to: "/schedule", label: "Schedule", icon: Calendar },
   { to: "/daily-register", label: "Daily Register", icon: BookOpen },
+  { to: "/purchase-list", label: "Purchase List", icon: ShoppingCart },
   { to: "/tasks", label: "Tasks", icon: ClipboardList },
   { to: "/reports", label: "Reports", icon: FileText },
 ] as const;
