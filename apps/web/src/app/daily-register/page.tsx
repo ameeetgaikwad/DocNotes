@@ -49,7 +49,7 @@ export default function DailyRegisterPage() {
         </div>
         <Button
           onClick={() => setDialogOpen(true)}
-          className="self-start md:h-12 md:px-6 md:text-base"
+          className="hidden self-start sm:inline-flex md:h-12 md:px-6 md:text-base"
         >
           <Plus className="h-4 w-4 md:h-5 md:w-5" />
           Add Entry
@@ -258,6 +258,18 @@ export default function DailyRegisterPage() {
         onOpenChange={setDialogOpen}
         visitDate={visitDate}
       />
+
+      <button
+        type="button"
+        onClick={() => setDialogOpen(true)}
+        aria-label="Add Entry"
+        className="fixed right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 sm:hidden"
+        style={{
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 5rem)",
+        }}
+      >
+        <Plus className="h-6 w-6" />
+      </button>
     </div>
   );
 }
