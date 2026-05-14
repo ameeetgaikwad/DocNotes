@@ -37,6 +37,7 @@ import { PatientSummary } from "@/components/patients/patient-summary";
 import { PatientHistory } from "@/components/patients/patient-history";
 import { PatientDocuments } from "@/components/patients/patient-documents";
 import { PatientDiet } from "@/components/patients/patient-diet";
+import { PatientPendingDues } from "@/components/patients/patient-pending-dues";
 import { ShareDialog } from "@/components/patients/share-dialog";
 
 export default function PatientProfilePage({
@@ -242,6 +243,7 @@ export default function PatientProfilePage({
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="diet">Diet</TabsTrigger>
+          <TabsTrigger value="pending-dues">Pending Dues</TabsTrigger>
           <TabsTrigger value="appointments">Appointments</TabsTrigger>
         </TabsList>
 
@@ -262,6 +264,10 @@ export default function PatientProfilePage({
             patientId={patient.id}
             initialDietNotes={patient.dietNotes ?? null}
           />
+        </TabsContent>
+
+        <TabsContent value="pending-dues">
+          <PatientPendingDues patientId={patient.id} />
         </TabsContent>
 
         <TabsContent value="appointments">

@@ -24,6 +24,9 @@ export const dailyRegisterEntries = pgTable(
       .references(() => patients.id),
     serviceType: varchar("service_type", { length: 64 }),
     feeAmount: numeric("fee_amount", { precision: 10, scale: 2 }).notNull(),
+    paidAmount: numeric("paid_amount", { precision: 10, scale: 2 })
+      .notNull()
+      .default("0"),
     paymentMode: varchar("payment_mode", { length: 16 }).notNull(),
     paymentStatus: varchar("payment_status", { length: 16 })
       .notNull()

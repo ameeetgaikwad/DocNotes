@@ -78,6 +78,13 @@
       "when": 1778803600000,
       "tag": "0010_patient_middle_name",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778803800000,
+      "tag": "0011_daily_register_paid_amount",
+      "breakpoints": true
     }
   ]
 }

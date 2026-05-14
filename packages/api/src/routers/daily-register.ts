@@ -7,6 +7,7 @@ import {
   updateDailyRegisterEntrySchema,
   dailyRegisterQuerySchema,
   dailyRegisterSummaryQuerySchema,
+  recordPaymentSchema,
 } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
@@ -42,14 +43,22 @@ export const dailyRegisterRouter = router({
       let digitalTotal = 0;
       let dueTotal = 0;
       for (const r of items) {
-        const amount = Number(r.feeAmount);
+        const fee = Number(r.feeAmount);
+        const paid = Number(r.paidAmount ?? 0);
         if (r.paymentStatus === "nil") continue;
         if (r.paymentStatus === "due") {
-          dueTotal += amount;
+          // Outstanding portion is what's still unpaid.
+          dueTotal += Math.max(fee - paid, 0);
+          // Any partial receipt already collected counts toward cash/digital
+          // for the day's totals.
+          if (paid > 0) {
+            if (r.paymentMode === "cash") cashTotal += paid;
+            else if (r.paymentMode === "digital") digitalTotal += paid;
+          }
           continue;
         }
-        if (r.paymentMode === "cash") cashTotal += amount;
-        else if (r.paymentMode === "digital") digitalTotal += amount;
+        if (r.paymentMode === "cash") cashTotal += fee;
+        else if (r.paymentMode === "digital") digitalTotal += fee;
       }
 
       return {
@@ -69,8 +78,10 @@ export const dailyRegisterRouter = router({
       const rows = await ctx.db
         .select({
           totalCases: sql<number>`count(*)`,
-          receipts: sql<string>`coalesce(sum(case when ${dailyRegisterEntries.paymentStatus} = 'paid' then ${dailyRegisterEntries.feeAmount} else 0 end), 0)`,
-          pendingDues: sql<string>`coalesce(sum(case when ${dailyRegisterEntries.paymentStatus} = 'due' then ${dailyRegisterEntries.feeAmount} else 0 end), 0)`,
+          // Receipts = everything actually received (paid in full + any partial)
+          receipts: sql<string>`coalesce(sum(case when ${dailyRegisterEntries.paymentStatus} = 'paid' then ${dailyRegisterEntries.feeAmount} when ${dailyRegisterEntries.paymentStatus} = 'due' then ${dailyRegisterEntries.paidAmount} else 0 end), 0)`,
+          // Outstanding = unpaid portion of 'due' entries only
+          pendingDues: sql<string>`coalesce(sum(case when ${dailyRegisterEntries.paymentStatus} = 'due' then greatest(${dailyRegisterEntries.feeAmount} - ${dailyRegisterEntries.paidAmount}, 0) else 0 end), 0)`,
         })
         .from(dailyRegisterEntries)
         .where(
@@ -87,6 +98,130 @@ export const dailyRegisterRouter = router({
         receipts: Number(r?.receipts ?? 0),
         pendingDues: Number(r?.pendingDues ?? 0),
       };
+    }),
+
+  pendingDuesByPatient: protectedProcedure
+    .input(z.object({ patientId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const rows = await ctx.db
+        .select({
+          id: dailyRegisterEntries.id,
+          visitDate: dailyRegisterEntries.visitDate,
+          feeAmount: dailyRegisterEntries.feeAmount,
+          paidAmount: dailyRegisterEntries.paidAmount,
+          serviceType: dailyRegisterEntries.serviceType,
+          feeReceivedAt: dailyRegisterEntries.feeReceivedAt,
+        })
+        .from(dailyRegisterEntries)
+        .where(
+          and(
+            eq(dailyRegisterEntries.providerId, ctx.session.userId),
+            eq(dailyRegisterEntries.patientId, input.patientId),
+            eq(dailyRegisterEntries.paymentStatus, "due"),
+          ),
+        )
+        .orderBy(asc(dailyRegisterEntries.visitDate));
+
+      let total = 0;
+      const items = rows.map((r) => {
+        const remaining = Math.max(
+          Number(r.feeAmount) - Number(r.paidAmount ?? 0),
+          0,
+        );
+        total += remaining;
+        return { ...r, remaining };
+      });
+      return { items, total };
+    }),
+
+  allPendingDues: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db
+      .select({
+        patientId: dailyRegisterEntries.patientId,
+        firstName: patients.firstName,
+        middleName: patients.middleName,
+        lastName: patients.lastName,
+        outstanding: sql<string>`coalesce(sum(greatest(${dailyRegisterEntries.feeAmount} - ${dailyRegisterEntries.paidAmount}, 0)), 0)`,
+      })
+      .from(dailyRegisterEntries)
+      .innerJoin(patients, eq(patients.id, dailyRegisterEntries.patientId))
+      .where(
+        and(
+          eq(dailyRegisterEntries.providerId, ctx.session.userId),
+          eq(dailyRegisterEntries.paymentStatus, "due"),
+        ),
+      )
+      .groupBy(
+        dailyRegisterEntries.patientId,
+        patients.firstName,
+        patients.middleName,
+        patients.lastName,
+      )
+      .having(
+        sql`coalesce(sum(greatest(${dailyRegisterEntries.feeAmount} - ${dailyRegisterEntries.paidAmount}, 0)), 0) > 0`,
+      )
+      .orderBy(asc(patients.lastName), asc(patients.firstName));
+
+    return rows.map((r) => ({
+      ...r,
+      outstanding: Number(r.outstanding),
+    }));
+  }),
+
+  recordPayment: protectedProcedure
+    .input(recordPaymentSchema)
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db
+        .select({
+          id: dailyRegisterEntries.id,
+          feeAmount: dailyRegisterEntries.feeAmount,
+          paymentStatus: dailyRegisterEntries.paymentStatus,
+        })
+        .from(dailyRegisterEntries)
+        .where(
+          and(
+            eq(dailyRegisterEntries.id, input.id),
+            eq(dailyRegisterEntries.providerId, ctx.session.userId),
+          ),
+        )
+        .limit(1);
+      const e = existing[0];
+      if (!e) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Register entry not found",
+        });
+      }
+      if (e.paymentStatus !== "due") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only 'due' entries can have payments recorded",
+        });
+      }
+      const fee = Number(e.feeAmount);
+      const clamped = Math.min(Math.max(input.paidAmount, 0), fee);
+      const [updated] = await ctx.db
+        .update(dailyRegisterEntries)
+        .set({
+          paidAmount: clamped.toFixed(2),
+          feeReceivedAt: input.feeReceivedAt ?? null,
+        })
+        .where(
+          and(
+            eq(dailyRegisterEntries.id, input.id),
+            eq(dailyRegisterEntries.providerId, ctx.session.userId),
+          ),
+        )
+        .returning();
+
+      if (updated) {
+        logAudit(ctx, {
+          action: "update",
+          resource: "daily_register_entry_payment",
+          resourceId: updated.id,
+        });
+      }
+      return updated ?? null;
     }),
 
   history: protectedProcedure.query(async ({ ctx }) => {
@@ -119,6 +254,7 @@ export const dailyRegisterRouter = router({
         });
       }
 
+      const initialPaid = input.paymentStatus === "paid" ? input.feeAmount : 0;
       const [entry] = await ctx.db
         .insert(dailyRegisterEntries)
         .values({
@@ -127,6 +263,7 @@ export const dailyRegisterRouter = router({
           patientId: input.patientId,
           serviceType: input.serviceType ?? null,
           feeAmount: input.feeAmount.toFixed(2),
+          paidAmount: initialPaid.toFixed(2),
           paymentMode: input.paymentMode,
           paymentStatus: input.paymentStatus,
           feeReceivedAt: input.feeReceivedAt ?? null,

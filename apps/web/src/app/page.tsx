@@ -13,9 +13,10 @@ import {
   Receipt,
   IndianRupee,
   AlertCircle,
+  Wallet,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { todayLocalIsoDate } from "@/lib/format";
+import { todayLocalIsoDate, formatPatientName } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -153,6 +154,61 @@ function MetricTile({
         <Loader2 className="mt-2 h-5 w-5 animate-spin text-muted-foreground" />
       ) : (
         <p className="mt-1 text-xl font-semibold md:text-2xl">{value}</p>
+      )}
+    </div>
+  );
+}
+
+function PendingDuesPanel() {
+  const duesQuery = useQuery(trpc.dailyRegister.allPendingDues.queryOptions());
+  const items = duesQuery.data ?? [];
+  const total = items.reduce((acc, r) => acc + r.outstanding, 0);
+
+  return (
+    <div className="mb-8 rounded-xl border bg-card">
+      <div className="flex items-center justify-between border-b p-4 sm:p-6">
+        <div className="flex items-center gap-2">
+          <Wallet className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold">Pending Dues</h2>
+        </div>
+        {!duesQuery.isLoading && items.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">
+              {formatINR(total)}
+            </span>{" "}
+            outstanding across {items.length} patient
+            {items.length === 1 ? "" : "s"}
+          </p>
+        )}
+      </div>
+      {duesQuery.isLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : items.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+          <Wallet className="mb-3 h-10 w-10" />
+          <p className="text-sm">No outstanding dues from any patient.</p>
+        </div>
+      ) : (
+        <ul className="divide-y">
+          {items.map((row) => (
+            <li
+              key={row.patientId}
+              className="flex items-center justify-between px-4 py-3 sm:px-6"
+            >
+              <Link
+                href={`/patients/${row.patientId}#pending-dues`}
+                className="text-sm font-medium text-primary hover:underline md:text-base"
+              >
+                {formatPatientName(row)}
+              </Link>
+              <span className="font-mono text-sm md:text-base">
+                {formatINR(row.outstanding)}
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
@@ -356,6 +412,8 @@ export default function Dashboard() {
           </div>
         </>
       )}
+
+      <PendingDuesPanel />
 
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="rounded-xl border bg-card p-6 lg:col-span-3">

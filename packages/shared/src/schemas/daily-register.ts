@@ -35,6 +35,7 @@ export const dailyRegisterEntrySchema = z.object({
   patientId: z.string().uuid(),
   serviceType: z.string().nullable(),
   feeAmount: z.string(),
+  paidAmount: z.string(),
   paymentMode: paymentModeSchema,
   paymentStatus: paymentStatusSchema,
   feeReceivedAt: z.string().nullable(),
@@ -97,3 +98,11 @@ export const dailyRegisterSummaryQuerySchema = z
 export type DailyRegisterSummaryQuery = z.infer<
   typeof dailyRegisterSummaryQuerySchema
 >;
+
+export const recordPaymentSchema = z.object({
+  id: z.string().uuid(),
+  paidAmount: z.number().nonnegative().max(1_000_000),
+  feeReceivedAt: isoDate.nullable().optional(),
+});
+
+export type RecordPayment = z.infer<typeof recordPaymentSchema>;
