@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { eq, and, desc, asc, gte, lte, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { dailyRegisterEntries, patients } from "@docnotes/db";
+import { dailyRegisterEntries, patients, patientVisits } from "@docnotes/db";
+import { isNull } from "drizzle-orm";
 import {
   createDailyRegisterEntrySchema,
   updateDailyRegisterEntrySchema,
@@ -422,6 +423,44 @@ export const dailyRegisterRouter = router({
         .returning();
 
       if (entry) {
+        // If this was the last register entry for the patient+date AND the
+        // matching visit is still just an auto-created shell (no vitals or
+        // clinical notes recorded), drop the visit so History stops showing
+        // a phantom row.
+        const remaining = await ctx.db
+          .select({ id: dailyRegisterEntries.id })
+          .from(dailyRegisterEntries)
+          .where(
+            and(
+              eq(dailyRegisterEntries.patientId, entry.patientId),
+              eq(dailyRegisterEntries.visitDate, entry.visitDate),
+              eq(dailyRegisterEntries.providerId, ctx.session.userId),
+            ),
+          )
+          .limit(1);
+
+        if (remaining.length === 0) {
+          await ctx.db
+            .delete(patientVisits)
+            .where(
+              and(
+                eq(patientVisits.patientId, entry.patientId),
+                eq(patientVisits.visitDate, entry.visitDate),
+                eq(patientVisits.providerId, ctx.session.userId),
+                isNull(patientVisits.bpSystolic),
+                isNull(patientVisits.bpDiastolic),
+                isNull(patientVisits.heartRate),
+                isNull(patientVisits.bslFasting),
+                isNull(patientVisits.bslPostprandial),
+                isNull(patientVisits.bslRandom),
+                isNull(patientVisits.temperatureCelsius),
+                isNull(patientVisits.weightKg),
+                isNull(patientVisits.heightCm),
+                isNull(patientVisits.clinicalNotes),
+              ),
+            );
+        }
+
         logAudit(ctx, {
           action: "delete",
           resource: "daily_register_entry",

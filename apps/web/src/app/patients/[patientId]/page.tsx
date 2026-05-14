@@ -16,10 +16,9 @@ import {
 } from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
 import {
-  formatDate,
-  calculateAge,
   formatGender,
   formatPatientName,
+  formatPatientAgeDob,
 } from "@/lib/format";
 import { downloadBase64File, printBase64Pdf } from "@/lib/download";
 import { Button } from "@/components/ui/button";
@@ -121,6 +120,7 @@ export default function PatientProfilePage({
 
   const initials = (patient.firstName[0] ?? "") + (patient.lastName[0] ?? "");
   const fullName = formatPatientName(patient);
+  const { age: patientAge, display: dobDisplay } = formatPatientAgeDob(patient);
   const allergies = (patient.allergies ?? []) as Array<{
     name: string;
     severity: string;
@@ -149,13 +149,8 @@ export default function PatientProfilePage({
             </h1>
             <p className="text-sm text-muted-foreground sm:text-base">
               {formatGender(patient.gender)}
-              {patient.dateOfBirth && (
-                <>
-                  {" "}
-                  &middot; {calculateAge(patient.dateOfBirth)} years &middot;
-                  DOB: {formatDate(patient.dateOfBirth)}
-                </>
-              )}
+              {patientAge != null && <> &middot; {patientAge} years</>}
+              {dobDisplay && <> &middot; DOB: {dobDisplay}</>}
               {patient.bloodType && (
                 <>
                   {" "}

@@ -15,10 +15,9 @@ import {
 import { trpc } from "@/lib/trpc";
 import { useDebounce } from "@/hooks/use-debounce";
 import {
-  formatDate,
-  calculateAge,
   formatGender,
   formatPatientName,
+  formatPatientAgeDob,
 } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,18 +148,7 @@ export default function PatientsPage() {
                       </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {patient.dateOfBirth ? (
-                        <>
-                          <span className="font-medium text-foreground">
-                            {calculateAge(patient.dateOfBirth)} yrs
-                          </span>{" "}
-                          <span className="hidden sm:inline">
-                            &middot; {formatDate(patient.dateOfBirth)}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
+                      <PatientAgeDobCell patient={patient} />
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground sm:table-cell">
                       {formatGender(patient.gender)}
@@ -233,5 +221,34 @@ export default function PatientsPage() {
 
       <NewPatientDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
+  );
+}
+
+function PatientAgeDobCell({
+  patient,
+}: {
+  patient: {
+    dateOfBirth: string | Date | null;
+    dobDay: number | null;
+    dobMonth: number | null;
+    dobYear: number | null;
+  };
+}) {
+  const { age, display } = formatPatientAgeDob(patient);
+  if (age == null && !display) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+  return (
+    <>
+      {age != null && (
+        <span className="font-medium text-foreground">{age} yrs</span>
+      )}
+      {display && (
+        <span className="hidden sm:inline">
+          {age != null ? " · " : ""}
+          {display}
+        </span>
+      )}
+    </>
   );
 }

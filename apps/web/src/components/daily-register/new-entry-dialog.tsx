@@ -240,12 +240,16 @@ export function NewDailyRegisterEntryDialog({
   });
 
   const typedName = debouncedSearch.trim();
-  const existingNames =
-    patientsQuery.data?.items.map((p) =>
-      formatPatientName(p).toLowerCase().trim(),
-    ) ?? [];
-  const exactMatchExists = existingNames.includes(typedName.toLowerCase());
-  const canQuickCreate = typedName.length > 0 && !exactMatchExists;
+  // Authoritative duplicate check against the full DB — the fuzzy `list`
+  // result is paginated, so a top-10 miss doesn't mean the patient is
+  // absent. This query does an exact full-name match server-side.
+  const exactMatchQuery = useQuery({
+    ...trpc.patient.findByExactName.queryOptions({ name: typedName || "x" }),
+    enabled: open && typedName.length > 0,
+  });
+  const exactMatchExists = exactMatchQuery.data != null;
+  const canQuickCreate =
+    typedName.length > 0 && !exactMatchQuery.isLoading && !exactMatchExists;
 
   const feeOk =
     paymentStatus === "nil" || (feeAmount !== "" && Number(feeAmount) >= 0);

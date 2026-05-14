@@ -114,6 +114,29 @@ export const patientRouter = router({
       return patient;
     }),
 
+  findByExactName: protectedProcedure
+    .input(z.object({ name: z.string().min(1).max(255) }))
+    .query(async ({ ctx, input }) => {
+      const target = input.name.trim().toLowerCase();
+      if (!target) return null;
+      const rows = await ctx.db
+        .select({
+          id: patients.id,
+          firstName: patients.firstName,
+          middleName: patients.middleName,
+          lastName: patients.lastName,
+        })
+        .from(patients)
+        .where(
+          and(
+            eq(patients.createdBy, ctx.session.userId),
+            sql`lower(regexp_replace(trim(${patients.firstName} || ' ' || coalesce(${patients.middleName}, '') || ' ' || ${patients.lastName}), '\\s+', ' ', 'g')) = ${target}`,
+          ),
+        )
+        .limit(1);
+      return rows[0] ?? null;
+    }),
+
   quickCreate: protectedProcedure
     .input(quickCreatePatientSchema)
     .mutation(async ({ ctx, input }) => {

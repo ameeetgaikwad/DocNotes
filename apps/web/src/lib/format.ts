@@ -46,3 +46,54 @@ export function formatPatientName(p: {
 }): string {
   return [p.firstName, p.middleName, p.lastName].filter(Boolean).join(" ");
 }
+
+/**
+ * Returns a renderable age + date-of-birth pair for a patient.
+ * Falls back to the partial-DOB fields when the full `dateOfBirth` is
+ * absent — year-only / month+year / day+month+year are all rendered as
+ * best the data allows. Age is computed against today.
+ */
+export function formatPatientAgeDob(p: {
+  dateOfBirth: Date | string | null | undefined;
+  dobDay?: number | null;
+  dobMonth?: number | null;
+  dobYear?: number | null;
+}): { age: number | null; display: string | null } {
+  if (p.dateOfBirth) {
+    return {
+      age: calculateAge(p.dateOfBirth),
+      display: formatDate(p.dateOfBirth),
+    };
+  }
+
+  const d = p.dobDay ?? null;
+  const m = p.dobMonth ?? null;
+  const y = p.dobYear ?? null;
+
+  if (d && m && y) {
+    return {
+      age: calculateAge(new Date(y, m - 1, d)),
+      display: `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`,
+    };
+  }
+
+  if (m && y) {
+    const now = new Date();
+    let age = now.getFullYear() - y;
+    if (now.getMonth() + 1 < m) age -= 1;
+    return {
+      age: age >= 0 ? age : null,
+      display: `${String(m).padStart(2, "0")}/${y}`,
+    };
+  }
+
+  if (y) {
+    const age = new Date().getFullYear() - y;
+    return {
+      age: age >= 0 ? age : null,
+      display: String(y),
+    };
+  }
+
+  return { age: null, display: null };
+}
