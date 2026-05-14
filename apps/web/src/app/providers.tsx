@@ -122,7 +122,9 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen flex-col overflow-hidden md:flex-row">
       <AppSidebar />
-      <main className="flex-1 overflow-y-auto pb-20 md:pb-0">{children}</main>
+      <main className="flex-1 overflow-y-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
+        {children}
+      </main>
       <MobileBottomNav />
     </div>
   );
