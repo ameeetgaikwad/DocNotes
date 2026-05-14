@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUser, UserButton } from "@clerk/nextjs";
@@ -12,8 +11,6 @@ import {
   Settings,
   Search,
   FileText,
-  Menu,
-  X,
   BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -35,12 +32,11 @@ const bottomItems = [
 ] as const;
 
 export function AppSidebar() {
-  const [mobileOpen, setMobileOpen] = useState(false);
   const currentPath = usePathname() ?? "";
   const { user } = useUser();
 
-  const sidebarContent = (
-    <>
+  return (
+    <aside className="hidden h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar md:flex">
       <div className="flex h-14 items-center justify-between px-4">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -50,14 +46,6 @@ export function AppSidebar() {
             DocNotes
           </span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 md:hidden"
-          onClick={() => setMobileOpen(false)}
-        >
-          <X className="h-4 w-4" />
-        </Button>
       </div>
 
       <div className="px-3 py-2">
@@ -86,7 +74,6 @@ export function AppSidebar() {
               <Link
                 key={item.to}
                 href={item.to}
-                onClick={() => setMobileOpen(false)}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                   isActive
@@ -111,7 +98,6 @@ export function AppSidebar() {
             <Link
               key={item.to}
               href={item.to}
-              onClick={() => setMobileOpen(false)}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                 isActive
@@ -142,51 +128,6 @@ export function AppSidebar() {
           </div>
         </>
       )}
-    </>
-  );
-
-  return (
-    <>
-      {/* Mobile top bar */}
-      <div className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b bg-background px-4 md:hidden">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9"
-          onClick={() => setMobileOpen(true)}
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <FileText className="h-3.5 w-3.5" />
-          </div>
-          <span className="font-semibold">DocNotes</span>
-        </div>
-      </div>
-
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 md:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
-      {/* Mobile drawer */}
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-sidebar-border bg-sidebar transition-transform duration-200 md:hidden",
-          mobileOpen ? "translate-x-0" : "-translate-x-full",
-        )}
-      >
-        {sidebarContent}
-      </aside>
-
-      {/* Desktop sidebar */}
-      <aside className="hidden h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar md:flex">
-        {sidebarContent}
-      </aside>
-    </>
+    </aside>
   );
 }
