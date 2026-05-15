@@ -29,12 +29,24 @@ interface NewPatientDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const OVERRIDE_REASON_OPTIONS = [
+  "Different person, same name",
+  "Spelling correction needed",
+  "Other",
+] as const;
+
 export function NewPatientDialog({
   open,
   onOpenChange,
 }: NewPatientDialogProps) {
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [confirmingOverride, setConfirmingOverride] = useState(false);
+  const [pendingFormData, setPendingFormData] = useState<CreatePatient | null>(
+    null,
+  );
+  const [overrideReason, setOverrideReason] = useState<string>("");
+  const [overrideReasonOther, setOverrideReasonOther] = useState("");
 
   const {
     register,
@@ -110,6 +122,10 @@ export function NewPatientDialog({
       queryClient.invalidateQueries({ queryKey: [["patient"]] });
       reset();
       setServerError(null);
+      setConfirmingOverride(false);
+      setPendingFormData(null);
+      setOverrideReason("");
+      setOverrideReasonOther("");
       onOpenChange(false);
     },
     onError: (error) => {
@@ -119,13 +135,40 @@ export function NewPatientDialog({
 
   const onSubmit = (data: CreatePatient) => {
     setServerError(null);
+    if (duplicateCandidates.length > 0) {
+      setPendingFormData(data);
+      setOverrideReason("");
+      setOverrideReasonOther("");
+      setConfirmingOverride(true);
+      return;
+    }
     createMutation.mutate(data);
+  };
+
+  const finalOverrideReason = (
+    overrideReason === "Other" ? overrideReasonOther.trim() : overrideReason
+  ).trim();
+  const canConfirmOverride = finalOverrideReason.length > 0;
+
+  const onConfirmOverride = () => {
+    if (!pendingFormData || !canConfirmOverride) return;
+    createMutation.mutate({
+      ...pendingFormData,
+      duplicateOverride: {
+        reason: finalOverrideReason,
+        candidateIds: duplicateCandidates.map((p) => p.id),
+      },
+    });
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
       reset();
       setServerError(null);
+      setConfirmingOverride(false);
+      setPendingFormData(null);
+      setOverrideReason("");
+      setOverrideReasonOther("");
     }
     onOpenChange(nextOpen);
   };
@@ -134,14 +177,125 @@ export function NewPatientDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>New Patient</DialogTitle>
+          <DialogTitle>
+            {confirmingOverride
+              ? "Possible duplicate — confirm"
+              : "New Patient"}
+          </DialogTitle>
           <DialogDescription>
-            Add a new patient to your practice. Fields marked with * are
-            required.
+            {confirmingOverride
+              ? "An existing patient looks similar. Open the existing record, or confirm with a reason to create as new."
+              : "Add a new patient to your practice. Fields marked with * are required."}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {confirmingOverride && (
+          <div className="space-y-4">
+            {serverError && (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                {serverError}
+              </div>
+            )}
+
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700/50 dark:bg-amber-950/30">
+              <p className="mb-2 font-medium text-amber-900 dark:text-amber-200">
+                Existing patient(s) matching this name or mobile:
+              </p>
+              <ul className="space-y-2">
+                {duplicateCandidates.map((p) => {
+                  const { age, display: dobDisplay } = formatPatientAgeDob(p);
+                  const metaParts = [
+                    age != null ? `${age} yrs` : null,
+                    dobDisplay,
+                    p.phone || null,
+                  ].filter((s): s is string => Boolean(s));
+                  return (
+                    <li
+                      key={p.id}
+                      className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="text-amber-900 dark:text-amber-200">
+                        <span className="font-medium">
+                          {formatPatientName(p)}
+                        </span>
+                        {metaParts.length > 0 && (
+                          <span className="ml-2 text-xs text-amber-800/80 dark:text-amber-300/80">
+                            {metaParts.join(" · ")}
+                          </span>
+                        )}
+                      </div>
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="self-start"
+                      >
+                        <Link
+                          href={`/patients/${p.id}`}
+                          onClick={() => onOpenChange(false)}
+                        >
+                          Open existing
+                        </Link>
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="override-reason">
+                Reason for adding as new *
+              </Label>
+              <Select
+                id="override-reason"
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+              >
+                <option value="">Select a reason</option>
+                {OVERRIDE_REASON_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </Select>
+              {overrideReason === "Other" && (
+                <Input
+                  type="text"
+                  placeholder="Describe the reason"
+                  value={overrideReasonOther}
+                  onChange={(e) => setOverrideReasonOther(e.target.value)}
+                  maxLength={200}
+                />
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setConfirmingOverride(false)}
+                disabled={createMutation.isPending}
+              >
+                Back to edit
+              </Button>
+              <Button
+                type="button"
+                onClick={onConfirmOverride}
+                disabled={!canConfirmOverride || createMutation.isPending}
+              >
+                {createMutation.isPending
+                  ? "Creating..."
+                  : "Create as new patient"}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className={confirmingOverride ? "hidden" : "space-y-6"}
+        >
           {serverError && (
             <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
               {serverError}

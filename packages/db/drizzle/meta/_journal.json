@@ -92,6 +92,13 @@
       "when": 1778804000000,
       "tag": "0012_purchase_list",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1778839200000,
+      "tag": "0013_audit_log_metadata",
+      "breakpoints": true
     }
   ]
 }

@@ -52,6 +52,13 @@ export const patientSchema = z.object({
 
 export type Patient = z.infer<typeof patientSchema>;
 
+export const duplicateOverrideSchema = z.object({
+  reason: z.string().min(1).max(200),
+  candidateIds: z.array(z.string().uuid()).min(1).max(20),
+});
+
+export type DuplicateOverride = z.infer<typeof duplicateOverrideSchema>;
+
 export const createPatientSchema = z.object({
   firstName: z.string().min(1).max(255),
   middleName: z.string().max(255).nullable().optional(),
@@ -71,6 +78,7 @@ export const createPatientSchema = z.object({
   activeConditions: z.array(z.string()).optional(),
   dietNotes: z.string().max(5000).nullable().optional(),
   notes: z.string().nullable().optional(),
+  duplicateOverride: duplicateOverrideSchema.optional(),
 });
 
 export type CreatePatient = z.infer<typeof createPatientSchema>;

@@ -97,21 +97,28 @@ export const patientRouter = router({
   create: protectedProcedure
     .input(createPatientSchema)
     .mutation(async ({ ctx, input }) => {
+      const { duplicateOverride, ...patientInput } = input;
       const [patient] = await ctx.db
         .insert(patients)
         .values({
-          ...input,
-          dateOfBirth: input.dateOfBirth.toISOString().split("T")[0]!,
-          allergies: input.allergies ?? [],
-          activeConditions: input.activeConditions ?? [],
+          ...patientInput,
+          dateOfBirth: patientInput.dateOfBirth.toISOString().split("T")[0]!,
+          allergies: patientInput.allergies ?? [],
+          activeConditions: patientInput.activeConditions ?? [],
           createdBy: ctx.session.userId,
         })
         .returning();
 
       logAudit(ctx, {
-        action: "create",
+        action: duplicateOverride ? "create_dup_override" : "create",
         resource: "patient",
         resourceId: patient!.id,
+        metadata: duplicateOverride
+          ? {
+              reason: duplicateOverride.reason,
+              candidateIds: duplicateOverride.candidateIds,
+            }
+          : null,
       });
 
       return patient;

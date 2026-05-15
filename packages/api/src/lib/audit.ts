@@ -5,6 +5,7 @@ interface AuditParams {
   action: string;
   resource: string;
   resourceId?: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 /**
@@ -26,6 +27,7 @@ export async function logAudit(
       resourceId: params.resourceId ?? null,
       ipAddress: (ctx.req?.ip as string) ?? null,
       userAgent: (ctx.req?.headers?.["user-agent"] as string) ?? null,
+      metadata: params.metadata ?? null,
     });
   } catch {
     // Never let audit logging break the request
