@@ -7,7 +7,7 @@ import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { createPatientSchema, type CreatePatient } from "@docnotes/shared";
 import { trpc, trpcClient } from "@/lib/trpc";
 import { useDebounce } from "@/hooks/use-debounce";
-import { formatPatientName } from "@/lib/format";
+import { formatPatientName, formatPatientAgeDob } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
@@ -135,18 +135,34 @@ export function NewPatientDialog({
                     Possible existing patient — check before creating a
                     duplicate.
                   </p>
-                  <ul className="space-y-0.5">
-                    {duplicateCandidates.map((p) => (
-                      <li key={p.id}>
-                        <Link
-                          href={`/patients/${p.id}`}
-                          onClick={() => onOpenChange(false)}
-                          className="text-amber-900 underline underline-offset-2 hover:text-amber-700 dark:text-amber-200 dark:hover:text-amber-100"
-                        >
-                          {formatPatientName(p)}
-                        </Link>
-                      </li>
-                    ))}
+                  <ul className="space-y-1">
+                    {duplicateCandidates.map((p) => {
+                      const { age, display: dobDisplay } =
+                        formatPatientAgeDob(p);
+                      const metaParts = [
+                        age != null ? `${age} yrs` : null,
+                        dobDisplay,
+                        p.phone || null,
+                      ].filter((s): s is string => Boolean(s));
+                      return (
+                        <li key={p.id}>
+                          <Link
+                            href={`/patients/${p.id}`}
+                            onClick={() => onOpenChange(false)}
+                            className="block text-amber-900 hover:text-amber-700 dark:text-amber-200 dark:hover:text-amber-100"
+                          >
+                            <span className="underline underline-offset-2">
+                              {formatPatientName(p)}
+                            </span>
+                            {metaParts.length > 0 && (
+                              <span className="ml-2 text-xs text-amber-800/80 dark:text-amber-300/80">
+                                {metaParts.join(" · ")}
+                              </span>
+                            )}
+                          </Link>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               </div>

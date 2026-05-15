@@ -14,7 +14,11 @@ import {
 } from "lucide-react";
 import { SERVICE_TYPES } from "@docnotes/shared";
 import { trpc, trpcClient } from "@/lib/trpc";
-import { todayLocalIsoDate, formatPatientName } from "@/lib/format";
+import {
+  todayLocalIsoDate,
+  formatPatientName,
+  formatPatientAgeDob,
+} from "@/lib/format";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Button } from "@/components/ui/button";
 import { CalendarInput } from "@/components/ui/calendar-input";
@@ -342,6 +346,13 @@ export function NewDailyRegisterEntryDialog({
                     )}
                     {patientsQuery.data?.items.map((p) => {
                       const derived = parseIsoDate(p.dateOfBirth);
+                      const { age, display: dobDisplay } =
+                        formatPatientAgeDob(p);
+                      const metaParts = [
+                        age != null ? `${age} yrs` : null,
+                        dobDisplay,
+                        p.phone || null,
+                      ].filter((s): s is string => Boolean(s));
                       return (
                         <button
                           key={p.id}
@@ -355,12 +366,14 @@ export function NewDailyRegisterEntryDialog({
                               dobYear: p.dobYear ?? derived?.year ?? null,
                             })
                           }
-                          className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-accent md:px-4 md:py-3 md:text-base"
+                          className="flex w-full flex-col items-start gap-0.5 border-b px-3 py-2 text-left text-sm hover:bg-accent md:px-4 md:py-3 md:text-base"
                         >
-                          <span>{formatPatientName(p)}</span>
-                          {p.phone && (
+                          <span className="font-medium">
+                            {formatPatientName(p)}
+                          </span>
+                          {metaParts.length > 0 && (
                             <span className="text-xs text-muted-foreground md:text-sm">
-                              {p.phone}
+                              {metaParts.join(" · ")}
                             </span>
                           )}
                         </button>
