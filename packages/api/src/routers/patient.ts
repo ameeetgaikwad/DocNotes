@@ -23,29 +23,32 @@ export const patientRouter = router({
         eq(patients.createdBy, ctx.session.userId),
       );
 
-      const like = query ? `%${query}%` : null;
+      const tokens = query ? query.trim().split(/\s+/).filter(Boolean) : [];
       const where =
-        query && like
+        tokens.length > 0
           ? and(
               ownership,
-              or(
-                ilike(patients.firstName, like),
-                ilike(patients.middleName, like),
-                ilike(patients.lastName, like),
-                ilike(patients.phone, like),
-                sql`${patients.activeConditions}::text ILIKE ${like}`,
-                exists(
-                  ctx.db
-                    .select({ one: sql`1` })
-                    .from(dailyRegisterEntries)
-                    .where(
-                      and(
-                        eq(dailyRegisterEntries.patientId, patients.id),
-                        ilike(dailyRegisterEntries.diagnosis, like),
+              ...tokens.map((token) => {
+                const like = `%${token}%`;
+                return or(
+                  ilike(patients.firstName, like),
+                  ilike(patients.middleName, like),
+                  ilike(patients.lastName, like),
+                  ilike(patients.phone, like),
+                  sql`${patients.activeConditions}::text ILIKE ${like}`,
+                  exists(
+                    ctx.db
+                      .select({ one: sql`1` })
+                      .from(dailyRegisterEntries)
+                      .where(
+                        and(
+                          eq(dailyRegisterEntries.patientId, patients.id),
+                          ilike(dailyRegisterEntries.diagnosis, like),
+                        ),
                       ),
-                    ),
-                ),
-              ),
+                  ),
+                );
+              }),
             )
           : ownership;
 

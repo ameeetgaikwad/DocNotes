@@ -84,14 +84,15 @@ export function NewDailyRegisterEntryDialog({
   const [serverError, setServerError] = useState<string | null>(null);
 
   const debouncedSearch = useDebounce(patientSearch, 250);
+  const trimmedSearch = debouncedSearch.trim();
 
   const patientsQuery = useQuery({
     ...trpc.patient.list.queryOptions({
-      query: debouncedSearch || undefined,
+      query: trimmedSearch || undefined,
       page: 1,
       limit: 10,
     }),
-    enabled: open && debouncedSearch.length > 0,
+    enabled: open && trimmedSearch.length > 0,
   });
 
   useEffect(() => {
@@ -239,7 +240,7 @@ export function NewDailyRegisterEntryDialog({
     },
   });
 
-  const typedName = debouncedSearch.trim();
+  const typedName = trimmedSearch;
   // Authoritative duplicate check against the full DB — the fuzzy `list`
   // result is paginated, so a top-10 miss doesn't mean the patient is
   // absent. This query does an exact full-name match server-side.
