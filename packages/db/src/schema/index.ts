@@ -10,3 +10,4 @@ export * from "./patient-visits.js";
 export * from "./doctor-profiles.js";
 export * from "./medicine-dealers.js";
 export * from "./purchase-items.js";
+export * from "./homeopathic-medicines.js";
