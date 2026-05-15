@@ -78,17 +78,18 @@ export function PatientHistory({ patientId }: PatientHistoryProps) {
       <p className="text-sm text-muted-foreground">
         {data.length} visit{data.length !== 1 && "s"}
       </p>
-      {data.map((visit) => (
-        <VisitCard key={visit.id} visit={visit} />
+      {data.map((visit, index) => (
+        <VisitCard key={visit.id} visit={visit} isLatest={index === 0} />
       ))}
     </div>
   );
 }
 
-function VisitCard({ visit }: { visit: Visit }) {
+function VisitCard({ visit, isLatest }: { visit: Visit; isLatest: boolean }) {
   const queryClient = useQueryClient();
   const initial = visitToForm(visit);
   const [form, setForm] = useState(initial);
+  const [editAll, setEditAll] = useState(false);
 
   useEffect(() => {
     setForm(visitToForm(visit));
@@ -106,125 +107,187 @@ function VisitCard({ visit }: { visit: Visit }) {
   });
 
   const dirty = !sameForm(form, initial);
+  // Older cards collapse empty vitals so the timeline isn't a wall of "—".
+  // The latest card stays fully expanded (the doctor is likely still
+  // filling it in), and any older card can opt back into all fields via
+  // the "Edit fields" toggle.
+  const showAllFields = isLatest || editAll;
+  const showBp =
+    showAllFields || form.bpSystolic !== "" || form.bpDiastolic !== "";
+  const showHr = showAllFields || form.heartRate !== "";
+  const showBslF = showAllFields || form.bslFasting !== "";
+  const showBslPp = showAllFields || form.bslPostprandial !== "";
+  const showBslR = showAllFields || form.bslRandom !== "";
+  const showTemp = showAllFields || form.temperatureCelsius !== "";
+  const showWt = showAllFields || form.weightKg !== "";
+  const showHt = showAllFields || form.heightCm !== "";
+  const showVitalsRow1 = showBp || showHr;
+  const showVitalsRow2 = showBslF || showBslPp || showBslR;
+  const showVitalsRow3 = showTemp || showWt || showHt;
+  const anyVitalShown = showVitalsRow1 || showVitalsRow2 || showVitalsRow3;
+  const showNotes = showAllFields || form.clinicalNotes !== "";
 
   return (
     <div className="space-y-4 rounded-xl border bg-card p-4 sm:p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h3 className="text-base font-semibold md:text-lg">
           {formatDate(visit.visitDate)}
         </h3>
-        {dirty && (
-          <span className="text-xs text-muted-foreground">Unsaved changes</span>
-        )}
+        <div className="flex items-center gap-3">
+          {dirty && (
+            <span className="text-xs text-muted-foreground">
+              Unsaved changes
+            </span>
+          )}
+          {!isLatest && (
+            <button
+              type="button"
+              onClick={() => setEditAll((v) => !v)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              {editAll ? "Hide empty" : "Edit fields"}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="space-y-4">
-        <div className="flex flex-wrap items-end gap-3 md:gap-4">
-          <FieldGroup label="B.P. (mm of Hg)" htmlFor={`${visit.id}-bps`}>
-            <div className="flex items-center gap-1">
-              <NumInput
-                id={`${visit.id}-bps`}
-                value={form.bpSystolic}
-                onChange={(v) => setForm({ ...form, bpSystolic: v })}
-                placeholder="—"
-                className="w-16"
-              />
-              <span className="text-muted-foreground">/</span>
-              <NumInput
-                value={form.bpDiastolic}
-                onChange={(v) => setForm({ ...form, bpDiastolic: v })}
-                placeholder="—"
-                className="w-16"
-              />
-            </div>
-          </FieldGroup>
-          <FieldGroup label="H.R. (/min)" htmlFor={`${visit.id}-hr`}>
-            <NumInput
-              id={`${visit.id}-hr`}
-              value={form.heartRate}
-              onChange={(v) => setForm({ ...form, heartRate: v })}
-              placeholder="—"
-              className="w-20"
-            />
-          </FieldGroup>
-        </div>
+        {showVitalsRow1 && (
+          <div className="flex flex-wrap items-end gap-3 md:gap-4">
+            {showBp && (
+              <FieldGroup label="B.P. (mm of Hg)" htmlFor={`${visit.id}-bps`}>
+                <div className="flex items-center gap-1">
+                  <NumInput
+                    id={`${visit.id}-bps`}
+                    value={form.bpSystolic}
+                    onChange={(v) => setForm({ ...form, bpSystolic: v })}
+                    placeholder="—"
+                    className="w-16"
+                  />
+                  <span className="text-muted-foreground">/</span>
+                  <NumInput
+                    value={form.bpDiastolic}
+                    onChange={(v) => setForm({ ...form, bpDiastolic: v })}
+                    placeholder="—"
+                    className="w-16"
+                  />
+                </div>
+              </FieldGroup>
+            )}
+            {showHr && (
+              <FieldGroup label="H.R. (/min)" htmlFor={`${visit.id}-hr`}>
+                <NumInput
+                  id={`${visit.id}-hr`}
+                  value={form.heartRate}
+                  onChange={(v) => setForm({ ...form, heartRate: v })}
+                  placeholder="—"
+                  className="w-20"
+                />
+              </FieldGroup>
+            )}
+          </div>
+        )}
 
-        <div className="flex flex-wrap items-end gap-3 md:gap-4">
-          <FieldGroup label="B.S.L. F (mg/dL)" htmlFor={`${visit.id}-bslf`}>
-            <NumInput
-              id={`${visit.id}-bslf`}
-              value={form.bslFasting}
-              onChange={(v) => setForm({ ...form, bslFasting: v })}
-              placeholder="—"
-              className="w-20"
-            />
-          </FieldGroup>
-          <FieldGroup label="P.P." htmlFor={`${visit.id}-bslp`}>
-            <NumInput
-              id={`${visit.id}-bslp`}
-              value={form.bslPostprandial}
-              onChange={(v) => setForm({ ...form, bslPostprandial: v })}
-              placeholder="—"
-              className="w-20"
-            />
-          </FieldGroup>
-          <FieldGroup label="R" htmlFor={`${visit.id}-bslr`}>
-            <NumInput
-              id={`${visit.id}-bslr`}
-              value={form.bslRandom}
-              onChange={(v) => setForm({ ...form, bslRandom: v })}
-              placeholder="—"
-              className="w-20"
-            />
-          </FieldGroup>
-        </div>
+        {showVitalsRow2 && (
+          <div className="flex flex-wrap items-end gap-3 md:gap-4">
+            {showBslF && (
+              <FieldGroup label="B.S.L. F (mg/dL)" htmlFor={`${visit.id}-bslf`}>
+                <NumInput
+                  id={`${visit.id}-bslf`}
+                  value={form.bslFasting}
+                  onChange={(v) => setForm({ ...form, bslFasting: v })}
+                  placeholder="—"
+                  className="w-20"
+                />
+              </FieldGroup>
+            )}
+            {showBslPp && (
+              <FieldGroup label="P.P." htmlFor={`${visit.id}-bslp`}>
+                <NumInput
+                  id={`${visit.id}-bslp`}
+                  value={form.bslPostprandial}
+                  onChange={(v) => setForm({ ...form, bslPostprandial: v })}
+                  placeholder="—"
+                  className="w-20"
+                />
+              </FieldGroup>
+            )}
+            {showBslR && (
+              <FieldGroup label="R" htmlFor={`${visit.id}-bslr`}>
+                <NumInput
+                  id={`${visit.id}-bslr`}
+                  value={form.bslRandom}
+                  onChange={(v) => setForm({ ...form, bslRandom: v })}
+                  placeholder="—"
+                  className="w-20"
+                />
+              </FieldGroup>
+            )}
+          </div>
+        )}
 
-        <div className="flex flex-wrap items-end gap-3 md:gap-4">
-          <FieldGroup label="Temp. (°C)" htmlFor={`${visit.id}-temp`}>
-            <NumInput
-              id={`${visit.id}-temp`}
-              value={form.temperatureCelsius}
-              onChange={(v) => setForm({ ...form, temperatureCelsius: v })}
-              placeholder="—.—"
-              className="w-20"
-            />
-          </FieldGroup>
-          <FieldGroup label="Wt. (Kg)" htmlFor={`${visit.id}-wt`}>
-            <NumInput
-              id={`${visit.id}-wt`}
-              value={form.weightKg}
-              onChange={(v) => setForm({ ...form, weightKg: v })}
-              placeholder="—"
-              className="w-20"
-            />
-          </FieldGroup>
-          <FieldGroup label="Ht. (cm)" htmlFor={`${visit.id}-ht`}>
-            <NumInput
-              id={`${visit.id}-ht`}
-              value={form.heightCm}
-              onChange={(v) => setForm({ ...form, heightCm: v })}
-              placeholder="—"
-              className="w-20"
-            />
-          </FieldGroup>
-        </div>
+        {showVitalsRow3 && (
+          <div className="flex flex-wrap items-end gap-3 md:gap-4">
+            {showTemp && (
+              <FieldGroup label="Temp. (°C)" htmlFor={`${visit.id}-temp`}>
+                <NumInput
+                  id={`${visit.id}-temp`}
+                  value={form.temperatureCelsius}
+                  onChange={(v) => setForm({ ...form, temperatureCelsius: v })}
+                  placeholder="—.—"
+                  className="w-20"
+                />
+              </FieldGroup>
+            )}
+            {showWt && (
+              <FieldGroup label="Wt. (Kg)" htmlFor={`${visit.id}-wt`}>
+                <NumInput
+                  id={`${visit.id}-wt`}
+                  value={form.weightKg}
+                  onChange={(v) => setForm({ ...form, weightKg: v })}
+                  placeholder="—"
+                  className="w-20"
+                />
+              </FieldGroup>
+            )}
+            {showHt && (
+              <FieldGroup label="Ht. (cm)" htmlFor={`${visit.id}-ht`}>
+                <NumInput
+                  id={`${visit.id}-ht`}
+                  value={form.heightCm}
+                  onChange={(v) => setForm({ ...form, heightCm: v })}
+                  placeholder="—"
+                  className="w-20"
+                />
+              </FieldGroup>
+            )}
+          </div>
+        )}
 
-        <div className="space-y-2">
-          <Label htmlFor={`${visit.id}-notes`} className="md:text-base">
-            Clinical notes
-          </Label>
-          <Textarea
-            id={`${visit.id}-notes`}
-            rows={6}
-            maxLength={20000}
-            placeholder="Symptoms, examination findings, plan, medications, advice…"
-            value={form.clinicalNotes}
-            onChange={(e) =>
-              setForm({ ...form, clinicalNotes: e.target.value })
-            }
-            className="md:min-h-[10rem] md:text-base"
-          />
-        </div>
+        {!isLatest && !anyVitalShown && !showNotes && (
+          <p className="text-sm italic text-muted-foreground">
+            No vitals or notes recorded for this visit.
+          </p>
+        )}
+
+        {showNotes && (
+          <div className="space-y-2">
+            <Label htmlFor={`${visit.id}-notes`} className="md:text-base">
+              Clinical notes
+            </Label>
+            <Textarea
+              id={`${visit.id}-notes`}
+              rows={6}
+              maxLength={20000}
+              placeholder="Symptoms, examination findings, plan, medications, advice…"
+              value={form.clinicalNotes}
+              onChange={(e) =>
+                setForm({ ...form, clinicalNotes: e.target.value })
+              }
+              className="md:min-h-[10rem] md:text-base"
+            />
+          </div>
+        )}
       </div>
 
       {saveMutation.error && (
