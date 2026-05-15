@@ -63,6 +63,7 @@ export function NewPatientDialog({
   const firstName = watch("firstName");
   const middleName = watch("middleName");
   const lastName = watch("lastName");
+  const phone = watch("phone");
   const dupQueryString = useMemo(
     () =>
       [firstName, middleName, lastName]
@@ -80,7 +81,28 @@ export function NewPatientDialog({
     }),
     enabled: open && debouncedDupQuery.length >= 2,
   });
-  const duplicateCandidates = dupQuery.data?.items ?? [];
+
+  const phoneDigits = useMemo(() => (phone ?? "").replace(/\D/g, ""), [phone]);
+  const debouncedPhoneDigits = useDebounce(phoneDigits, 300);
+  const phoneDupQuery = useQuery({
+    ...trpc.patient.findByPhone.queryOptions({
+      phone: debouncedPhoneDigits,
+    }),
+    enabled: open && debouncedPhoneDigits.length >= 6,
+  });
+
+  const duplicateCandidates = useMemo(() => {
+    const nameMatches = dupQuery.data?.items ?? [];
+    const phoneMatches = phoneDupQuery.data ?? [];
+    const seen = new Set<string>();
+    const merged: typeof nameMatches = [];
+    for (const p of [...nameMatches, ...phoneMatches]) {
+      if (seen.has(p.id)) continue;
+      seen.add(p.id);
+      merged.push(p);
+    }
+    return merged;
+  }, [dupQuery.data, phoneDupQuery.data]);
 
   const createMutation = useMutation({
     mutationFn: (data: CreatePatient) => trpcClient.patient.create.mutate(data),
@@ -310,6 +332,11 @@ export function NewPatientDialog({
                   placeholder="+91 98765 43210"
                   {...register("phone", { setValueAs: (v) => v || null })}
                 />
+                {!phoneDigits && (
+                  <p className="text-xs text-muted-foreground">
+                    Recommended — helps catch duplicate patients later.
+                  </p>
+                )}
               </div>
             </div>
 

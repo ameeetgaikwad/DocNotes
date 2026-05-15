@@ -140,6 +140,26 @@ export const patientRouter = router({
       return rows[0] ?? null;
     }),
 
+  findByPhone: protectedProcedure
+    .input(z.object({ phone: z.string().min(1).max(40) }))
+    .query(async ({ ctx, input }) => {
+      const digits = input.phone.replace(/\D/g, "");
+      if (digits.length < 6) return [];
+      const rows = await ctx.db
+        .select()
+        .from(patients)
+        .where(
+          and(
+            eq(patients.isActive, true),
+            eq(patients.createdBy, ctx.session.userId),
+            sql`regexp_replace(coalesce(${patients.phone}, ''), '[^0-9]', '', 'g') LIKE ${`%${digits}%`}`,
+          ),
+        )
+        .orderBy(desc(patients.updatedAt))
+        .limit(5);
+      return rows;
+    }),
+
   quickCreate: protectedProcedure
     .input(quickCreatePatientSchema)
     .mutation(async ({ ctx, input }) => {
