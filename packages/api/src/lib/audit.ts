@@ -27,7 +27,10 @@ export async function logAudit(
       resourceId: params.resourceId ?? null,
       ipAddress: (ctx.req?.ip as string) ?? null,
       userAgent: (ctx.req?.headers?.["user-agent"] as string) ?? null,
-      metadata: params.metadata ?? null,
+      // Only include `metadata` when the caller actually has one — otherwise
+      // we'd write `metadata = NULL` on every audit, which fails the INSERT
+      // until migration 0013 lands on the DB.
+      ...(params.metadata != null ? { metadata: params.metadata } : {}),
     });
   } catch {
     // Never let audit logging break the request
