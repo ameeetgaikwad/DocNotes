@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { AlertTriangle } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { createPatientSchema, type CreatePatient } from "@docnotes/shared";
-import { trpcClient } from "@/lib/trpc";
+import { trpc, trpcClient } from "@/lib/trpc";
+import { useDebounce } from "@/hooks/use-debounce";
+import { formatPatientName } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
@@ -37,6 +41,7 @@ export function NewPatientDialog({
     handleSubmit,
     reset,
     control,
+    watch,
     formState: { errors },
   } = useForm<CreatePatient>({
     resolver: zodResolver(createPatientSchema),
@@ -54,6 +59,28 @@ export function NewPatientDialog({
       notes: null,
     },
   });
+
+  const firstName = watch("firstName");
+  const middleName = watch("middleName");
+  const lastName = watch("lastName");
+  const dupQueryString = useMemo(
+    () =>
+      [firstName, middleName, lastName]
+        .map((s) => (s ?? "").trim())
+        .filter(Boolean)
+        .join(" "),
+    [firstName, middleName, lastName],
+  );
+  const debouncedDupQuery = useDebounce(dupQueryString, 300);
+  const dupQuery = useQuery({
+    ...trpc.patient.list.queryOptions({
+      query: debouncedDupQuery || undefined,
+      page: 1,
+      limit: 5,
+    }),
+    enabled: open && debouncedDupQuery.length >= 2,
+  });
+  const duplicateCandidates = dupQuery.data?.items ?? [];
 
   const createMutation = useMutation({
     mutationFn: (data: CreatePatient) => trpcClient.patient.create.mutate(data),
@@ -96,6 +123,33 @@ export function NewPatientDialog({
           {serverError && (
             <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
               {serverError}
+            </div>
+          )}
+
+          {duplicateCandidates.length > 0 && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700/50 dark:bg-amber-950/30">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <div className="space-y-1">
+                  <p className="font-medium text-amber-900 dark:text-amber-200">
+                    Possible existing patient — check before creating a
+                    duplicate.
+                  </p>
+                  <ul className="space-y-0.5">
+                    {duplicateCandidates.map((p) => (
+                      <li key={p.id}>
+                        <Link
+                          href={`/patients/${p.id}`}
+                          onClick={() => onOpenChange(false)}
+                          className="text-amber-900 underline underline-offset-2 hover:text-amber-700 dark:text-amber-200 dark:hover:text-amber-100"
+                        >
+                          {formatPatientName(p)}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
             </div>
           )}
 
