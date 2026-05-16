@@ -89,7 +89,11 @@ function VisitCard({ visit, isLatest }: { visit: Visit; isLatest: boolean }) {
   const queryClient = useQueryClient();
   const initial = visitToForm(visit);
   const [form, setForm] = useState(initial);
-  const [editAll, setEditAll] = useState(false);
+  // editAll = true means all fields are visible (empty included) AND the
+  // Save / Discard buttons are usable. The latest visit defaults to true
+  // so the doctor can fill in today's data without an extra click; older
+  // visits default to false to keep the timeline clean.
+  const [editAll, setEditAll] = useState(isLatest);
 
   useEffect(() => {
     setForm(visitToForm(visit));
@@ -103,15 +107,14 @@ function VisitCard({ visit, isLatest }: { visit: Visit; isLatest: boolean }) {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [["patientVisit"]] });
+      // Manoj msg 795: after saving, collapse back to read-only mode —
+      // Save button disappears and only reappears via "Edit fields".
+      setEditAll(false);
     },
   });
 
   const dirty = !sameForm(form, initial);
-  // Older cards collapse empty vitals so the timeline isn't a wall of "—".
-  // The latest card stays fully expanded (the doctor is likely still
-  // filling it in), and any older card can opt back into all fields via
-  // the "Edit fields" toggle.
-  const showAllFields = isLatest || editAll;
+  const showAllFields = editAll;
   const showBp =
     showAllFields || form.bpSystolic !== "" || form.bpDiastolic !== "";
   const showHr = showAllFields || form.heartRate !== "";
@@ -124,7 +127,6 @@ function VisitCard({ visit, isLatest }: { visit: Visit; isLatest: boolean }) {
   const showVitalsRow1 = showBp || showHr;
   const showVitalsRow2 = showBslF || showBslPp || showBslR;
   const showVitalsRow3 = showTemp || showWt || showHt;
-  const anyVitalShown = showVitalsRow1 || showVitalsRow2 || showVitalsRow3;
   const showNotes = showAllFields || form.clinicalNotes !== "";
 
   return (
@@ -139,15 +141,13 @@ function VisitCard({ visit, isLatest }: { visit: Visit; isLatest: boolean }) {
               Unsaved changes
             </span>
           )}
-          {!isLatest && (
-            <button
-              type="button"
-              onClick={() => setEditAll((v) => !v)}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              {editAll ? "Hide empty" : "Edit fields"}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setEditAll((v) => !v)}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            {editAll ? "Hide empty" : "Edit fields"}
+          </button>
         </div>
       </div>
 
@@ -264,12 +264,6 @@ function VisitCard({ visit, isLatest }: { visit: Visit; isLatest: boolean }) {
           </div>
         )}
 
-        {!isLatest && !anyVitalShown && !showNotes && (
-          <p className="text-sm italic text-muted-foreground">
-            No vitals or notes recorded for this visit.
-          </p>
-        )}
-
         {showNotes && (
           <div className="space-y-2">
             <Label htmlFor={`${visit.id}-notes`} className="md:text-base">
@@ -296,34 +290,36 @@ function VisitCard({ visit, isLatest }: { visit: Visit; isLatest: boolean }) {
         </div>
       )}
 
-      <div className="flex justify-end gap-2">
-        {dirty && !saveMutation.isPending && (
+      {editAll && (
+        <div className="flex justify-end gap-2">
+          {dirty && !saveMutation.isPending && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setForm(initial)}
+              className="md:h-11 md:px-5 md:text-base"
+            >
+              Discard
+            </Button>
+          )}
           <Button
             type="button"
-            variant="outline"
-            onClick={() => setForm(initial)}
+            onClick={() => saveMutation.mutate()}
+            disabled={!dirty || saveMutation.isPending}
             className="md:h-11 md:px-5 md:text-base"
           >
-            Discard
+            {saveMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Saving
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" /> Save Visit
+              </>
+            )}
           </Button>
-        )}
-        <Button
-          type="button"
-          onClick={() => saveMutation.mutate()}
-          disabled={!dirty || saveMutation.isPending}
-          className="md:h-11 md:px-5 md:text-base"
-        >
-          {saveMutation.isPending ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" /> Saving
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4" /> Save Visit
-            </>
-          )}
-        </Button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
