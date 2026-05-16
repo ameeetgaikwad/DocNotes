@@ -3,7 +3,14 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Loader2, AlertCircle, BookOpen, Trash2 } from "lucide-react";
+import {
+  Plus,
+  Loader2,
+  AlertCircle,
+  BookOpen,
+  Trash2,
+  Pencil,
+} from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { todayLocalIsoDate, formatPatientName } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -19,6 +26,10 @@ import {
 } from "@/components/ui/table";
 import { NewDailyRegisterEntryDialog } from "@/components/daily-register/new-entry-dialog";
 import { DeleteEntryButton } from "@/components/daily-register/delete-entry-button";
+import {
+  EditDailyRegisterEntryDialog,
+  type RegisterEntryForEdit,
+} from "@/components/daily-register/edit-entry-dialog";
 
 function formatINR(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
@@ -31,6 +42,9 @@ function formatINR(amount: number): string {
 export default function DailyRegisterPage() {
   const [visitDate, setVisitDate] = useState(todayLocalIsoDate());
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<RegisterEntryForEdit | null>(
+    null,
+  );
 
   const { data, isLoading, error } = useQuery(
     trpc.dailyRegister.list.queryOptions({ visitDate }),
@@ -169,18 +183,20 @@ export default function DailyRegisterPage() {
               ].filter((s): s is string => Boolean(s));
               return (
                 <li key={entry.id} className="rounded-xl border bg-card p-3">
-                  <div className="flex items-start justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditingEntry(entry)}
+                    className="flex w-full items-start justify-between gap-3 text-left"
+                    aria-label="Edit entry"
+                  >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
                         <span className="text-xs text-muted-foreground">
                           #{idx + 1}
                         </span>
-                        <Link
-                          href={`/patients/${entry.patient.id}`}
-                          className="truncate font-medium text-primary"
-                        >
+                        <span className="truncate font-medium text-primary">
                           {formatPatientName(entry.patient)}
-                        </Link>
+                        </span>
                       </div>
                       {meta.length > 0 && (
                         <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -215,13 +231,19 @@ export default function DailyRegisterPage() {
                           Fees not recorded
                         </Badge>
                       )}
-                      <DeleteEntryButton
-                        entryId={entry.id}
-                        visitDate={visitDate}
-                      >
-                        <Trash2 className="h-4 w-4 text-muted-foreground" />
-                      </DeleteEntryButton>
                     </div>
+                  </button>
+                  <div className="mt-2 flex items-center justify-end gap-2 border-t pt-2 text-xs">
+                    <Link
+                      href={`/patients/${entry.patient.id}`}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      View patient
+                    </Link>
+                    <span className="text-muted-foreground/40">·</span>
+                    <DeleteEntryButton entryId={entry.id} visitDate={visitDate}>
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </DeleteEntryButton>
                   </div>
                 </li>
               );
@@ -320,12 +342,22 @@ export default function DailyRegisterPage() {
                       {entry.notes || "—"}
                     </TableCell>
                     <TableCell className="md:py-4">
-                      <DeleteEntryButton
-                        entryId={entry.id}
-                        visitDate={visitDate}
-                      >
-                        <Trash2 className="h-4 w-4 md:h-5 md:w-5" />
-                      </DeleteEntryButton>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingEntry(entry)}
+                          aria-label="Edit entry"
+                          className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          <Pencil className="h-4 w-4 md:h-5 md:w-5" />
+                        </button>
+                        <DeleteEntryButton
+                          entryId={entry.id}
+                          visitDate={visitDate}
+                        >
+                          <Trash2 className="h-4 w-4 md:h-5 md:w-5" />
+                        </DeleteEntryButton>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -366,6 +398,12 @@ export default function DailyRegisterPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         visitDate={visitDate}
+      />
+
+      <EditDailyRegisterEntryDialog
+        open={editingEntry !== null}
+        onOpenChange={(o) => !o && setEditingEntry(null)}
+        entry={editingEntry}
       />
 
       <button
