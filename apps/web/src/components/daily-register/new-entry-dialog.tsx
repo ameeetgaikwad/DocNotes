@@ -87,10 +87,10 @@ export function NewDailyRegisterEntryDialog({
   const [notes, setNotes] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
 
-  // Inline "Add new patient" mini-form state — populated when the doctor
-  // taps the affordance after no exact-name match is found.
-  const [addingNewPatient, setAddingNewPatient] = useState(false);
-  const [newPatientName, setNewPatientName] = useState("");
+  // Inline "Add new patient" mini-form state — auto-shown when the
+  // doctor types a name with no exact match. Per Manoj msg 767, the
+  // separate "Create patient" step is gone; saving the entry creates
+  // the patient on the fly when needed.
   const [newPatientGender, setNewPatientGender] = useState<Gender | "">("");
   const [newPatientPhone, setNewPatientPhone] = useState("");
   const [newPatientDobDay, setNewPatientDobDay] = useState("");
@@ -126,8 +126,6 @@ export function NewDailyRegisterEntryDialog({
       setDiagnosis("");
       setNotes("");
       setServerError(null);
-      setAddingNewPatient(false);
-      setNewPatientName("");
       setNewPatientGender("");
       setNewPatientPhone("");
       setNewPatientDobDay("");
@@ -201,28 +199,72 @@ export function NewDailyRegisterEntryDialog({
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!patient) throw new Error("Pick a patient first");
-      // Save DOB first so a server-side DOB rejection can't leave a
-      // committed register entry behind.
-      if (dobChanged) {
+      // Resolve the patient — either the one the doctor selected, or
+      // create a brand new one on the fly from the search text + the
+      // optional gender/mobile/DOB fields below the search.
+      let resolved = patient;
+      if (!resolved) {
+        const typed = trimmedSearch.trim();
+        if (!typed) throw new Error("Type a patient name or pick one");
+        const parts = typed.split(/\s+/);
+        const firstName = parts[0] ?? "";
+        const middleName =
+          parts.length >= 3 ? parts.slice(1, -1).join(" ") : null;
+        const lastName = parts.length >= 2 ? parts[parts.length - 1] : null;
+        const d = newPatientDobDay === "" ? null : Number(newPatientDobDay);
+        const m = newPatientDobMonth === "" ? null : Number(newPatientDobMonth);
+        const y = newPatientDobYear === "" ? null : Number(newPatientDobYear);
+        const dateOfBirth =
+          d != null && m != null && y != null
+            ? new Date(Date.UTC(y, m - 1, d))
+            : null;
+        const created = await trpcClient.patient.create.mutate({
+          firstName,
+          middleName: middleName || null,
+          lastName: lastName || null,
+          dateOfBirth,
+          dobDay: d,
+          dobMonth: m,
+          dobYear: y,
+          gender: newPatientGender || null,
+          phone: newPatientPhone.trim() || null,
+        });
+        if (!created) throw new Error("Could not create patient");
+        resolved = {
+          id: created.id,
+          label: formatPatientName(created),
+          dobDay: created.dobDay ?? null,
+          dobMonth: created.dobMonth ?? null,
+          dobYear: created.dobYear ?? null,
+        };
+        setPatient(resolved);
+      } else if (dobChanged) {
+        // Save DOB first so a server-side DOB rejection can't leave a
+        // committed register entry behind.
         const updated = await trpcClient.patient.updateDob.mutate({
-          id: patient.id,
+          id: resolved.id,
           dobDay: parsedDob.d,
           dobMonth: parsedDob.m,
           dobYear: parsedDob.y,
         });
         if (updated) {
-          setPatient({
-            ...patient,
+          resolved = {
+            ...resolved,
             dobDay: updated.dobDay ?? null,
             dobMonth: updated.dobMonth ?? null,
             dobYear: updated.dobYear ?? null,
-          });
+          };
+          setPatient(resolved);
         }
       }
-      const fee = paymentStatus === "nil" ? 0 : Number(feeAmount);
+
+      // Fees Received is now optional (Manoj msg 767 #2). Blank amount
+      // saves as 0 so the doctor can record the visit fast and update
+      // fees later by reopening.
+      const fee =
+        paymentStatus === "nil" || feeAmount === "" ? 0 : Number(feeAmount);
       const entry = await trpcClient.dailyRegister.create.mutate({
-        patientId: patient.id,
+        patientId: resolved.id,
         visitDate: entryDate,
         serviceType: serviceType || null,
         feeAmount: fee,
@@ -244,56 +286,6 @@ export function NewDailyRegisterEntryDialog({
     },
   });
 
-  const createPatientFromInline = useMutation({
-    mutationFn: async () => {
-      const parts = newPatientName.trim().split(/\s+/);
-      const firstName = parts[0] ?? "";
-      const middleName =
-        parts.length >= 3 ? parts.slice(1, -1).join(" ") : null;
-      const lastName = parts.length >= 2 ? parts[parts.length - 1] : null;
-      const d = newPatientDobDay === "" ? null : Number(newPatientDobDay);
-      const m = newPatientDobMonth === "" ? null : Number(newPatientDobMonth);
-      const y = newPatientDobYear === "" ? null : Number(newPatientDobYear);
-      const dateOfBirth =
-        d != null && m != null && y != null
-          ? new Date(Date.UTC(y, m - 1, d))
-          : null;
-      const created = await trpcClient.patient.create.mutate({
-        firstName,
-        middleName: middleName || null,
-        lastName: lastName || null,
-        dateOfBirth,
-        dobDay: d,
-        dobMonth: m,
-        dobYear: y,
-        gender: newPatientGender || null,
-        phone: newPatientPhone.trim() || null,
-      });
-      return created;
-    },
-    onSuccess: (created) => {
-      if (!created) return;
-      queryClient.invalidateQueries({ queryKey: [["patient"]] });
-      selectPatient({
-        id: created.id,
-        label: formatPatientName(created),
-        dobDay: created.dobDay ?? null,
-        dobMonth: created.dobMonth ?? null,
-        dobYear: created.dobYear ?? null,
-      });
-      setAddingNewPatient(false);
-      setNewPatientName("");
-      setNewPatientGender("");
-      setNewPatientPhone("");
-      setNewPatientDobDay("");
-      setNewPatientDobMonth("");
-      setNewPatientDobYear("");
-    },
-    onError: (e) => {
-      setServerError(e.message);
-    },
-  });
-
   const typedName = trimmedSearch;
   // Authoritative duplicate check against the full DB — the fuzzy `list`
   // result is paginated, so a top-10 miss doesn't mean the patient is
@@ -307,12 +299,16 @@ export function NewDailyRegisterEntryDialog({
     typedName.length > 0 && !exactMatchQuery.isLoading && !exactMatchExists;
 
   const feeOk =
-    paymentStatus === "nil" || (feeAmount !== "" && Number(feeAmount) >= 0);
+    paymentStatus === "nil" || feeAmount === "" || Number(feeAmount) >= 0;
   const receiptDateOk =
     receiptDate === "" || /^\d{4}-\d{2}-\d{2}$/.test(receiptDate);
   const entryDateOk = /^\d{4}-\d{2}-\d{2}$/.test(entryDate);
+  // A patient is "available" if one is selected OR the doctor has typed a
+  // name with no exact match (we'll auto-create on save).
+  const patientResolvable =
+    patient !== null || (canQuickCreate && typedName.length > 0);
   const canSubmit =
-    patient !== null &&
+    patientResolvable &&
     entryDateOk &&
     serviceType !== "" &&
     feeOk &&
@@ -429,55 +425,18 @@ export function NewDailyRegisterEntryDialog({
                         </button>
                       );
                     })}
-                    {canQuickCreate && !addingNewPatient && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAddingNewPatient(true);
-                          setNewPatientName(typedName);
-                        }}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-primary hover:bg-accent md:px-4 md:py-3 md:text-base"
-                      >
-                        <UserPlus className="h-4 w-4" />
-                        <span>
-                          Add new patient: &ldquo;
-                          <span className="font-medium">{typedName}</span>
-                          &rdquo;
-                        </span>
-                      </button>
-                    )}
                   </div>
                 )}
-                {addingNewPatient && (
+                {canQuickCreate && (
                   <div className="space-y-3 rounded-md border bg-muted/30 p-3 md:p-4">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium md:text-base">
-                        New patient
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setAddingNewPatient(false)}
-                        className="text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        Back to search
-                      </button>
-                    </div>
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="new-patient-name"
-                        className="text-xs md:text-sm"
-                      >
-                        Full name
-                      </Label>
-                      <Input
-                        id="new-patient-name"
-                        type="text"
-                        value={newPatientName}
-                        onChange={(e) => setNewPatientName(e.target.value)}
-                        placeholder="e.g. Satya Dagade"
-                        className="md:h-11 md:text-base"
-                      />
-                    </div>
+                    <p className="flex items-center gap-2 text-sm font-medium md:text-base">
+                      <UserPlus className="h-4 w-4" />
+                      New patient: &ldquo;{typedName}&rdquo;
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Optional details — leave blank to record just the name.
+                      Tap Save below to add the patient and the entry together.
+                    </p>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <Label
@@ -567,32 +526,7 @@ export function NewDailyRegisterEntryDialog({
                           className="w-20 text-center md:h-11 md:text-base"
                         />
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Year alone is fine — leave day or month blank if
-                        unknown.
-                      </p>
                     </div>
-                    <Button
-                      type="button"
-                      onClick={() => createPatientFromInline.mutate()}
-                      disabled={
-                        !newPatientName.trim() ||
-                        createPatientFromInline.isPending
-                      }
-                      className="w-full md:h-11 md:text-base"
-                    >
-                      {createPatientFromInline.isPending ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Creating
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="h-4 w-4" />
-                          Create patient
-                        </>
-                      )}
-                    </Button>
                   </div>
                 )}
               </>
@@ -661,7 +595,7 @@ export function NewDailyRegisterEntryDialog({
 
           <div className="space-y-2">
             <Label htmlFor="fee" className="md:text-base">
-              Fees Received (₹) *
+              Fees Received (₹)
             </Label>
             <div className="flex flex-wrap items-stretch gap-2 md:gap-3">
               <Input
