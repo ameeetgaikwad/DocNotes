@@ -92,6 +92,7 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
             field="allergyNotes"
             initial={patient.allergyNotes ?? ""}
             placeholder="Notes about allergies — sensitivities, observed reactions, history…"
+            textClassName="font-semibold text-red-700 dark:text-red-300"
           />
         </CardContent>
       </Card>
@@ -142,11 +143,13 @@ function NotesEditor({
   field,
   initial,
   placeholder,
+  textClassName,
 }: {
   patientId: string;
   field: "allergyNotes" | "conditionNotes";
   initial: string;
   placeholder: string;
+  textClassName?: string;
 }) {
   const queryClient = useQueryClient();
   const [value, setValue] = useState(initial);
@@ -179,7 +182,7 @@ function NotesEditor({
         rows={2}
         placeholder={placeholder}
         maxLength={5000}
-        className="text-sm"
+        className={`text-sm ${textClassName ?? ""}`}
       />
       {serverError && <p className="text-xs text-destructive">{serverError}</p>}
       {dirty && (
