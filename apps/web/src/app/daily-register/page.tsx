@@ -14,7 +14,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { todayLocalIsoDate, formatPatientName } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { DateInput } from "@/components/ui/date-input";
+import { CalendarInput } from "@/components/ui/calendar-input";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -78,12 +78,12 @@ export default function DailyRegisterPage() {
           >
             Date
           </label>
-          <DateInput
+          <CalendarInput
             id="visit-date"
             value={visitDate}
             onChange={(v) => v && setVisitDate(v)}
             max={todayLocalIsoDate()}
-            className="w-40 md:h-12 md:text-base"
+            className="w-44 md:h-12 md:text-base"
           />
         </div>
         {!isToday && (
