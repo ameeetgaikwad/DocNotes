@@ -136,6 +136,18 @@ export function NewDailyRegisterEntryDialog({
     }
   }, [open, visitDate]);
 
+  // Manoj msg 764 #3: switching to Paid auto-fills today's receipt date
+  // (if the field is empty — preserves anything the doctor already
+  // typed). Switching to Due clears it so the field reads blank as a
+  // visual reminder that fees haven't come in yet.
+  useEffect(() => {
+    if (paymentStatus === "paid") {
+      setReceiptDate((current) => current || todayLocalIsoDate());
+    } else if (paymentStatus === "due") {
+      setReceiptDate("");
+    }
+  }, [paymentStatus]);
+
   function selectPatient(p: SelectedPatient) {
     setPatient(p);
     setDobDay(p.dobDay != null ? String(p.dobDay) : "");

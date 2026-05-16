@@ -1,4 +1,4 @@
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, isNull, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import type { Database } from "@docnotes/db";
 import { patientVisits, patients } from "@docnotes/db";
@@ -90,4 +90,37 @@ export async function ensureVisitForDate(
     VALUES (${providerId}, ${patientId}::uuid, ${visitDate}::date)
     ON CONFLICT (patient_id, visit_date) DO NOTHING
   `);
+}
+
+/**
+ * Copy a daily-register entry's notes into the matching same-date visit's
+ * `clinicalNotes` field — but only when the visit's clinicalNotes is
+ * currently empty. That way the doctor can still hand-edit the History
+ * notes later without future register-entry edits clobbering them.
+ *
+ * No-op when entryNotes is null/blank.
+ */
+export async function syncEntryNotesToVisit(
+  db: Database,
+  providerId: string,
+  patientId: string,
+  visitDate: string,
+  entryNotes: string | null | undefined,
+): Promise<void> {
+  const trimmed = entryNotes?.trim();
+  if (!trimmed) return;
+  await db
+    .update(patientVisits)
+    .set({ clinicalNotes: trimmed })
+    .where(
+      and(
+        eq(patientVisits.providerId, providerId),
+        eq(patientVisits.patientId, patientId),
+        eq(patientVisits.visitDate, visitDate),
+        or(
+          isNull(patientVisits.clinicalNotes),
+          eq(patientVisits.clinicalNotes, ""),
+        ),
+      ),
+    );
 }

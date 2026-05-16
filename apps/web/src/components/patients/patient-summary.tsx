@@ -1,8 +1,16 @@
-import { formatDate, formatGender, formatPatientName } from "@/lib/format";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Save } from "lucide-react";
+import { trpcClient } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 interface PatientData {
+  id: string;
   firstName: string;
   middleName?: string | null;
   lastName: string;
@@ -31,52 +39,30 @@ type Allergy = {
 };
 
 export function PatientSummary({ patient }: PatientSummaryProps) {
+  const queryClient = useQueryClient();
   const allergies = (patient.allergies ?? []) as Allergy[];
   const conditions = (patient.activeConditions ?? []) as string[];
 
+  const [notes, setNotes] = useState(patient.notes ?? "");
+  useEffect(() => {
+    setNotes(patient.notes ?? "");
+  }, [patient.notes]);
+
+  const saveNotes = useMutation({
+    mutationFn: () =>
+      trpcClient.patient.update.mutate({
+        id: patient.id,
+        data: { notes: notes.trim() || null },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [["patient"]] });
+    },
+  });
+
+  const notesDirty = (patient.notes ?? "") !== notes;
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Demographics</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <InfoRow label="Full Name">{formatPatientName(patient)}</InfoRow>
-          <InfoRow label="Date of Birth">
-            {formatDate(patient.dateOfBirth)}
-          </InfoRow>
-          <InfoRow label="Gender">{formatGender(patient.gender)}</InfoRow>
-          <InfoRow label="Blood Type">
-            {patient.bloodType ?? "Not recorded"}
-          </InfoRow>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Contact Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <InfoRow label="Email">{patient.email ?? "Not provided"}</InfoRow>
-          <InfoRow label="Phone">{patient.phone ?? "Not provided"}</InfoRow>
-          <InfoRow label="Address">{patient.address ?? "Not provided"}</InfoRow>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Emergency Contact</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <InfoRow label="Name">
-            {patient.emergencyContactName ?? "Not provided"}
-          </InfoRow>
-          <InfoRow label="Phone">
-            {patient.emergencyContactPhone ?? "Not provided"}
-          </InfoRow>
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
@@ -144,31 +130,59 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
         </CardContent>
       </Card>
 
-      {patient.notes && (
-        <Card className="md:col-span-2">
-          <CardHeader>
+      <Card className="md:col-span-2">
+        <CardHeader>
+          <div className="flex items-center justify-between">
             <CardTitle className="text-base">Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="whitespace-pre-wrap text-sm">{patient.notes}</p>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-}
+            {notesDirty && !saveNotes.isPending && (
+              <span className="text-xs text-muted-foreground">
+                Unsaved changes
+              </span>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={4}
+            placeholder="Free-form notes about allergies, conditions, or anything else relevant for this patient."
+            maxLength={5000}
+          />
+          {saveNotes.error && (
+            <p className="text-xs text-destructive">
+              {saveNotes.error.message}
+            </p>
+          )}
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              onClick={() => saveNotes.mutate()}
+              disabled={!notesDirty || saveNotes.isPending}
+              size="sm"
+            >
+              {saveNotes.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Saving
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" /> Save Notes
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-function InfoRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex justify-between text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{children}</span>
+      <Card className="md:col-span-2">
+        <CardContent className="flex items-center justify-between py-4">
+          <span className="text-sm text-muted-foreground">Mobile Number</span>
+          <span className="text-sm font-medium">
+            {patient.phone || "Not provided"}
+          </span>
+        </CardContent>
+      </Card>
     </div>
   );
 }

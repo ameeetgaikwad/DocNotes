@@ -12,7 +12,7 @@ import {
 } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
-import { ensureVisitForDate } from "./patient-visit.js";
+import { ensureVisitForDate, syncEntryNotesToVisit } from "./patient-visit.js";
 
 export const dailyRegisterRouter = router({
   list: protectedProcedure
@@ -344,6 +344,13 @@ export const dailyRegisterRouter = router({
           input.patientId,
           input.visitDate,
         );
+        await syncEntryNotesToVisit(
+          ctx.db,
+          ctx.session.userId,
+          input.patientId,
+          input.visitDate,
+          input.notes,
+        );
         logAudit(ctx, {
           action: "create",
           resource: "daily_register_entry",
@@ -399,6 +406,15 @@ export const dailyRegisterRouter = router({
         .returning();
 
       if (entry) {
+        if (input.data.notes !== undefined) {
+          await syncEntryNotesToVisit(
+            ctx.db,
+            ctx.session.userId,
+            entry.patientId,
+            entry.visitDate,
+            input.data.notes,
+          );
+        }
         logAudit(ctx, {
           action: "update",
           resource: "daily_register_entry",
