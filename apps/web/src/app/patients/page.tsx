@@ -123,7 +123,46 @@ export default function PatientsPage() {
 
       {data && data.items.length > 0 && (
         <>
-          <div className="overflow-x-auto rounded-xl border bg-card">
+          {/* Mobile: tappable card per patient. Desktop (≥md): table. */}
+          <ul className="space-y-2 md:hidden">
+            {data.items.map((patient) => {
+              const conditions = patient.activeConditions as string[];
+              return (
+                <li key={patient.id}>
+                  <Link
+                    href={`/patients/${patient.id}`}
+                    className="flex items-center gap-3 rounded-xl border bg-card p-3 active:bg-muted/40"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">
+                        {formatPatientName(patient)}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        <PatientMobileMeta patient={patient} />
+                      </p>
+                      {conditions.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {conditions.slice(0, 3).map((c) => (
+                            <Badge key={c} variant="secondary">
+                              {c}
+                            </Badge>
+                          ))}
+                          {conditions.length > 3 && (
+                            <Badge variant="outline">
+                              +{conditions.length - 3}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="hidden overflow-x-auto rounded-xl border bg-card md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -222,6 +261,28 @@ export default function PatientsPage() {
       <NewPatientDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   );
+}
+
+function PatientMobileMeta({
+  patient,
+}: {
+  patient: {
+    dateOfBirth: string | Date | null;
+    dobDay: number | null;
+    dobMonth: number | null;
+    dobYear: number | null;
+    gender: string | null;
+    phone: string | null;
+  };
+}) {
+  const { age } = formatPatientAgeDob(patient);
+  const parts = [
+    age != null ? `${age} yrs` : null,
+    formatGender(patient.gender) || null,
+    patient.phone || null,
+  ].filter((s): s is string => Boolean(s));
+  if (parts.length === 0) return <span>—</span>;
+  return <>{parts.join(" · ")}</>;
 }
 
 function PatientAgeDobCell({

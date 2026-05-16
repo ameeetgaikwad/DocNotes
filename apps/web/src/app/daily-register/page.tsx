@@ -127,7 +127,81 @@ export default function DailyRegisterPage() {
 
       {data && data.items.length > 0 && (
         <>
-          <div className="overflow-x-auto rounded-xl border bg-card">
+          {/* Mobile: card per entry. Desktop (≥md): table. */}
+          <ul className="space-y-2 md:hidden">
+            {data.items.map((entry, idx) => {
+              const statusLabel =
+                entry.paymentStatus === "paid"
+                  ? "Paid"
+                  : entry.paymentStatus === "due"
+                    ? "Due"
+                    : "Nil";
+              const meta = [
+                entry.serviceType || null,
+                entry.paymentStatus !== "nil"
+                  ? entry.paymentMode === "cash"
+                    ? "Cash"
+                    : "Digital / UPI"
+                  : null,
+                entry.diagnosis || null,
+              ].filter((s): s is string => Boolean(s));
+              return (
+                <li key={entry.id} className="rounded-xl border bg-card p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          #{idx + 1}
+                        </span>
+                        <Link
+                          href={`/patients/${entry.patient.id}`}
+                          className="truncate font-medium text-primary"
+                        >
+                          {formatPatientName(entry.patient)}
+                        </Link>
+                      </div>
+                      {meta.length > 0 && (
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                          {meta.join(" · ")}
+                        </p>
+                      )}
+                      {entry.notes && (
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                          {entry.notes}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <span className="font-mono text-sm">
+                        {entry.paymentStatus === "nil"
+                          ? "—"
+                          : formatINR(Number(entry.feeAmount))}
+                      </span>
+                      <Badge
+                        variant={
+                          entry.paymentStatus === "paid"
+                            ? "default"
+                            : entry.paymentStatus === "due"
+                              ? "outline"
+                              : "secondary"
+                        }
+                      >
+                        {statusLabel}
+                      </Badge>
+                      <DeleteEntryButton
+                        entryId={entry.id}
+                        visitDate={visitDate}
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </DeleteEntryButton>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="hidden overflow-x-auto rounded-xl border bg-card md:block">
             <Table className="md:text-base">
               <TableHeader>
                 <TableRow>
