@@ -41,9 +41,7 @@ export const patientSchema = z.object({
     .enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"])
     .nullable(),
   allergies: z.array(allergySchema),
-  allergyNotes: z.string().nullable(),
   activeConditions: z.array(z.string()),
-  conditionNotes: z.string().nullable(),
   dietNotes: z.string().nullable(),
   notes: z.string().nullable(),
   isActive: z.boolean(),
@@ -80,9 +78,7 @@ export const createPatientSchema = z.object({
     .nullable()
     .optional(),
   allergies: z.array(allergySchema).optional(),
-  allergyNotes: z.string().max(5000).nullable().optional(),
   activeConditions: z.array(z.string()).optional(),
-  conditionNotes: z.string().max(5000).nullable().optional(),
   dietNotes: z.string().max(5000).nullable().optional(),
   notes: z.string().nullable().optional(),
   duplicateOverride: duplicateOverrideSchema.optional(),
