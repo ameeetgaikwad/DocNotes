@@ -533,46 +533,58 @@ export function NewDailyRegisterEntryDialog({
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label className="md:text-base">Date of Birth (optional)</Label>
-            <div className="flex items-center gap-2 md:gap-3">
-              <Input
-                aria-label="Day"
-                inputMode="numeric"
-                placeholder="DD"
-                maxLength={2}
-                className="w-16 text-center md:h-12 md:w-20 md:text-base"
-                value={dobDay}
-                onChange={(e) => setDobDay(sanitizeDigits(e.target.value, 2))}
-              />
-              <span className="text-muted-foreground md:text-lg">/</span>
-              <Input
-                aria-label="Month"
-                inputMode="numeric"
-                placeholder="MM"
-                maxLength={2}
-                className="w-16 text-center md:h-12 md:w-20 md:text-base"
-                value={dobMonth}
-                onChange={(e) => setDobMonth(sanitizeDigits(e.target.value, 2))}
-              />
-              <span className="text-muted-foreground md:text-lg">/</span>
-              <Input
-                aria-label="Year"
-                inputMode="numeric"
-                placeholder="YYYY"
-                maxLength={4}
-                className="w-24 text-center md:h-12 md:w-28 md:text-base"
-                value={dobYear}
-                onChange={(e) => setDobYear(sanitizeDigits(e.target.value, 4))}
-              />
+          {/* Only show this DOB editor for EXISTING patients (the doctor
+              can amend a previously-recorded DOB). For new patients
+              the DOB inputs live inside the inline mini-form above so
+              we don't render a duplicate. */}
+          {patient && (
+            <div className="space-y-2">
+              <Label className="md:text-base">Date of Birth</Label>
+              <div className="flex items-center gap-2 md:gap-3">
+                <Input
+                  aria-label="Day"
+                  inputMode="numeric"
+                  placeholder="DD"
+                  maxLength={2}
+                  className="w-16 text-center md:h-12 md:w-20 md:text-base"
+                  value={dobDay}
+                  onChange={(e) => setDobDay(sanitizeDigits(e.target.value, 2))}
+                />
+                <span className="text-muted-foreground md:text-lg">/</span>
+                <Input
+                  aria-label="Month"
+                  inputMode="numeric"
+                  placeholder="MM"
+                  maxLength={2}
+                  className="w-16 text-center md:h-12 md:w-20 md:text-base"
+                  value={dobMonth}
+                  onChange={(e) =>
+                    setDobMonth(sanitizeDigits(e.target.value, 2))
+                  }
+                />
+                <span className="text-muted-foreground md:text-lg">/</span>
+                <Input
+                  aria-label="Year"
+                  inputMode="numeric"
+                  placeholder="YYYY"
+                  maxLength={4}
+                  className="w-24 text-center md:h-12 md:w-28 md:text-base"
+                  value={dobYear}
+                  onChange={(e) =>
+                    setDobYear(sanitizeDigits(e.target.value, 4))
+                  }
+                />
+              </div>
+              <p className="text-xs text-muted-foreground md:text-sm">
+                Year alone is fine — leave day or month blank if unknown.
+              </p>
+              {dobError && (
+                <p className="text-xs text-destructive md:text-sm">
+                  {dobError}
+                </p>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground md:text-sm">
-              Year alone is fine — leave day or month blank if unknown.
-            </p>
-            {dobError && (
-              <p className="text-xs text-destructive md:text-sm">{dobError}</p>
-            )}
-          </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="service-type" className="md:text-base">
@@ -705,7 +717,7 @@ export function NewDailyRegisterEntryDialog({
 
           <div className="space-y-2">
             <Label htmlFor="diagnosis" className="md:text-base">
-              Diagnosis (optional)
+              Diagnosis
             </Label>
             <Input
               id="diagnosis"
@@ -720,7 +732,7 @@ export function NewDailyRegisterEntryDialog({
 
           <div className="space-y-2">
             <Label htmlFor="notes" className="md:text-base">
-              Remarks (optional)
+              Remarks
             </Label>
             <Textarea
               id="notes"
