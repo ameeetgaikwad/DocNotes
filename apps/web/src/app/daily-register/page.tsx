@@ -127,6 +127,25 @@ export default function DailyRegisterPage() {
 
       {data && data.items.length > 0 && (
         <>
+          {(() => {
+            const unrecordedCount = data.items.filter(
+              (e) =>
+                e.paymentStatus !== "nil" && Number(e.feeAmount ?? 0) === 0,
+            ).length;
+            if (unrecordedCount === 0) return null;
+            return (
+              <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700/50 dark:bg-amber-950/30">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <p className="text-amber-900 dark:text-amber-200">
+                  {unrecordedCount}{" "}
+                  {unrecordedCount === 1 ? "entry" : "entries"} on this date{" "}
+                  {unrecordedCount === 1 ? "doesn't have" : "don't have"} fees
+                  recorded yet — tap the row to fill them in once settled.
+                </p>
+              </div>
+            );
+          })()}
+
           {/* Mobile: card per entry. Desktop (≥md): table. */}
           <ul className="space-y-2 md:hidden">
             {data.items.map((entry, idx) => {
@@ -136,6 +155,9 @@ export default function DailyRegisterPage() {
                   : entry.paymentStatus === "due"
                     ? "Due"
                     : "Nil";
+              const feesUnrecorded =
+                entry.paymentStatus !== "nil" &&
+                Number(entry.feeAmount ?? 0) === 0;
               const meta = [
                 entry.serviceType || null,
                 entry.paymentStatus !== "nil"
@@ -188,6 +210,11 @@ export default function DailyRegisterPage() {
                       >
                         {statusLabel}
                       </Badge>
+                      {feesUnrecorded && (
+                        <Badge variant="warning" className="text-[10px]">
+                          Fees not recorded
+                        </Badge>
+                      )}
                       <DeleteEntryButton
                         entryId={entry.id}
                         visitDate={visitDate}
@@ -245,21 +272,29 @@ export default function DailyRegisterPage() {
                         : formatINR(Number(entry.feeAmount))}
                     </TableCell>
                     <TableCell className="md:py-4">
-                      <Badge
-                        variant={
-                          entry.paymentStatus === "paid"
-                            ? "default"
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge
+                          variant={
+                            entry.paymentStatus === "paid"
+                              ? "default"
+                              : entry.paymentStatus === "due"
+                                ? "outline"
+                                : "secondary"
+                          }
+                        >
+                          {entry.paymentStatus === "paid"
+                            ? "Paid"
                             : entry.paymentStatus === "due"
-                              ? "outline"
-                              : "secondary"
-                        }
-                      >
-                        {entry.paymentStatus === "paid"
-                          ? "Paid"
-                          : entry.paymentStatus === "due"
-                            ? "Due"
-                            : "Nil"}
-                      </Badge>
+                              ? "Due"
+                              : "Nil"}
+                        </Badge>
+                        {entry.paymentStatus !== "nil" &&
+                          Number(entry.feeAmount ?? 0) === 0 && (
+                            <Badge variant="warning" className="text-[10px]">
+                              Fees not recorded
+                            </Badge>
+                          )}
+                      </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell md:py-4">
                       {entry.paymentStatus === "nil" ? (
