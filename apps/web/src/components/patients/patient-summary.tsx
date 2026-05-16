@@ -53,11 +53,7 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {allergies.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No known allergies recorded
-            </p>
-          ) : (
+          {allergies.length > 0 && (
             <div className="space-y-2">
               {allergies.map((allergy) => (
                 <div
@@ -105,11 +101,7 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {conditions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No active conditions recorded
-            </p>
-          ) : (
+          {conditions.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {conditions.map((condition) => (
                 <Badge key={condition} variant="outline">
