@@ -233,14 +233,30 @@ export default function PatientProfilePage({
       </div>
 
       <Tabs defaultValue="summary">
-        <TabsList className="w-full justify-start overflow-x-auto">
-          <TabsTrigger value="summary">Summary</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="diet">Diet</TabsTrigger>
-          <TabsTrigger value="pending-dues">Pending Dues</TabsTrigger>
-          <TabsTrigger value="appointments">Appointments</TabsTrigger>
-        </TabsList>
+        <div className="relative">
+          <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 [&::-webkit-scrollbar]:hidden">
+            {[
+              { value: "summary", label: "Summary" },
+              { value: "history", label: "History" },
+              { value: "documents", label: "Documents" },
+              { value: "diet", label: "Diet" },
+              { value: "pending-dues", label: "Pending Dues" },
+              { value: "appointments", label: "Appointments" },
+            ].map((t) => (
+              <TabsTrigger
+                key={t.value}
+                value={t.value}
+                className="shrink-0 rounded-none border-b-2 border-transparent bg-transparent px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none md:px-4"
+              >
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-background to-transparent"
+          />
+        </div>
 
         <TabsContent value="summary">
           <PatientSummary patient={patient} />
