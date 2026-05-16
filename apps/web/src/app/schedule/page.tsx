@@ -146,7 +146,10 @@ export default function SchedulePage() {
             Manage appointments and availability
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)} className="self-start">
+        <Button
+          onClick={() => setDialogOpen(true)}
+          className="hidden self-start sm:inline-flex"
+        >
           <Plus className="h-4 w-4" />
           New Appointment
         </Button>
@@ -265,6 +268,16 @@ export default function SchedulePage() {
         onOpenChange={setDialogOpen}
         defaultDate={toDateString(selectedDate)}
       />
+
+      <button
+        type="button"
+        onClick={() => setDialogOpen(true)}
+        aria-label="New Appointment"
+        className="fixed right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 sm:hidden"
+        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 5rem)" }}
+      >
+        <Plus className="h-6 w-6" />
+      </button>
     </div>
   );
 }
