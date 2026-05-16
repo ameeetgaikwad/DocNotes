@@ -12,7 +12,7 @@ import {
   Smartphone,
   Save,
 } from "lucide-react";
-import { SERVICE_TYPES } from "@docnotes/shared";
+import { SERVICE_TYPES, type Gender } from "@docnotes/shared";
 import { trpc, trpcClient } from "@/lib/trpc";
 import {
   todayLocalIsoDate,
@@ -87,6 +87,16 @@ export function NewDailyRegisterEntryDialog({
   const [notes, setNotes] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
 
+  // Inline "Add new patient" mini-form state — populated when the doctor
+  // taps the affordance after no exact-name match is found.
+  const [addingNewPatient, setAddingNewPatient] = useState(false);
+  const [newPatientName, setNewPatientName] = useState("");
+  const [newPatientGender, setNewPatientGender] = useState<Gender | "">("");
+  const [newPatientPhone, setNewPatientPhone] = useState("");
+  const [newPatientDobDay, setNewPatientDobDay] = useState("");
+  const [newPatientDobMonth, setNewPatientDobMonth] = useState("");
+  const [newPatientDobYear, setNewPatientDobYear] = useState("");
+
   const debouncedSearch = useDebounce(patientSearch, 250);
   const trimmedSearch = debouncedSearch.trim();
 
@@ -116,6 +126,13 @@ export function NewDailyRegisterEntryDialog({
       setDiagnosis("");
       setNotes("");
       setServerError(null);
+      setAddingNewPatient(false);
+      setNewPatientName("");
+      setNewPatientGender("");
+      setNewPatientPhone("");
+      setNewPatientDobDay("");
+      setNewPatientDobMonth("");
+      setNewPatientDobYear("");
     }
   }, [open, visitDate]);
 
@@ -215,16 +232,30 @@ export function NewDailyRegisterEntryDialog({
     },
   });
 
-  const quickCreatePatient = useMutation({
-    mutationFn: async (typed: string) => {
-      const parts = typed.trim().split(/\s+/);
+  const createPatientFromInline = useMutation({
+    mutationFn: async () => {
+      const parts = newPatientName.trim().split(/\s+/);
       const firstName = parts[0] ?? "";
-      const middleName = parts.length >= 3 ? parts.slice(1, -1).join(" ") : "";
-      const lastName = parts.length >= 2 ? parts[parts.length - 1] : "";
-      const created = await trpcClient.patient.quickCreate.mutate({
+      const middleName =
+        parts.length >= 3 ? parts.slice(1, -1).join(" ") : null;
+      const lastName = parts.length >= 2 ? parts[parts.length - 1] : null;
+      const d = newPatientDobDay === "" ? null : Number(newPatientDobDay);
+      const m = newPatientDobMonth === "" ? null : Number(newPatientDobMonth);
+      const y = newPatientDobYear === "" ? null : Number(newPatientDobYear);
+      const dateOfBirth =
+        d != null && m != null && y != null
+          ? new Date(Date.UTC(y, m - 1, d))
+          : null;
+      const created = await trpcClient.patient.create.mutate({
         firstName,
-        middleName,
-        lastName,
+        middleName: middleName || null,
+        lastName: lastName || null,
+        dateOfBirth,
+        dobDay: d,
+        dobMonth: m,
+        dobYear: y,
+        gender: newPatientGender || null,
+        phone: newPatientPhone.trim() || null,
       });
       return created;
     },
@@ -238,6 +269,13 @@ export function NewDailyRegisterEntryDialog({
         dobMonth: created.dobMonth ?? null,
         dobYear: created.dobYear ?? null,
       });
+      setAddingNewPatient(false);
+      setNewPatientName("");
+      setNewPatientGender("");
+      setNewPatientPhone("");
+      setNewPatientDobDay("");
+      setNewPatientDobMonth("");
+      setNewPatientDobYear("");
     },
     onError: (e) => {
       setServerError(e.message);
@@ -379,18 +417,16 @@ export function NewDailyRegisterEntryDialog({
                         </button>
                       );
                     })}
-                    {canQuickCreate && (
+                    {canQuickCreate && !addingNewPatient && (
                       <button
                         type="button"
-                        onClick={() => quickCreatePatient.mutate(typedName)}
-                        disabled={quickCreatePatient.isPending}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-primary hover:bg-accent disabled:opacity-50 md:px-4 md:py-3 md:text-base"
+                        onClick={() => {
+                          setAddingNewPatient(true);
+                          setNewPatientName(typedName);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-primary hover:bg-accent md:px-4 md:py-3 md:text-base"
                       >
-                        {quickCreatePatient.isPending ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <UserPlus className="h-4 w-4" />
-                        )}
+                        <UserPlus className="h-4 w-4" />
                         <span>
                           Add new patient: &ldquo;
                           <span className="font-medium">{typedName}</span>
@@ -398,6 +434,153 @@ export function NewDailyRegisterEntryDialog({
                         </span>
                       </button>
                     )}
+                  </div>
+                )}
+                {addingNewPatient && (
+                  <div className="space-y-3 rounded-md border bg-muted/30 p-3 md:p-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium md:text-base">
+                        New patient
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setAddingNewPatient(false)}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Back to search
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="new-patient-name"
+                        className="text-xs md:text-sm"
+                      >
+                        Full name
+                      </Label>
+                      <Input
+                        id="new-patient-name"
+                        type="text"
+                        value={newPatientName}
+                        onChange={(e) => setNewPatientName(e.target.value)}
+                        placeholder="e.g. Satya Dagade"
+                        className="md:h-11 md:text-base"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="new-patient-gender"
+                          className="text-xs md:text-sm"
+                        >
+                          Gender
+                        </Label>
+                        <Select
+                          id="new-patient-gender"
+                          value={newPatientGender}
+                          onChange={(e) =>
+                            setNewPatientGender(
+                              (e.target.value as Gender | "") || "",
+                            )
+                          }
+                          className="md:h-11 md:text-base"
+                        >
+                          <option value="">—</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                          <option value="other">Other</option>
+                          <option value="prefer_not_to_say">
+                            Prefer not to say
+                          </option>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="new-patient-phone"
+                          className="text-xs md:text-sm"
+                        >
+                          Mobile
+                        </Label>
+                        <Input
+                          id="new-patient-phone"
+                          type="tel"
+                          inputMode="tel"
+                          value={newPatientPhone}
+                          onChange={(e) => setNewPatientPhone(e.target.value)}
+                          placeholder="+91 98765 43210"
+                          className="md:h-11 md:text-base"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs md:text-sm">
+                        Date of Birth
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          value={newPatientDobDay}
+                          onChange={(e) =>
+                            setNewPatientDobDay(
+                              sanitizeDigits(e.target.value, 2),
+                            )
+                          }
+                          placeholder="DD"
+                          className="w-16 text-center md:h-11 md:text-base"
+                        />
+                        <span className="text-muted-foreground">/</span>
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          value={newPatientDobMonth}
+                          onChange={(e) =>
+                            setNewPatientDobMonth(
+                              sanitizeDigits(e.target.value, 2),
+                            )
+                          }
+                          placeholder="MM"
+                          className="w-16 text-center md:h-11 md:text-base"
+                        />
+                        <span className="text-muted-foreground">/</span>
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          value={newPatientDobYear}
+                          onChange={(e) =>
+                            setNewPatientDobYear(
+                              sanitizeDigits(e.target.value, 4),
+                            )
+                          }
+                          placeholder="YYYY"
+                          className="w-20 text-center md:h-11 md:text-base"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Year alone is fine — leave day or month blank if
+                        unknown.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => createPatientFromInline.mutate()}
+                      disabled={
+                        !newPatientName.trim() ||
+                        createPatientFromInline.isPending
+                      }
+                      className="w-full md:h-11 md:text-base"
+                    >
+                      {createPatientFromInline.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Creating
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="h-4 w-4" />
+                          Create patient
+                        </>
+                      )}
+                    </Button>
                   </div>
                 )}
               </>

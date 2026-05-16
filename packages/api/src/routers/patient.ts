@@ -97,12 +97,16 @@ export const patientRouter = router({
   create: protectedProcedure
     .input(createPatientSchema)
     .mutation(async ({ ctx, input }) => {
-      const { duplicateOverride, ...patientInput } = input;
+      const { duplicateOverride, dateOfBirth, ...patientInput } = input;
       const [patient] = await ctx.db
         .insert(patients)
         .values({
           ...patientInput,
-          dateOfBirth: patientInput.dateOfBirth.toISOString().split("T")[0]!,
+          lastName: patientInput.lastName ?? "",
+          dateOfBirth: dateOfBirth
+            ? dateOfBirth.toISOString().split("T")[0]!
+            : null,
+          gender: patientInput.gender ?? null,
           allergies: patientInput.allergies ?? [],
           activeConditions: patientInput.activeConditions ?? [],
           createdBy: ctx.session.userId,

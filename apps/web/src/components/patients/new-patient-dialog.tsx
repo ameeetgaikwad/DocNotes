@@ -1,15 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
-import { createPatientSchema, type CreatePatient } from "@docnotes/shared";
+import type { CreatePatient, Gender } from "@docnotes/shared";
 import { trpc, trpcClient } from "@/lib/trpc";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatPatientName, formatPatientAgeDob } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,62 +26,78 @@ interface NewPatientDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+type BloodType = "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-" | "";
+
 const OVERRIDE_REASON_OPTIONS = [
   "Different person, same name",
   "Spelling correction needed",
   "Other",
 ] as const;
 
+function sanitizeDigits(value: string, maxLen: number): string {
+  return value.replace(/\D/g, "").slice(0, maxLen);
+}
+
+function parseFullName(name: string): {
+  firstName: string;
+  middleName: string | null;
+  lastName: string | null;
+} {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const firstName = parts[0] ?? "";
+  const middleName = parts.length >= 3 ? parts.slice(1, -1).join(" ") : null;
+  const lastName = parts.length >= 2 ? parts[parts.length - 1]! : null;
+  return { firstName, middleName, lastName };
+}
+
 export function NewPatientDialog({
   open,
   onOpenChange,
 }: NewPatientDialogProps) {
   const queryClient = useQueryClient();
+
+  // Form state (lifted from react-hook-form so the name + DOB partials and
+  // the dedup lookups read the same source).
+  const [fullName, setFullName] = useState("");
+  const [gender, setGender] = useState<Gender | "">("");
+  const [dobDay, setDobDay] = useState("");
+  const [dobMonth, setDobMonth] = useState("");
+  const [dobYear, setDobYear] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [address, setAddress] = useState("");
+  const [emergencyName, setEmergencyName] = useState("");
+  const [emergencyPhone, setEmergencyPhone] = useState("");
+  const [bloodType, setBloodType] = useState<BloodType>("");
+  const [notes, setNotes] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
+
   const [confirmingOverride, setConfirmingOverride] = useState(false);
-  const [pendingFormData, setPendingFormData] = useState<CreatePatient | null>(
-    null,
-  );
   const [overrideReason, setOverrideReason] = useState<string>("");
   const [overrideReasonOther, setOverrideReasonOther] = useState("");
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    control,
-    watch,
-    formState: { errors },
-  } = useForm<CreatePatient>({
-    resolver: zodResolver(createPatientSchema),
-    defaultValues: {
-      firstName: "",
-      middleName: null,
-      lastName: "",
-      gender: "male",
-      email: null,
-      phone: null,
-      address: null,
-      emergencyContactName: null,
-      emergencyContactPhone: null,
-      bloodType: null,
-      notes: null,
-    },
-  });
+  useEffect(() => {
+    if (open) return;
+    setFullName("");
+    setGender("");
+    setDobDay("");
+    setDobMonth("");
+    setDobYear("");
+    setPhone("");
+    setEmail("");
+    setAddress("");
+    setEmergencyName("");
+    setEmergencyPhone("");
+    setBloodType("");
+    setNotes("");
+    setServerError(null);
+    setConfirmingOverride(false);
+    setOverrideReason("");
+    setOverrideReasonOther("");
+  }, [open]);
 
-  const firstName = watch("firstName");
-  const middleName = watch("middleName");
-  const lastName = watch("lastName");
-  const phone = watch("phone");
-  const dupQueryString = useMemo(
-    () =>
-      [firstName, middleName, lastName]
-        .map((s) => (s ?? "").trim())
-        .filter(Boolean)
-        .join(" "),
-    [firstName, middleName, lastName],
-  );
-  const debouncedDupQuery = useDebounce(dupQueryString, 300);
+  const trimmedName = fullName.trim();
+  const debouncedDupQuery = useDebounce(trimmedName, 300);
   const dupQuery = useQuery({
     ...trpc.patient.list.queryOptions({
       query: debouncedDupQuery || undefined,
@@ -94,7 +107,7 @@ export function NewPatientDialog({
     enabled: open && debouncedDupQuery.length >= 2,
   });
 
-  const phoneDigits = useMemo(() => (phone ?? "").replace(/\D/g, ""), [phone]);
+  const phoneDigits = useMemo(() => phone.replace(/\D/g, ""), [phone]);
   const debouncedPhoneDigits = useDebounce(phoneDigits, 300);
   const phoneDupQuery = useQuery({
     ...trpc.patient.findByPhone.queryOptions({
@@ -116,65 +129,103 @@ export function NewPatientDialog({
     return merged;
   }, [dupQuery.data, phoneDupQuery.data]);
 
+  const dobError = useMemo(() => {
+    const d = dobDay === "" ? null : Number(dobDay);
+    const m = dobMonth === "" ? null : Number(dobMonth);
+    const y = dobYear === "" ? null : Number(dobYear);
+    if (d !== null && (d < 1 || d > 31)) return "Day must be 1-31";
+    if (m !== null && (m < 1 || m > 12)) return "Month must be 1-12";
+    const thisYear = new Date().getFullYear();
+    if (y !== null && (y < 1900 || y > thisYear))
+      return `Year must be 1900-${thisYear}`;
+    if (d !== null && m !== null && y !== null) {
+      const probe = new Date(Date.UTC(y, m - 1, d));
+      if (
+        probe.getUTCFullYear() !== y ||
+        probe.getUTCMonth() !== m - 1 ||
+        probe.getUTCDate() !== d
+      ) {
+        return "That date doesn't exist in the calendar";
+      }
+    }
+    return null;
+  }, [dobDay, dobMonth, dobYear]);
+
+  const canSubmit = trimmedName.length > 0 && dobError === null;
+
   const createMutation = useMutation({
-    mutationFn: (data: CreatePatient) => trpcClient.patient.create.mutate(data),
+    mutationFn: (payload: CreatePatient) =>
+      trpcClient.patient.create.mutate(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [["patient"]] });
-      reset();
-      setServerError(null);
-      setConfirmingOverride(false);
-      setPendingFormData(null);
-      setOverrideReason("");
-      setOverrideReasonOther("");
       onOpenChange(false);
     },
-    onError: (error) => {
-      setServerError(error.message);
+    onError: (err) => {
+      setServerError(err.message);
     },
   });
 
-  const onSubmit = (data: CreatePatient) => {
+  function buildPayload(overrideReasonText: string | null): CreatePatient {
+    const { firstName, middleName, lastName } = parseFullName(fullName);
+    const d = dobDay === "" ? null : Number(dobDay);
+    const m = dobMonth === "" ? null : Number(dobMonth);
+    const y = dobYear === "" ? null : Number(dobYear);
+    const dateOfBirth =
+      d != null && m != null && y != null
+        ? new Date(Date.UTC(y, m - 1, d))
+        : null;
+    return {
+      firstName,
+      middleName: middleName || null,
+      lastName: lastName || null,
+      dateOfBirth,
+      dobDay: d,
+      dobMonth: m,
+      dobYear: y,
+      gender: gender || null,
+      email: email.trim() || null,
+      phone: phone.trim() || null,
+      address: address.trim() || null,
+      emergencyContactName: emergencyName.trim() || null,
+      emergencyContactPhone: emergencyPhone.trim() || null,
+      bloodType: bloodType || null,
+      notes: notes.trim() || null,
+      ...(overrideReasonText
+        ? {
+            duplicateOverride: {
+              reason: overrideReasonText,
+              candidateIds: duplicateCandidates.map((p) => p.id),
+            },
+          }
+        : {}),
+    };
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
     setServerError(null);
+    if (!canSubmit) return;
     if (duplicateCandidates.length > 0) {
-      setPendingFormData(data);
       setOverrideReason("");
       setOverrideReasonOther("");
       setConfirmingOverride(true);
       return;
     }
-    createMutation.mutate(data);
-  };
+    createMutation.mutate(buildPayload(null));
+  }
 
   const finalOverrideReason = (
     overrideReason === "Other" ? overrideReasonOther.trim() : overrideReason
   ).trim();
   const canConfirmOverride = finalOverrideReason.length > 0;
 
-  const onConfirmOverride = () => {
-    if (!pendingFormData || !canConfirmOverride) return;
-    createMutation.mutate({
-      ...pendingFormData,
-      duplicateOverride: {
-        reason: finalOverrideReason,
-        candidateIds: duplicateCandidates.map((p) => p.id),
-      },
-    });
-  };
-
-  const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen) {
-      reset();
-      setServerError(null);
-      setConfirmingOverride(false);
-      setPendingFormData(null);
-      setOverrideReason("");
-      setOverrideReasonOther("");
-    }
-    onOpenChange(nextOpen);
-  };
+  function onConfirmOverride() {
+    if (!canConfirmOverride) return;
+    createMutation.mutate(buildPayload(finalOverrideReason));
+  }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
@@ -185,7 +236,7 @@ export function NewPatientDialog({
           <DialogDescription>
             {confirmingOverride
               ? "An existing patient looks similar. Open the existing record, or confirm with a reason to create as new."
-              : "Add a new patient to your practice. Fields marked with * are required."}
+              : "Add a new patient. Only Full Name is required."}
           </DialogDescription>
         </DialogHeader>
 
@@ -293,7 +344,7 @@ export function NewPatientDialog({
         )}
 
         <form
-          onSubmit={handleSubmit(onSubmit)}
+          onSubmit={handleSubmit}
           className={confirmingOverride ? "hidden" : "space-y-6"}
         >
           {serverError && (
@@ -350,111 +401,95 @@ export function NewPatientDialog({
               Personal Information
             </h3>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="firstName">First Name *</Label>
-                <Input
-                  id="firstName"
-                  placeholder="First name"
-                  {...register("firstName")}
-                />
-                {errors.firstName && (
-                  <p className="text-xs text-destructive">
-                    {errors.firstName.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="middleName">Middle Name</Label>
-                <Input
-                  id="middleName"
-                  placeholder="Optional"
-                  {...register("middleName", {
-                    setValueAs: (v) => v || null,
-                  })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName">Surname *</Label>
-                <Input
-                  id="lastName"
-                  placeholder="Surname"
-                  {...register("lastName")}
-                />
-                {errors.lastName && (
-                  <p className="text-xs text-destructive">
-                    {errors.lastName.message}
-                  </p>
-                )}
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Full Name *</Label>
+              <Input
+                id="fullName"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="e.g. Satya Dagade"
+                autoFocus
+                maxLength={500}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="dateOfBirth">Date of Birth *</Label>
-                <Controller
-                  control={control}
-                  name="dateOfBirth"
-                  render={({ field }) => {
-                    const display =
-                      field.value instanceof Date
-                        ? `${field.value.getUTCFullYear()}-${String(
-                            field.value.getUTCMonth() + 1,
-                          ).padStart(2, "0")}-${String(
-                            field.value.getUTCDate(),
-                          ).padStart(2, "0")}`
-                        : typeof field.value === "string"
-                          ? field.value
-                          : "";
-                    return (
-                      <DateInput
-                        id="dateOfBirth"
-                        value={display}
-                        onChange={(v) =>
-                          field.onChange(v ? new Date(v + "T00:00:00Z") : null)
-                        }
-                      />
-                    );
-                  }}
-                />
-                {errors.dateOfBirth && (
-                  <p className="text-xs text-destructive">
-                    {errors.dateOfBirth.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="gender">Gender *</Label>
-                <Select id="gender" {...register("gender")}>
+                <Label htmlFor="gender">Gender</Label>
+                <Select
+                  id="gender"
+                  value={gender}
+                  onChange={(e) =>
+                    setGender((e.target.value as Gender | "") || "")
+                  }
+                >
+                  <option value="">—</option>
                   <option value="male">Male</option>
                   <option value="female">Female</option>
                   <option value="other">Other</option>
                   <option value="prefer_not_to_say">Prefer not to say</option>
                 </Select>
-                {errors.gender && (
-                  <p className="text-xs text-destructive">
-                    {errors.gender.message}
-                  </p>
-                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bloodType">Blood Type</Label>
+                <Select
+                  id="bloodType"
+                  value={bloodType}
+                  onChange={(e) => setBloodType(e.target.value as BloodType)}
+                >
+                  <option value="">—</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                </Select>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="bloodType">Blood Type</Label>
-              <Select
-                id="bloodType"
-                {...register("bloodType", { setValueAs: (v) => v || null })}
-              >
-                <option value="">Select blood type</option>
-                <option value="A+">A+</option>
-                <option value="A-">A-</option>
-                <option value="B+">B+</option>
-                <option value="B-">B-</option>
-                <option value="AB+">AB+</option>
-                <option value="AB-">AB-</option>
-                <option value="O+">O+</option>
-                <option value="O-">O-</option>
-              </Select>
+              <Label>Date of Birth</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={dobDay}
+                  onChange={(e) => setDobDay(sanitizeDigits(e.target.value, 2))}
+                  placeholder="DD"
+                  className="w-16 text-center"
+                />
+                <span className="text-muted-foreground">/</span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={dobMonth}
+                  onChange={(e) =>
+                    setDobMonth(sanitizeDigits(e.target.value, 2))
+                  }
+                  placeholder="MM"
+                  className="w-16 text-center"
+                />
+                <span className="text-muted-foreground">/</span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={dobYear}
+                  onChange={(e) =>
+                    setDobYear(sanitizeDigits(e.target.value, 4))
+                  }
+                  placeholder="YYYY"
+                  className="w-20 text-center"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Year alone is fine — leave day or month blank if unknown.
+              </p>
+              {dobError && (
+                <p className="text-xs text-destructive">{dobError}</p>
+              )}
             </div>
           </div>
 
@@ -470,13 +505,9 @@ export function NewPatientDialog({
                   id="email"
                   type="email"
                   placeholder="patient@email.com"
-                  {...register("email", { setValueAs: (v) => v || null })}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                 />
-                {errors.email && (
-                  <p className="text-xs text-destructive">
-                    {errors.email.message}
-                  </p>
-                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone</Label>
@@ -484,7 +515,8 @@ export function NewPatientDialog({
                   id="phone"
                   type="tel"
                   placeholder="+91 98765 43210"
-                  {...register("phone", { setValueAs: (v) => v || null })}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
                 />
                 {!phoneDigits && (
                   <p className="text-xs text-muted-foreground">
@@ -500,7 +532,8 @@ export function NewPatientDialog({
                 id="address"
                 placeholder="Full address"
                 rows={2}
-                {...register("address", { setValueAs: (v) => v || null })}
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
               />
             </div>
           </div>
@@ -515,9 +548,8 @@ export function NewPatientDialog({
                 <Input
                   id="emergencyContactName"
                   placeholder="Emergency contact"
-                  {...register("emergencyContactName", {
-                    setValueAs: (v) => v || null,
-                  })}
+                  value={emergencyName}
+                  onChange={(e) => setEmergencyName(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
@@ -526,9 +558,8 @@ export function NewPatientDialog({
                   id="emergencyContactPhone"
                   type="tel"
                   placeholder="+91 98765 43210"
-                  {...register("emergencyContactPhone", {
-                    setValueAs: (v) => v || null,
-                  })}
+                  value={emergencyPhone}
+                  onChange={(e) => setEmergencyPhone(e.target.value)}
                 />
               </div>
             </div>
@@ -540,7 +571,8 @@ export function NewPatientDialog({
               id="notes"
               placeholder="Any additional notes about the patient..."
               rows={3}
-              {...register("notes", { setValueAs: (v) => v || null })}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
             />
           </div>
 
@@ -550,7 +582,10 @@ export function NewPatientDialog({
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" disabled={createMutation.isPending}>
+            <Button
+              type="submit"
+              disabled={!canSubmit || createMutation.isPending}
+            >
               {createMutation.isPending ? "Creating..." : "Create Patient"}
             </Button>
           </DialogFooter>
