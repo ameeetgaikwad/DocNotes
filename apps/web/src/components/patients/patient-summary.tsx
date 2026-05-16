@@ -49,7 +49,7 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            Allergies ({allergies.length})
+            Allergies{allergies.length > 0 && ` (${allergies.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -100,7 +100,8 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            Active Conditions ({conditions.length})
+            Active Conditions
+            {conditions.length > 0 && ` (${conditions.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
