@@ -23,7 +23,9 @@ interface PatientData {
   emergencyContactPhone: string | null;
   bloodType: string | null;
   allergies: unknown;
+  allergyNotes: string | null;
   activeConditions: unknown;
+  conditionNotes: string | null;
   notes: string | null;
   createdAt: Date;
 }
@@ -39,27 +41,8 @@ type Allergy = {
 };
 
 export function PatientSummary({ patient }: PatientSummaryProps) {
-  const queryClient = useQueryClient();
   const allergies = (patient.allergies ?? []) as Allergy[];
   const conditions = (patient.activeConditions ?? []) as string[];
-
-  const [notes, setNotes] = useState(patient.notes ?? "");
-  useEffect(() => {
-    setNotes(patient.notes ?? "");
-  }, [patient.notes]);
-
-  const saveNotes = useMutation({
-    mutationFn: () =>
-      trpcClient.patient.update.mutate({
-        id: patient.id,
-        data: { notes: notes.trim() || null },
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [["patient"]] });
-    },
-  });
-
-  const notesDirty = (patient.notes ?? "") !== notes;
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -69,7 +52,7 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
             Allergies ({allergies.length})
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           {allergies.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No known allergies recorded
@@ -104,6 +87,12 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
               ))}
             </div>
           )}
+          <NotesEditor
+            patientId={patient.id}
+            field="allergyNotes"
+            initial={patient.allergyNotes ?? ""}
+            placeholder="Notes about allergies — sensitivities, observed reactions, history…"
+          />
         </CardContent>
       </Card>
 
@@ -113,7 +102,7 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
             Active Conditions ({conditions.length})
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           {conditions.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No active conditions recorded
@@ -127,51 +116,12 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      <Card className="md:col-span-2">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Notes</CardTitle>
-            {notesDirty && !saveNotes.isPending && (
-              <span className="text-xs text-muted-foreground">
-                Unsaved changes
-              </span>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={4}
-            placeholder="Free-form notes about allergies, conditions, or anything else relevant for this patient."
-            maxLength={5000}
+          <NotesEditor
+            patientId={patient.id}
+            field="conditionNotes"
+            initial={patient.conditionNotes ?? ""}
+            placeholder="Notes about active conditions — onset, severity, treatments tried…"
           />
-          {saveNotes.error && (
-            <p className="text-xs text-destructive">
-              {saveNotes.error.message}
-            </p>
-          )}
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              onClick={() => saveNotes.mutate()}
-              disabled={!notesDirty || saveNotes.isPending}
-              size="sm"
-            >
-              {saveNotes.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Saving
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" /> Save Notes
-                </>
-              )}
-            </Button>
-          </div>
         </CardContent>
       </Card>
 
@@ -183,6 +133,77 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
           </span>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function NotesEditor({
+  patientId,
+  field,
+  initial,
+  placeholder,
+}: {
+  patientId: string;
+  field: "allergyNotes" | "conditionNotes";
+  initial: string;
+  placeholder: string;
+}) {
+  const queryClient = useQueryClient();
+  const [value, setValue] = useState(initial);
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setValue(initial);
+  }, [initial]);
+
+  const save = useMutation({
+    mutationFn: () =>
+      trpcClient.patient.update.mutate({
+        id: patientId,
+        data: { [field]: value.trim() || null },
+      }),
+    onSuccess: () => {
+      setServerError(null);
+      queryClient.invalidateQueries({ queryKey: [["patient"]] });
+    },
+    onError: (err) => setServerError(err.message),
+  });
+
+  const dirty = initial !== value;
+
+  return (
+    <div className="space-y-2 border-t pt-3">
+      <Textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        rows={2}
+        placeholder={placeholder}
+        maxLength={5000}
+        className="text-sm"
+      />
+      {serverError && <p className="text-xs text-destructive">{serverError}</p>}
+      {dirty && (
+        <div className="flex items-center justify-end gap-3">
+          <span className="text-xs text-muted-foreground">Unsaved</span>
+          <Button
+            type="button"
+            onClick={() => save.mutate()}
+            disabled={save.isPending}
+            size="sm"
+            variant="outline"
+          >
+            {save.isPending ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" /> Saving
+              </>
+            ) : (
+              <>
+                <Save className="h-3 w-3" /> Save
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
