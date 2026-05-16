@@ -54,7 +54,8 @@ function normalizePhoneForWa(phone: string): string {
 
 export default function PurchaseListPage() {
   const queryClient = useQueryClient();
-  const itemsQuery = useQuery(trpc.purchaseItem.list.queryOptions());
+  const listOptions = trpc.purchaseItem.list.queryOptions();
+  const itemsQuery = useQuery(listOptions);
   const dealersQuery = useQuery(trpc.medicineDealer.list.queryOptions());
 
   const [draftText, setDraftText] = useState("");
@@ -74,6 +75,10 @@ export default function PurchaseListPage() {
     },
   });
 
+  // Tick/untick was waiting on the server roundtrip + a full list
+  // refetch before flipping in the UI (~600ms felt-time). Optimistic
+  // update flips the checkbox instantly; we reconcile if the server
+  // disagrees.
   const updateItem = useMutation({
     mutationFn: (input: {
       id: string;
@@ -81,13 +86,41 @@ export default function PurchaseListPage() {
       isDone?: boolean;
       category?: PurchaseCategory;
     }) => trpcClient.purchaseItem.update.mutate(input),
-    onSuccess: () =>
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: listOptions.queryKey });
+      const prev = queryClient.getQueryData(listOptions.queryKey);
+      queryClient.setQueryData(listOptions.queryKey, (old) =>
+        (old ?? []).map((it) =>
+          it.id === input.id ? { ...it, ...input } : it,
+        ),
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) {
+        queryClient.setQueryData(listOptions.queryKey, context.prev);
+      }
+    },
+    onSettled: () =>
       queryClient.invalidateQueries({ queryKey: [["purchaseItem"]] }),
   });
 
   const deleteItem = useMutation({
     mutationFn: (id: string) => trpcClient.purchaseItem.delete.mutate({ id }),
-    onSuccess: () =>
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: listOptions.queryKey });
+      const prev = queryClient.getQueryData(listOptions.queryKey);
+      queryClient.setQueryData(listOptions.queryKey, (old) =>
+        (old ?? []).filter((it) => it.id !== id),
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) {
+        queryClient.setQueryData(listOptions.queryKey, context.prev);
+      }
+    },
+    onSettled: () =>
       queryClient.invalidateQueries({ queryKey: [["purchaseItem"]] }),
   });
 
