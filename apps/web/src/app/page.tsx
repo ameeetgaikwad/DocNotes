@@ -489,23 +489,19 @@ export default function Dashboard() {
           onClick={() => setRegisterSummaryOpen((v) => !v)}
         />
         {!registerSummaryOpen && (
-          <>
-            <StatCard label="Pending Tasks" value="0" icon={ClipboardList} />
-            <StatCard
-              label="Records This Week"
-              value={data?.recordsThisWeek ?? 0}
-              icon={Activity}
-              isLoading={isLoading}
-            />
-          </>
+          <StatCard
+            label="Records This Week"
+            value={data?.recordsThisWeek ?? 0}
+            icon={Activity}
+            isLoading={isLoading}
+          />
         )}
       </div>
 
       {registerSummaryOpen && (
         <>
           <RegisterSummaryPanel />
-          <div className="mb-8 grid gap-4 sm:grid-cols-2">
-            <StatCard label="Pending Tasks" value="0" icon={ClipboardList} />
+          <div className="mb-8">
             <StatCard
               label="Records This Week"
               value={data?.recordsThisWeek ?? 0}
