@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq, and, asc } from "drizzle-orm";
-import { homeopathicMedicines } from "@docnotes/db";
+import { auditLogs, homeopathicMedicines } from "@docnotes/db";
 import {
   createHomeopathicMedicineSchema,
   updateHomeopathicMedicineSchema,
@@ -36,9 +36,27 @@ export const homeopathicMedicineRouter = router({
   }),
 
   seedDefaults: protectedProcedure.mutation(async ({ ctx }) => {
-    // Refuse to seed if the provider already has any medicines — keeps
-    // this as a one-shot bootstrap for empty lists rather than a
-    // duplicate-multiplier.
+    // Refuse if any prior homeopathic-medicine activity exists for this
+    // user (create / update / delete / seed_defaults all show up in
+    // audit_logs). This means the seed only fires on a truly fresh
+    // account — deleting everything intentionally won't make the
+    // defaults pop back next time the page loads.
+    const priorActivity = await ctx.db
+      .select({ id: auditLogs.id })
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.userId, ctx.session.userId),
+          eq(auditLogs.resource, "homeopathic_medicine"),
+        ),
+      )
+      .limit(1);
+    if (priorActivity.length > 0) {
+      return { inserted: 0 };
+    }
+    // Belt-and-suspenders: also bail if there happen to be medicines
+    // already but no audit log (would only happen for very old rows
+    // pre-audit-logging).
     const existing = await ctx.db
       .select({ id: homeopathicMedicines.id })
       .from(homeopathicMedicines)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Pencil, Pill, Plus, Trash2 } from "lucide-react";
 import type { HomeopathicMedicine } from "@docnotes/shared";
@@ -40,6 +40,24 @@ export default function HomeopathicMedicinePage() {
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: [["homeopathicMedicine"]] }),
   });
+
+  // Auto-seed the 12 starter medicines the first time the doctor opens
+  // this page on an empty list (Manoj msg 854: the suggested defaults
+  // should appear without needing to tap a button). The backend's
+  // seedDefaults checks audit logs to avoid re-seeding after the doctor
+  // has intentionally deleted everything, so this auto-fire is safe.
+  const autoSeedAttempted = useRef(false);
+  useEffect(() => {
+    if (
+      !listQuery.isLoading &&
+      !listQuery.isError &&
+      items.length === 0 &&
+      !autoSeedAttempted.current
+    ) {
+      autoSeedAttempted.current = true;
+      seedMutation.mutate();
+    }
+  }, [listQuery.isLoading, listQuery.isError, items.length, seedMutation]);
 
   function openAdd() {
     setEditing(null);
