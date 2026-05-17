@@ -288,10 +288,10 @@ function ItemRow({
       <button
         type="button"
         onClick={onDelete}
-        className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+        className="flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive"
         aria-label="Delete item"
       >
-        <Trash2 className="h-4 w-4" />
+        <Trash2 className="h-5 w-5" />
       </button>
     </li>
   );

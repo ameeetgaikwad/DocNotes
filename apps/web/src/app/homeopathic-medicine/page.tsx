@@ -119,18 +119,18 @@ export default function HomeopathicMedicinePage() {
                 <button
                   type="button"
                   onClick={() => openEdit(medicine)}
-                  className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
                   aria-label={`Edit ${medicine.name}`}
                 >
-                  <Pencil className="h-4 w-4" />
+                  <Pencil className="h-5 w-5" />
                 </button>
                 <button
                   type="button"
                   onClick={() => handleDelete(medicine)}
-                  className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+                  className="flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive"
                   aria-label={`Delete ${medicine.name}`}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-5 w-5" />
                 </button>
               </li>
             ))}
