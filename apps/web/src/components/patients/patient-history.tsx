@@ -91,30 +91,60 @@ export function PatientHistory({ patientId }: PatientHistoryProps) {
   );
 }
 
+const FOLLOWUP_WORD_NUMBERS: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  fifteen: 15,
+  twenty: 20,
+  thirty: 30,
+  forty: 40,
+  fortyfive: 45,
+  sixty: 60,
+};
+
 /**
  * Best-effort parser for follow-up phrases inside a clinical-notes
- * blob. Looks for "<verb> <something>? after <N> <unit>" where verb
- * is a follow-up word (repeat, follow-up, review, recall, next visit,
- * come back, return) and unit is day/week/month/year. Returns the
- * matched phrase + the computed target date relative to `from`, or
- * null when nothing follow-up-shaped is in the text.
+ * blob. Looks for "after <N> <unit>" (optionally preceded by a
+ * follow-up verb like repeat / follow-up / review). Both digits and
+ * common word-numbers (one … twelve, fifteen, twenty, thirty) match.
+ * Returns the matched phrase + the computed target date relative to
+ * `from`, or null if nothing follow-up-shaped is in the text.
  *
  * Examples that match (case-insensitive):
  *   "Inj B12 repeat after 1 month"
+ *   "Inj D3 after one month"        // Manoj msg 881 — no verb, word number
  *   "Follow-up after 2 weeks"
  *   "Review in 10 days"
- *   "Recall after 6 months"
+ *   "Recall after six months"
+ *
+ * Trade-off: dropping the mandatory verb risks false positives like
+ * "patient came after 2 days of fever" but matches the way doctors
+ * actually write follow-up instructions ("Inj X after Y", "Rpt after Z").
  */
 function detectFollowUp(
   notes: string,
   from: Date,
 ): { matchText: string; date: Date; unitCount: number; unit: string } | null {
   if (!notes || !notes.trim()) return null;
-  const re =
-    /(?:repeat|follow[\s-]?up|review|recall|return|come\s*back|next\s+visit)[^.\n]{0,40}?(?:after|in)\s+(\d+)\s+(day|week|month|year)s?/i;
+  const wordPattern = Object.keys(FOLLOWUP_WORD_NUMBERS).join("|");
+  const re = new RegExp(
+    `(?:after|in)\\s+(\\d{1,3}|${wordPattern})\\s+(day|week|month|year)s?`,
+    "i",
+  );
   const m = re.exec(notes);
   if (!m) return null;
-  const count = Number(m[1]);
+  const countStr = (m[1] ?? "").toLowerCase();
+  const count = FOLLOWUP_WORD_NUMBERS[countStr] ?? Number(countStr);
   const unit = (m[2] ?? "").toLowerCase();
   if (!Number.isFinite(count) || count <= 0 || count > 365) return null;
   const target = new Date(from);
