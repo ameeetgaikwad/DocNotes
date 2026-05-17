@@ -8,6 +8,7 @@ import {
   AlertCircle,
   Wallet,
   Phone,
+  CalendarClock,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { formatPatientName, formatDate } from "@/lib/format";
@@ -37,6 +38,29 @@ const DEFAULT_TEMPLATES: Record<TemplateLang, string> = {
 
 const TEMPLATE_KEY_PREFIX = "docnotes.reminders.template.";
 
+// Next-visit reminder templates (Manoj msg 871). Variables: {patient_name},
+// {date}, {time}, {type}.
+const NEXT_VISIT_TEMPLATES: Record<TemplateLang, string> = {
+  english:
+    "Dear {patient_name},\n\nThis is a reminder for your {type} appointment at our clinic on {date} at {time}.\n\nPlease let us know if you need to reschedule.\n\nThank you.",
+  marathi:
+    "{patient_name}\nआपली पुढील भेट आमच्या क्लिनिकमध्ये {date} रोजी {time} वाजता नियोजित आहे.\nकाही बदल असल्यास कळवा.\nधन्यवाद.",
+  hindi:
+    "नमस्कार {patient_name},\n\nआपकी अगली विज़िट हमारे क्लिनिक में {date} को {time} बजे निर्धारित है।\n\nकोई बदलाव हो तो कृपया सूचित करें।\n\nधन्यवाद।",
+};
+
+const NEXT_VISIT_TEMPLATE_KEY_PREFIX = "docnotes.reminders.nextVisit.template.";
+const NEXT_VISIT_DAYS_KEY = "docnotes.reminders.nextVisit.daysAhead";
+const NEXT_VISIT_DAYS_DEFAULT = 7;
+
+const APPOINTMENT_TYPE_LABEL: Record<string, string> = {
+  new_patient: "first",
+  follow_up: "follow-up",
+  routine: "routine",
+  urgent: "urgent",
+  telehealth: "telehealth",
+};
+
 function readLag(): number {
   if (typeof window === "undefined") return LAG_DEFAULT;
   const v = window.localStorage.getItem(LAG_KEY);
@@ -49,6 +73,20 @@ function readTemplate(lang: TemplateLang): string {
   if (typeof window === "undefined") return DEFAULT_TEMPLATES[lang];
   const v = window.localStorage.getItem(TEMPLATE_KEY_PREFIX + lang);
   return v ?? DEFAULT_TEMPLATES[lang];
+}
+
+function readNextVisitTemplate(lang: TemplateLang): string {
+  if (typeof window === "undefined") return NEXT_VISIT_TEMPLATES[lang];
+  const v = window.localStorage.getItem(NEXT_VISIT_TEMPLATE_KEY_PREFIX + lang);
+  return v ?? NEXT_VISIT_TEMPLATES[lang];
+}
+
+function readNextVisitDaysAhead(): number {
+  if (typeof window === "undefined") return NEXT_VISIT_DAYS_DEFAULT;
+  const v = window.localStorage.getItem(NEXT_VISIT_DAYS_KEY);
+  if (!v) return NEXT_VISIT_DAYS_DEFAULT;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 && n <= 60 ? n : NEXT_VISIT_DAYS_DEFAULT;
 }
 
 function normalizePhoneForWa(phone: string | null): string {
@@ -70,6 +108,30 @@ function fillTemplate(
     .replace(/\{amount\}/g, values.amount)
     .replace(/\{days_overdue\}/g, String(values.days_overdue))
     .replace(/\{date\}/g, values.date);
+}
+
+function fillNextVisitTemplate(
+  template: string,
+  values: {
+    patient_name: string;
+    date: string;
+    time: string;
+    type: string;
+  },
+): string {
+  return template
+    .replace(/\{patient_name\}/g, values.patient_name)
+    .replace(/\{date\}/g, values.date)
+    .replace(/\{time\}/g, values.time)
+    .replace(/\{type\}/g, values.type);
+}
+
+function formatAppointmentTime(d: Date | string): string {
+  return new Date(d).toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 function formatINR(amount: number): string {
@@ -227,7 +289,189 @@ export default function RemindersPage() {
           </ul>
         </div>
       )}
+
+      <NextVisitSection lang={lang} />
     </div>
+  );
+}
+
+function NextVisitSection({ lang }: { lang: TemplateLang }) {
+  const [days, setDays] = useState<number>(NEXT_VISIT_DAYS_DEFAULT);
+  const [daysInput, setDaysInput] = useState<string>(
+    String(NEXT_VISIT_DAYS_DEFAULT),
+  );
+
+  useEffect(() => {
+    const v = readNextVisitDaysAhead();
+    setDays(v);
+    setDaysInput(String(v));
+  }, []);
+
+  function commitDays(raw: string) {
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0 || n > 60) {
+      setDaysInput(String(days));
+      return;
+    }
+    setDays(n);
+    setDaysInput(String(n));
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(NEXT_VISIT_DAYS_KEY, String(n));
+    }
+  }
+
+  const upcomingQuery = useQuery(
+    trpc.appointment.upcomingForReminders.queryOptions({ daysAhead: days }),
+  );
+  const items = upcomingQuery.data ?? [];
+
+  return (
+    <div className="mt-10 border-t pt-8">
+      <div className="mb-6 md:mb-8">
+        <h2 className="text-xl font-semibold md:text-2xl">
+          Next Visit Reminders
+        </h2>
+        <p className="text-muted-foreground md:text-base">
+          Patients with appointments coming up — tap to send a WhatsApp
+          reminder.
+        </p>
+      </div>
+
+      <div className="mb-6 flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-end sm:gap-4 sm:p-5">
+        <div className="flex flex-col gap-1">
+          <label
+            htmlFor="next-visit-days"
+            className="text-xs font-medium text-muted-foreground"
+          >
+            Look ahead (days)
+          </label>
+          <input
+            id="next-visit-days"
+            type="number"
+            min="0"
+            max="60"
+            inputMode="numeric"
+            value={daysInput}
+            onChange={(e) => setDaysInput(e.target.value)}
+            onBlur={(e) => commitDays(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitDays((e.target as HTMLInputElement).value);
+              }
+            }}
+            className="h-10 w-28 rounded-md border border-input bg-background px-3 text-sm"
+          />
+        </div>
+      </div>
+
+      {upcomingQuery.isLoading && (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      {upcomingQuery.error && (
+        <div className="rounded-xl border bg-card p-6">
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <AlertCircle className="mb-3 h-10 w-10 text-destructive/60" />
+            <p className="text-base font-medium">
+              Failed to load upcoming appointments
+            </p>
+          </div>
+        </div>
+      )}
+      {!upcomingQuery.isLoading &&
+        !upcomingQuery.error &&
+        items.length === 0 && (
+          <div className="rounded-xl border bg-card">
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+              <CalendarClock className="mb-3 h-12 w-12" />
+              <p className="text-base font-medium">No upcoming visits</p>
+              <p className="text-sm">
+                No appointments scheduled in the next {days} day
+                {days === 1 ? "" : "s"}.
+              </p>
+            </div>
+          </div>
+        )}
+      {items.length > 0 && (
+        <div className="rounded-xl border bg-card">
+          <ul className="divide-y">
+            {items.map((row) => (
+              <NextVisitRow key={row.appointmentId} row={row} lang={lang} />
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface UpcomingRow {
+  appointmentId: string;
+  scheduledAt: Date | string;
+  type: string;
+  reason: string | null;
+  patientId: string;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  phone: string | null;
+}
+
+function NextVisitRow({ row, lang }: { row: UpcomingRow; lang: TemplateLang }) {
+  const scheduled = useMemo(() => new Date(row.scheduledAt), [row.scheduledAt]);
+  const messageText = useMemo(() => {
+    const template = readNextVisitTemplate(lang);
+    const typeLabel = APPOINTMENT_TYPE_LABEL[row.type] ?? row.type;
+    return fillNextVisitTemplate(template, {
+      patient_name: formatPatientName(row),
+      date: formatDate(scheduled),
+      time: formatAppointmentTime(scheduled),
+      type: typeLabel,
+    });
+  }, [lang, row, scheduled]);
+
+  const phoneDigits = normalizePhoneForWa(row.phone);
+  const canSend = phoneDigits.length >= 7;
+
+  function send() {
+    if (!canSend) return;
+    const url = `https://wa.me/${phoneDigits}?text=${encodeURIComponent(messageText)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  return (
+    <li className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-4 sm:px-6 sm:py-4">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium md:text-base">
+          {formatPatientName(row)}
+        </p>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span>
+            {formatDate(scheduled)} at {formatAppointmentTime(scheduled)}
+          </span>
+          <span>{APPOINTMENT_TYPE_LABEL[row.type] ?? row.type}</span>
+          {row.phone ? (
+            <span className="inline-flex items-center gap-1">
+              <Phone className="h-3 w-3" />
+              {row.phone}
+            </span>
+          ) : (
+            <span className="text-destructive">No phone on file</span>
+          )}
+        </div>
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        onClick={send}
+        disabled={!canSend}
+        title={canSend ? "Send WhatsApp reminder" : "No phone on file"}
+      >
+        <MessageCircle className="h-4 w-4" /> Send
+      </Button>
+    </li>
   );
 }
 

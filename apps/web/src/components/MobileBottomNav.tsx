@@ -84,7 +84,11 @@ export function MobileBottomNav() {
                     active ? "text-primary" : "text-muted-foreground",
                   )}
                 >
-                  <item.icon className="h-5 w-5" />
+                  <item.icon
+                    className={
+                      item.to === "/daily-register" ? "h-7 w-7" : "h-5 w-5"
+                    }
+                  />
                   <span>{item.label}</span>
                 </Link>
               </li>
