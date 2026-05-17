@@ -443,8 +443,15 @@ export const dailyRegisterRouter = router({
           patch.paidAmount = nextFee.toFixed(2);
         } else if (nextStatus === "nil") {
           patch.paidAmount = "0.00";
+        } else if (statusChanged && current.paymentStatus === "paid") {
+          // paid → due: the prior paidAmount equals feeAmount by the
+          // "paid" invariant (see create + this branch above). The
+          // doctor is correcting "I marked it paid but actually it
+          // isn't" — leave outstanding == fee, not zero, else the row
+          // drops out of pending-due totals/dashboards/reminders.
+          patch.paidAmount = "0.00";
         } else {
-          // due: cap any prior partial payment to the new fee
+          // due (continuing or from nil): cap any prior partial to fee.
           patch.paidAmount = Math.min(
             Math.max(currentPaid, 0),
             nextFee,

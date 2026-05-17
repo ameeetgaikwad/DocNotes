@@ -334,7 +334,21 @@ function VisitCard({
         form.clinicalNotes,
         new Date(visit.visitDate),
       );
-      if (followUp) {
+      // If the same match phrase was already in the previously-saved
+      // notes, the appointment for it was created on the prior save —
+      // re-saving the visit (e.g., to correct vitals) must NOT spawn a
+      // duplicate. Compare against visit.clinicalNotes (the pre-edit
+      // state) and skip when the trigger phrase is unchanged.
+      const priorFollowUp = detectFollowUp(
+        visit.clinicalNotes ?? "",
+        new Date(visit.visitDate),
+      );
+      const isNewTrigger =
+        followUp &&
+        (!priorFollowUp ||
+          priorFollowUp.matchText.toLowerCase() !==
+            followUp.matchText.toLowerCase());
+      if (followUp && isNewTrigger) {
         try {
           const created = await trpcClient.appointment.create.mutate({
             patientId,
