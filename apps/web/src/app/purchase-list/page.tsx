@@ -165,9 +165,7 @@ export default function PurchaseListPage() {
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <ShoppingCart className="mb-3 h-12 w-12" />
             <p className="text-base font-medium">Your list is empty</p>
-            <p className="text-sm">
-              Add medicines, injections, or reminders above.
-            </p>
+            <p className="text-sm">Add medicines you need to buy above.</p>
           </div>
         </div>
       )}
