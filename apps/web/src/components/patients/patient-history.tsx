@@ -80,13 +80,63 @@ export function PatientHistory({ patientId }: PatientHistoryProps) {
         {data.length} visit{data.length !== 1 && "s"}
       </p>
       {data.map((visit, index) => (
-        <VisitCard key={visit.id} visit={visit} isLatest={index === 0} />
+        <VisitCard
+          key={visit.id}
+          visit={visit}
+          isLatest={index === 0}
+          patientId={patientId}
+        />
       ))}
     </div>
   );
 }
 
-function VisitCard({ visit, isLatest }: { visit: Visit; isLatest: boolean }) {
+/**
+ * Best-effort parser for follow-up phrases inside a clinical-notes
+ * blob. Looks for "<verb> <something>? after <N> <unit>" where verb
+ * is a follow-up word (repeat, follow-up, review, recall, next visit,
+ * come back, return) and unit is day/week/month/year. Returns the
+ * matched phrase + the computed target date relative to `from`, or
+ * null when nothing follow-up-shaped is in the text.
+ *
+ * Examples that match (case-insensitive):
+ *   "Inj B12 repeat after 1 month"
+ *   "Follow-up after 2 weeks"
+ *   "Review in 10 days"
+ *   "Recall after 6 months"
+ */
+function detectFollowUp(
+  notes: string,
+  from: Date,
+): { matchText: string; date: Date; unitCount: number; unit: string } | null {
+  if (!notes || !notes.trim()) return null;
+  const re =
+    /(?:repeat|follow[\s-]?up|review|recall|return|come\s*back|next\s+visit)[^.\n]{0,40}?(?:after|in)\s+(\d+)\s+(day|week|month|year)s?/i;
+  const m = re.exec(notes);
+  if (!m) return null;
+  const count = Number(m[1]);
+  const unit = (m[2] ?? "").toLowerCase();
+  if (!Number.isFinite(count) || count <= 0 || count > 365) return null;
+  const target = new Date(from);
+  if (unit === "day") target.setDate(target.getDate() + count);
+  else if (unit === "week") target.setDate(target.getDate() + count * 7);
+  else if (unit === "month") target.setMonth(target.getMonth() + count);
+  else if (unit === "year") target.setFullYear(target.getFullYear() + count);
+  else return null;
+  // Anchor to 9am local for the appointment time.
+  target.setHours(9, 0, 0, 0);
+  return { matchText: m[0], date: target, unitCount: count, unit };
+}
+
+function VisitCard({
+  visit,
+  isLatest,
+  patientId,
+}: {
+  visit: Visit;
+  isLatest: boolean;
+  patientId: string;
+}) {
   const queryClient = useQueryClient();
   const initial = visitToForm(visit);
   const [form, setForm] = useState(initial);
@@ -96,6 +146,10 @@ function VisitCard({ visit, isLatest }: { visit: Visit; isLatest: boolean }) {
   // visits default to false to keep the timeline clean.
   const [editAll, setEditAll] = useState(isLatest);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [followUpToast, setFollowUpToast] = useState<{
+    text: string;
+    when: string;
+  } | null>(null);
 
   function insertHomeopathicLines(lines: string[]) {
     const current = form.clinicalNotes;
@@ -111,16 +165,53 @@ function VisitCard({ visit, isLatest }: { visit: Visit; isLatest: boolean }) {
   }, [visit]);
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      trpcClient.patientVisit.update.mutate({
+    mutationFn: async () => {
+      await trpcClient.patientVisit.update.mutate({
         id: visit.id,
         data: formToPatch(form),
-      }),
-    onSuccess: () => {
+      });
+      // Manoj msg 879: if the clinical notes have a "repeat after X /
+      // follow-up after X" phrase, auto-create a Next Visit appointment
+      // for that date. Failures here don't block the visit save.
+      const followUp = detectFollowUp(
+        form.clinicalNotes,
+        new Date(visit.visitDate),
+      );
+      if (followUp) {
+        try {
+          await trpcClient.appointment.create.mutate({
+            patientId,
+            type: "follow_up",
+            scheduledAt: followUp.date,
+            durationMinutes: 15,
+            reason: followUp.matchText,
+            notes: null,
+          });
+          return { followUp };
+        } catch {
+          return { followUp: null };
+        }
+      }
+      return { followUp: null };
+    },
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: [["patientVisit"]] });
+      queryClient.invalidateQueries({ queryKey: [["appointment"]] });
       // Manoj msg 795: after saving, collapse back to read-only mode —
       // Save button disappears and only reappears via "Edit fields".
       setEditAll(false);
+      if (result.followUp) {
+        const f = result.followUp;
+        setFollowUpToast({
+          text: f.matchText,
+          when: f.date.toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          }),
+        });
+        window.setTimeout(() => setFollowUpToast(null), 8000);
+      }
     },
   });
 
@@ -316,6 +407,18 @@ function VisitCard({ visit, isLatest }: { visit: Visit; isLatest: boolean }) {
       {saveMutation.error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
           {saveMutation.error.message}
+        </div>
+      )}
+
+      {followUpToast && (
+        <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-700/50 dark:bg-emerald-950/30">
+          <p className="font-medium text-emerald-900 dark:text-emerald-200">
+            Follow-up reminder created for {followUpToast.when}
+          </p>
+          <p className="mt-0.5 text-xs text-emerald-800 dark:text-emerald-300">
+            Picked up &ldquo;{followUpToast.text}&rdquo; from your notes — see
+            the Schedule tab or Reminders → Next Visit Reminders.
+          </p>
         </div>
       )}
 
