@@ -288,11 +288,12 @@ export default function PatientProfilePage({
         <TabsContent value="appointments">
           <div className="rounded-xl border bg-card p-6">
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <p className="text-lg font-medium">No appointments</p>
-              <p className="mb-4 text-sm">
-                Schedule an appointment for this patient
+              <p className="text-lg font-medium">Coming soon</p>
+              <p className="mt-1 max-w-md text-center text-sm">
+                Appointment scheduling per patient isn&apos;t wired into this
+                tab yet. Use the Schedule tab in the bottom nav to create
+                appointments in the meantime.
               </p>
-              <Button variant="outline">Schedule Appointment</Button>
             </div>
           </div>
         </TabsContent>
