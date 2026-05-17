@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   Users,
   Calendar,
-  BookOpen,
   MoreHorizontal,
   ClipboardList,
   FileText,
@@ -19,6 +18,7 @@ import {
   BellRing,
   Pill,
 } from "lucide-react";
+import { DailyCaseRegisterIcon } from "@/components/icons/daily-case-register";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -30,7 +30,7 @@ type NavItem = {
 const TABS: NavItem[] = [
   { to: "/", label: "Home", icon: LayoutDashboard },
   { to: "/patients", label: "Patients", icon: Users },
-  { to: "/daily-register", label: "Register", icon: BookOpen },
+  { to: "/daily-register", label: "Register", icon: DailyCaseRegisterIcon },
   { to: "/schedule", label: "Schedule", icon: Calendar },
 ];
 

@@ -11,10 +11,10 @@ import {
   Settings,
   Search,
   FileText,
-  BookOpen,
   ShoppingCart,
   BellRing,
 } from "lucide-react";
+import { DailyCaseRegisterIcon } from "@/components/icons/daily-case-register";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -24,7 +24,11 @@ const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/patients", label: "Patients", icon: Users },
   { to: "/schedule", label: "Schedule", icon: Calendar },
-  { to: "/daily-register", label: "Daily Register", icon: BookOpen },
+  {
+    to: "/daily-register",
+    label: "Daily Register",
+    icon: DailyCaseRegisterIcon,
+  },
   { to: "/purchase-list", label: "Purchase List", icon: ShoppingCart },
   { to: "/reminders", label: "Reminders", icon: BellRing },
   { to: "/tasks", label: "Tasks", icon: ClipboardList },
