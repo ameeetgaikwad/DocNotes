@@ -165,19 +165,22 @@ function DueRowItem({ row, onSaved }: { row: DueRow; onSaved: () => void }) {
           className="w-28 text-right"
           aria-label="Remaining amount"
         />
-        <Button
-          type="button"
-          size="sm"
-          disabled={!dirty || recordPayment.isPending}
-          onClick={() => recordPayment.mutate()}
-        >
-          {recordPayment.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4" />
-          )}
-          Save
-        </Button>
+        <span className="text-sm text-muted-foreground">Pending</span>
+        {dirty && (
+          <Button
+            type="button"
+            size="sm"
+            disabled={recordPayment.isPending}
+            onClick={() => recordPayment.mutate()}
+          >
+            {recordPayment.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            Save
+          </Button>
+        )}
       </div>
       {error && (
         <p className="text-xs text-destructive sm:basis-full">{error}</p>
