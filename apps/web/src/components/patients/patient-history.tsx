@@ -112,11 +112,26 @@ const FOLLOWUP_WORD_NUMBERS: Record<string, number> = {
   sixty: 60,
 };
 
+// Words that typically precede a past-tense / historical "after N unit"
+// phrase. When one of these appears in the ~30 chars before the match,
+// the parser bails — the phrase is describing what already happened,
+// not a future follow-up.
+//
+// Examples this rejects:
+//   "patient came after 2 days of fever"
+//   "presented after 3 days"
+//   "history of cough since 5 days"
+//   "fever started 2 days ago"
+const PAST_TENSE_INDICATORS =
+  /\b(came|came back|presented|seen|noticed|started|began|reported|complained|history|since|gap|earlier|ago|previously)\b[^.\n]{0,15}$/i;
+
 /**
  * Best-effort parser for follow-up phrases inside a clinical-notes
  * blob. Looks for "after <N> <unit>" (optionally preceded by a
  * follow-up verb like repeat / follow-up / review). Both digits and
  * common word-numbers (one … twelve, fifteen, twenty, thirty) match.
+ * Rejects the match if the immediately-preceding text looks past-tense
+ * (e.g. "patient came after 2 days") — see PAST_TENSE_INDICATORS.
  * Returns the matched phrase + the computed target date relative to
  * `from`, or null if nothing follow-up-shaped is in the text.
  *
@@ -126,10 +141,6 @@ const FOLLOWUP_WORD_NUMBERS: Record<string, number> = {
  *   "Follow-up after 2 weeks"
  *   "Review in 10 days"
  *   "Recall after six months"
- *
- * Trade-off: dropping the mandatory verb risks false positives like
- * "patient came after 2 days of fever" but matches the way doctors
- * actually write follow-up instructions ("Inj X after Y", "Rpt after Z").
  */
 function detectFollowUp(
   notes: string,
@@ -143,6 +154,9 @@ function detectFollowUp(
   );
   const m = re.exec(notes);
   if (!m) return null;
+  // Past-tense context check: peek at the ~30 chars before the match.
+  const lookback = notes.slice(Math.max(0, m.index - 30), m.index);
+  if (PAST_TENSE_INDICATORS.test(lookback)) return null;
   const countStr = (m[1] ?? "").toLowerCase();
   const count = FOLLOWUP_WORD_NUMBERS[countStr] ?? Number(countStr);
   const unit = (m[2] ?? "").toLowerCase();
@@ -179,6 +193,7 @@ function VisitCard({
   const [followUpToast, setFollowUpToast] = useState<{
     text: string;
     when: string;
+    appointmentId: string;
   } | null>(null);
 
   function insertHomeopathicLines(lines: string[]) {
@@ -209,7 +224,7 @@ function VisitCard({
       );
       if (followUp) {
         try {
-          await trpcClient.appointment.create.mutate({
+          const created = await trpcClient.appointment.create.mutate({
             patientId,
             type: "follow_up",
             scheduledAt: followUp.date,
@@ -217,7 +232,11 @@ function VisitCard({
             reason: followUp.matchText,
             notes: null,
           });
-          return { followUp };
+          return {
+            followUp: created
+              ? { ...followUp, appointmentId: created.id }
+              : null,
+          };
         } catch {
           return { followUp: null };
         }
@@ -239,9 +258,20 @@ function VisitCard({
             month: "short",
             year: "numeric",
           }),
+          appointmentId: f.appointmentId,
         });
-        window.setTimeout(() => setFollowUpToast(null), 8000);
+        // No auto-dismiss — the doctor needs the Undo button to stay
+        // around until they're confident the parse was correct.
       }
+    },
+  });
+
+  const undoFollowUp = useMutation({
+    mutationFn: (appointmentId: string) =>
+      trpcClient.appointment.cancel.mutate({ id: appointmentId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [["appointment"]] });
+      setFollowUpToast(null);
     },
   });
 
@@ -441,14 +471,26 @@ function VisitCard({
       )}
 
       {followUpToast && (
-        <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-700/50 dark:bg-emerald-950/30">
-          <p className="font-medium text-emerald-900 dark:text-emerald-200">
-            Follow-up reminder created for {followUpToast.when}
-          </p>
-          <p className="mt-0.5 text-xs text-emerald-800 dark:text-emerald-300">
-            Picked up &ldquo;{followUpToast.text}&rdquo; from your notes — see
-            the Schedule tab or Reminders → Next Visit Reminders.
-          </p>
+        <div className="flex items-start justify-between gap-3 rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-700/50 dark:bg-emerald-950/30">
+          <div className="flex-1">
+            <p className="font-medium text-emerald-900 dark:text-emerald-200">
+              Follow-up reminder created for {followUpToast.when}
+            </p>
+            <p className="mt-0.5 text-xs text-emerald-800 dark:text-emerald-300">
+              Picked up &ldquo;{followUpToast.text}&rdquo; from your notes. Tap
+              Undo if this wasn&apos;t meant as a follow-up.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => undoFollowUp.mutate(followUpToast.appointmentId)}
+            disabled={undoFollowUp.isPending}
+            className="shrink-0"
+          >
+            {undoFollowUp.isPending ? "Undoing…" : "Undo"}
+          </Button>
         </div>
       )}
 
