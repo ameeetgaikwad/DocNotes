@@ -147,6 +147,7 @@ export default function PurchaseListPage() {
           onChange={(e) => setDraftText(e.target.value)}
           placeholder="e.g. Paracetamol 500mg × 2 strips"
           className="flex-1"
+          autoFocus
         />
         <Button type="submit" disabled={!draftText.trim() || addItem.isPending}>
           <Plus className="h-4 w-4" />
