@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   Loader2,
   AlertCircle,
-  Edit,
   MoreHorizontal,
   Archive,
   Download,
@@ -193,14 +192,19 @@ export default function PatientProfilePage({
         </div>
 
         <div className="flex shrink-0 gap-2">
-          <Button variant="outline" size="sm">
-            <Edit className="h-4 w-4" />
-            <span className="hidden sm:inline">Edit</span>
-          </Button>
+          {/* Edit pencil removed (commit context: Amit msg 832, 2026-05-17) —
+              had no onClick handler and just looked broken on mobile. Inline
+              editing already lives on the Summary / Diet tabs and in the
+              New Patient dialog. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-9 w-9">
-                <MoreHorizontal className="h-4 w-4" />
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-11 w-11"
+                aria-label="Patient actions"
+              >
+                <MoreHorizontal className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
