@@ -121,10 +121,158 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
       </Card>
 
       <Card className="md:col-span-2">
-        <CardContent className="py-4">
+        <CardHeader>
+          <CardTitle className="text-base">Contact &amp; details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
           <PhoneEditor patientId={patient.id} initial={patient.phone ?? ""} />
+          <FieldEditor
+            patientId={patient.id}
+            field="email"
+            label="Email"
+            initial={patient.email ?? ""}
+            type="email"
+            placeholder="name@example.com"
+          />
+          <FieldEditor
+            patientId={patient.id}
+            field="address"
+            label="Address"
+            initial={patient.address ?? ""}
+            multiline
+            placeholder="Street, area, city, pincode"
+          />
+          <FieldEditor
+            patientId={patient.id}
+            field="emergencyContactName"
+            label="Emergency contact"
+            initial={patient.emergencyContactName ?? ""}
+            placeholder="Name"
+          />
+          <FieldEditor
+            patientId={patient.id}
+            field="emergencyContactPhone"
+            label="Emergency phone"
+            initial={patient.emergencyContactPhone ?? ""}
+            type="tel"
+            placeholder="+91 98765 43210"
+          />
+          <FieldEditor
+            patientId={patient.id}
+            field="notes"
+            label="Notes"
+            initial={patient.notes ?? ""}
+            multiline
+            placeholder="Anything else worth remembering about this patient…"
+          />
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function FieldEditor({
+  patientId,
+  field,
+  label,
+  initial,
+  placeholder,
+  type,
+  multiline,
+}: {
+  patientId: string;
+  field:
+    | "email"
+    | "address"
+    | "emergencyContactName"
+    | "emergencyContactPhone"
+    | "notes";
+  label: string;
+  initial: string;
+  placeholder?: string;
+  type?: "email" | "tel";
+  multiline?: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [value, setValue] = useState(initial);
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setValue(initial);
+  }, [initial]);
+
+  const save = useMutation({
+    mutationFn: () =>
+      trpcClient.patient.update.mutate({
+        id: patientId,
+        data: { [field]: value.trim() || null },
+      }),
+    onSuccess: () => {
+      setServerError(null);
+      queryClient.invalidateQueries({ queryKey: [["patient"]] });
+    },
+    onError: (err) => setServerError(err.message),
+  });
+
+  const dirty = initial !== value;
+  const inputId = `patient-${field}`;
+
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+      <label
+        htmlFor={inputId}
+        className="text-sm text-muted-foreground sm:w-32 sm:shrink-0 sm:pt-2"
+      >
+        {label}
+      </label>
+      <div className="flex flex-1 items-start gap-2">
+        {multiline ? (
+          <Textarea
+            id={inputId}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={placeholder}
+            rows={2}
+            maxLength={5000}
+            className="flex-1 text-sm"
+          />
+        ) : (
+          <Input
+            id={inputId}
+            type={type ?? "text"}
+            inputMode={type === "tel" ? "tel" : undefined}
+            autoComplete={type ?? "off"}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={placeholder}
+            className="flex-1"
+          />
+        )}
+        {dirty && (
+          <Button
+            type="button"
+            onClick={() => save.mutate()}
+            disabled={save.isPending}
+            size="sm"
+            variant="outline"
+          >
+            {save.isPending ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" /> Saving
+              </>
+            ) : (
+              <>
+                <Save className="h-3 w-3" /> Save
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+      {serverError && (
+        <p className="text-xs text-destructive sm:basis-full sm:pl-32">
+          {serverError}
+        </p>
+      )}
     </div>
   );
 }
