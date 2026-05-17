@@ -35,7 +35,11 @@ const TABS: NavItem[] = [
 ];
 
 const MORE_ITEMS: NavItem[] = [
-  { to: "/purchase-list", label: "Purchase List", icon: ShoppingCart },
+  {
+    to: "/purchase-list",
+    label: "Purchase List of Medicine",
+    icon: ShoppingCart,
+  },
   {
     to: "/homeopathic-medicine",
     label: "Homeopathic Medicine",

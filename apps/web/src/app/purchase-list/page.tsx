@@ -10,8 +10,6 @@ import {
   ShoppingCart,
   MessageCircle,
 } from "lucide-react";
-import { PURCHASE_CATEGORIES } from "@docnotes/shared";
-import type { PurchaseCategory } from "@docnotes/shared";
 import { trpc, trpcClient } from "@/lib/trpc";
 import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -27,17 +25,9 @@ import {
   ResponsiveDialogClose as DialogClose,
 } from "@/components/ui/responsive-dialog";
 
-const CATEGORY_LABELS: Record<PurchaseCategory, string> = {
-  medicine: "Medicine",
-  injection: "Injection",
-  other: "Other",
-  reminder: "Reminder",
-};
-
 interface Item {
   id: string;
   text: string;
-  category: string;
   isDone: boolean;
   createdAt: Date;
 }
@@ -59,15 +49,13 @@ export default function PurchaseListPage() {
   const dealersQuery = useQuery(trpc.medicineDealer.list.queryOptions());
 
   const [draftText, setDraftText] = useState("");
-  const [draftCategory, setDraftCategory] =
-    useState<PurchaseCategory>("medicine");
   const [sendOpen, setSendOpen] = useState(false);
 
   const addItem = useMutation({
     mutationFn: () =>
       trpcClient.purchaseItem.create.mutate({
         text: draftText,
-        category: draftCategory,
+        category: "medicine",
       }),
     onSuccess: () => {
       setDraftText("");
@@ -80,12 +68,8 @@ export default function PurchaseListPage() {
   // update flips the checkbox instantly; we reconcile if the server
   // disagrees.
   const updateItem = useMutation({
-    mutationFn: (input: {
-      id: string;
-      text?: string;
-      isDone?: boolean;
-      category?: PurchaseCategory;
-    }) => trpcClient.purchaseItem.update.mutate(input),
+    mutationFn: (input: { id: string; text?: string; isDone?: boolean }) =>
+      trpcClient.purchaseItem.update.mutate(input),
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: listOptions.queryKey });
       const prev = queryClient.getQueryData(listOptions.queryKey);
@@ -134,9 +118,11 @@ export default function PurchaseListPage() {
     <div className="p-4 sm:p-6 md:p-8">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between md:mb-8">
         <div>
-          <h1 className="text-2xl font-semibold md:text-3xl">Purchase List</h1>
+          <h1 className="text-2xl font-semibold md:text-3xl">
+            Purchase List of Medicine
+          </h1>
           <p className="text-muted-foreground md:text-base">
-            Items to buy and reminders — send to a dealer over WhatsApp.
+            Medicines to buy — send the list to a dealer over WhatsApp.
           </p>
         </div>
         <Button
@@ -162,17 +148,6 @@ export default function PurchaseListPage() {
           placeholder="e.g. Paracetamol 500mg × 2 strips"
           className="flex-1"
         />
-        <Select
-          value={draftCategory}
-          onChange={(e) => setDraftCategory(e.target.value as PurchaseCategory)}
-          className="sm:w-40"
-        >
-          {PURCHASE_CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {CATEGORY_LABELS[c]}
-            </option>
-          ))}
-        </Select>
         <Button type="submit" disabled={!draftText.trim() || addItem.isPending}>
           <Plus className="h-4 w-4" />
           Add
@@ -280,8 +255,6 @@ function ItemRow({
           {item.text}
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          {CATEGORY_LABELS[item.category as PurchaseCategory] ?? item.category}
-          {" · "}
           {formatDate(item.createdAt)}
         </p>
       </div>
@@ -312,19 +285,9 @@ function SendDialog({
   const selected = dealers.find((d) => d.id === selectedId) ?? null;
 
   const messageText = useMemo(() => {
-    const grouped = new Map<string, Item[]>();
-    for (const i of items) {
-      const c = i.category;
-      if (!grouped.has(c)) grouped.set(c, []);
-      grouped.get(c)!.push(i);
-    }
-    const lines: string[] = ["Hello, please arrange the following:"];
-    for (const cat of ["medicine", "injection", "other", "reminder"] as const) {
-      const group = grouped.get(cat);
-      if (!group || group.length === 0) continue;
-      lines.push("", `${CATEGORY_LABELS[cat]}:`);
-      for (const item of group) lines.push(`- ${item.text}`);
-    }
+    const lines: string[] = ["Hello, please arrange the following medicines:"];
+    lines.push("");
+    for (const item of items) lines.push(`- ${item.text}`);
     lines.push("", "Thank you.");
     return lines.join("\n");
   }, [items]);
