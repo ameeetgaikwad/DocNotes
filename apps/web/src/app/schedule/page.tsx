@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   Calendar,
@@ -12,6 +13,7 @@ import {
   Clock,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { formatPatientName } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -237,9 +239,14 @@ export default function SchedulePage() {
 
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium">
-                      Patient: {appointment.patientId.slice(0, 8)}...
-                    </span>
+                    <Link
+                      href={`/patients/${appointment.patientId}`}
+                      className="text-sm font-medium text-primary hover:underline"
+                    >
+                      {appointment.patient
+                        ? formatPatientName(appointment.patient)
+                        : "Unknown patient"}
+                    </Link>
                     <Badge variant="outline" className="text-xs">
                       {typeLabels[appointment.type] ?? appointment.type}
                     </Badge>

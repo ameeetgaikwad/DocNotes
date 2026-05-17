@@ -23,14 +23,23 @@ export const appointmentRouter = router({
       if (from) conditions.push(gte(appointments.scheduledAt, from));
       if (to) conditions.push(lte(appointments.scheduledAt, to));
 
-      const items = await ctx.db
-        .select()
+      const rows = await ctx.db
+        .select({
+          appointment: appointments,
+          patient: {
+            firstName: patients.firstName,
+            middleName: patients.middleName,
+            lastName: patients.lastName,
+          },
+        })
         .from(appointments)
+        .innerJoin(patients, eq(patients.id, appointments.patientId))
         .where(and(...conditions))
         .orderBy(desc(appointments.scheduledAt))
         .limit(limit)
         .offset(offset);
 
+      const items = rows.map((r) => ({ ...r.appointment, patient: r.patient }));
       return { items, page, limit };
     }),
 
