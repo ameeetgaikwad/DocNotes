@@ -112,35 +112,22 @@ const FOLLOWUP_WORD_NUMBERS: Record<string, number> = {
   sixty: 60,
 };
 
-// Words that typically precede a past-tense / historical "after N unit"
-// phrase. When one of these appears in the ~30 chars before the match,
-// the parser bails — the phrase is describing what already happened,
-// not a future follow-up.
-//
-// Examples this rejects:
-//   "patient came after 2 days of fever"
-//   "presented after 3 days"
-//   "history of cough since 5 days"
-//   "fever started 2 days ago"
-const PAST_TENSE_INDICATORS =
-  /\b(came|came back|presented|seen|noticed|started|began|reported|complained|history|since|gap|earlier|ago|previously)\b[^.\n]{0,15}$/i;
-
 /**
  * Best-effort parser for follow-up phrases inside a clinical-notes
- * blob. Looks for "after <N> <unit>" (optionally preceded by a
- * follow-up verb like repeat / follow-up / review). Both digits and
- * common word-numbers (one … twelve, fifteen, twenty, thirty) match.
- * Rejects the match if the immediately-preceding text looks past-tense
- * (e.g. "patient came after 2 days") — see PAST_TENSE_INDICATORS.
- * Returns the matched phrase + the computed target date relative to
- * `from`, or null if nothing follow-up-shaped is in the text.
+ * blob. Looks for "after <N> <unit> !" — the trailing "!" is the
+ * explicit signal that the doctor wants a follow-up reminder created
+ * (Manoj msg 885 — eliminates the ambiguity of past-tense phrasing
+ * like "patient came after 2 days" without needing fancy heuristics).
+ *
+ * Both digits and common word-numbers (one … twelve, fifteen, twenty,
+ * thirty, forty, forty-five, sixty) match. Returns the matched phrase
+ * + the computed target date relative to `from`, or null otherwise.
  *
  * Examples that match (case-insensitive):
- *   "Inj B12 repeat after 1 month"
- *   "Inj D3 after one month"        // Manoj msg 881 — no verb, word number
- *   "Follow-up after 2 weeks"
- *   "Review in 10 days"
- *   "Recall after six months"
+ *   "Inj B12 repeat after 1 month!"
+ *   "Inj D3 after one month !"
+ *   "Follow-up after 2 weeks !"
+ *   "Review in 10 days!"
  */
 function detectFollowUp(
   notes: string,
@@ -149,14 +136,11 @@ function detectFollowUp(
   if (!notes || !notes.trim()) return null;
   const wordPattern = Object.keys(FOLLOWUP_WORD_NUMBERS).join("|");
   const re = new RegExp(
-    `(?:after|in)\\s+(\\d{1,3}|${wordPattern})\\s+(day|week|month|year)s?`,
+    `(?:after|in)\\s+(\\d{1,3}|${wordPattern})\\s+(day|week|month|year)s?\\s*!`,
     "i",
   );
   const m = re.exec(notes);
   if (!m) return null;
-  // Past-tense context check: peek at the ~30 chars before the match.
-  const lookback = notes.slice(Math.max(0, m.index - 30), m.index);
-  if (PAST_TENSE_INDICATORS.test(lookback)) return null;
   const countStr = (m[1] ?? "").toLowerCase();
   const count = FOLLOWUP_WORD_NUMBERS[countStr] ?? Number(countStr);
   const unit = (m[2] ?? "").toLowerCase();
