@@ -24,7 +24,17 @@ const DEFAULT_TEMPLATES: Record<TemplateLang, string> = {
     "नमस्कार {patient_name},\n\nहमारे क्लिनिक में आपकी विज़िट के संबंध में ₹{amount} की राशि अभी भी बकाया है। पहली बकाया विज़िट को {days_overdue} दिन हो चुके हैं।\n\nकृपया जल्द ही यह राशि चुकाने का प्रबंध करें। किसी भी प्रश्न के लिए संपर्क करें।\n\nधन्यवाद।",
 };
 
+const NEXT_VISIT_DEFAULTS: Record<TemplateLang, string> = {
+  english:
+    "Dear {patient_name},\n\nThis is a reminder for your {type} appointment at our clinic on {date} at {time}.\n\nPlease let us know if you need to reschedule.\n\nThank you.",
+  marathi:
+    "{patient_name}\nआपली पुढील भेट आमच्या क्लिनिकमध्ये {date} रोजी {time} वाजता नियोजित आहे.\nकाही बदल असल्यास कळवा.\nधन्यवाद.",
+  hindi:
+    "नमस्कार {patient_name},\n\nआपकी अगली विज़िट हमारे क्लिनिक में {date} को {time} बजे निर्धारित है।\n\nकोई बदलाव हो तो कृपया सूचित करें।\n\nधन्यवाद।",
+};
+
 const TEMPLATE_KEY_PREFIX = "docnotes.reminders.template.";
+const NEXT_VISIT_TEMPLATE_KEY_PREFIX = "docnotes.reminders.nextVisit.template.";
 const LAG_KEY = "docnotes.reminders.lagDays";
 const LAG_DEFAULT = 7;
 
@@ -32,18 +42,26 @@ export function ReminderTemplatesSection() {
   const [lag, setLag] = useState<string>(String(LAG_DEFAULT));
   const [templates, setTemplates] =
     useState<Record<TemplateLang, string>>(DEFAULT_TEMPLATES);
+  const [nextVisitTemplates, setNextVisitTemplates] =
+    useState<Record<TemplateLang, string>>(NEXT_VISIT_DEFAULTS);
   const [savedTick, setSavedTick] = useState<number>(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const storedLag = window.localStorage.getItem(LAG_KEY);
     if (storedLag) setLag(storedLag);
-    const next: Record<TemplateLang, string> = { ...DEFAULT_TEMPLATES };
+    const dues: Record<TemplateLang, string> = { ...DEFAULT_TEMPLATES };
+    const next: Record<TemplateLang, string> = { ...NEXT_VISIT_DEFAULTS };
     for (const k of TEMPLATE_KEYS) {
       const v = window.localStorage.getItem(TEMPLATE_KEY_PREFIX + k);
-      if (v != null) next[k] = v;
+      if (v != null) dues[k] = v;
+      const nv = window.localStorage.getItem(
+        NEXT_VISIT_TEMPLATE_KEY_PREFIX + k,
+      );
+      if (nv != null) next[k] = nv;
     }
-    setTemplates(next);
+    setTemplates(dues);
+    setNextVisitTemplates(next);
   }, []);
 
   function save() {
@@ -54,6 +72,10 @@ export function ReminderTemplatesSection() {
     }
     for (const k of TEMPLATE_KEYS) {
       window.localStorage.setItem(TEMPLATE_KEY_PREFIX + k, templates[k]);
+      window.localStorage.setItem(
+        NEXT_VISIT_TEMPLATE_KEY_PREFIX + k,
+        nextVisitTemplates[k],
+      );
     }
     setSavedTick((t) => t + 1);
   }
@@ -100,6 +122,7 @@ export function ReminderTemplatesSection() {
         </div>
       </div>
 
+      <h3 className="mb-2 text-sm font-semibold">Pending Dues</h3>
       <div className="space-y-4">
         {TEMPLATE_KEYS.map((k) => (
           <div key={k} className="space-y-1">
@@ -117,6 +140,40 @@ export function ReminderTemplatesSection() {
             />
           </div>
         ))}
+      </div>
+
+      <div className="mt-6 border-t pt-4">
+        <h3 className="mb-1 text-sm font-semibold">Next Visit</h3>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Placeholders:{" "}
+          <code className="rounded bg-muted px-1 py-0.5">
+            {"{patient_name}"}
+          </code>{" "}
+          <code className="rounded bg-muted px-1 py-0.5">{"{date}"}</code>{" "}
+          <code className="rounded bg-muted px-1 py-0.5">{"{time}"}</code>{" "}
+          <code className="rounded bg-muted px-1 py-0.5">{"{type}"}</code>
+        </p>
+        <div className="space-y-4">
+          {TEMPLATE_KEYS.map((k) => (
+            <div key={k} className="space-y-1">
+              <Label htmlFor={`nv-tpl-${k}`} className="text-xs">
+                {TEMPLATE_LABELS[k]}
+              </Label>
+              <Textarea
+                id={`nv-tpl-${k}`}
+                rows={5}
+                value={nextVisitTemplates[k]}
+                onChange={(e) =>
+                  setNextVisitTemplates((prev) => ({
+                    ...prev,
+                    [k]: e.target.value,
+                  }))
+                }
+                className="font-mono text-xs sm:text-sm"
+              />
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="mt-4 flex items-center gap-3">
