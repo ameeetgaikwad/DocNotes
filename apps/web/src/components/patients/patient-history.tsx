@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Loader2, AlertCircle, BookOpen, Save, Pill } from "lucide-react";
+import {
+  Loader2,
+  AlertCircle,
+  BookOpen,
+  Save,
+  Pill,
+  Archive,
+} from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
 import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -34,6 +41,16 @@ export function PatientHistory({ patientId }: PatientHistoryProps) {
   const { data, isLoading, error } = useQuery(
     trpc.patientVisit.listByPatient.queryOptions({ patientId }),
   );
+  // Legacy medical_records (pre patient_visits rewrite). Render them
+  // read-only below the new timeline so existing data isn't hidden.
+  // Empty list is fine — section is suppressed when there are none.
+  const legacy = useQuery(
+    trpc.medicalRecord.listByPatient.queryOptions({
+      patientId,
+      limit: 100,
+      page: 1,
+    }),
+  );
 
   if (isLoading) {
     return (
@@ -59,7 +76,10 @@ export function PatientHistory({ patientId }: PatientHistoryProps) {
     );
   }
 
-  if (!data || data.length === 0) {
+  const visits = data ?? [];
+  const legacyRecords = legacy.data?.items ?? [];
+
+  if (visits.length === 0 && legacyRecords.length === 0) {
     return (
       <div className="rounded-xl border bg-card p-6">
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -76,17 +96,125 @@ export function PatientHistory({ patientId }: PatientHistoryProps) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        {data.length} visit{data.length !== 1 && "s"}
+      {visits.length > 0 && (
+        <>
+          <p className="text-sm text-muted-foreground">
+            {visits.length} visit{visits.length !== 1 && "s"}
+          </p>
+          {visits.map((visit, index) => (
+            <VisitCard
+              key={visit.id}
+              visit={visit}
+              isLatest={index === 0}
+              patientId={patientId}
+            />
+          ))}
+        </>
+      )}
+
+      {legacyRecords.length > 0 && (
+        <LegacyMedicalRecords records={legacyRecords} />
+      )}
+    </div>
+  );
+}
+
+type LegacyRecord = {
+  id: string;
+  title: string;
+  type: string;
+  createdAt: Date | string;
+  content: unknown;
+  vitals: unknown;
+  diagnoses: unknown;
+};
+
+function LegacyMedicalRecords({ records }: { records: LegacyRecord[] }) {
+  return (
+    <section className="space-y-3 pt-4">
+      <div className="flex items-center gap-2 border-t pt-4">
+        <Archive className="h-4 w-4 text-muted-foreground" />
+        <h3 className="text-sm font-semibold text-muted-foreground">
+          Older notes ({records.length})
+        </h3>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        These are saved before the new visit timeline. Read-only — for
+        reference.
       </p>
-      {data.map((visit, index) => (
-        <VisitCard
-          key={visit.id}
-          visit={visit}
-          isLatest={index === 0}
-          patientId={patientId}
-        />
-      ))}
+      <div className="space-y-3">
+        {records.map((r) => (
+          <LegacyRecordCard key={r.id} record={r} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function LegacyRecordCard({ record }: { record: LegacyRecord }) {
+  const content = (record.content ?? {}) as {
+    subjective?: string;
+    objective?: string;
+    assessment?: string;
+    plan?: string;
+  };
+  const vitals = (record.vitals ?? {}) as Record<string, number | string>;
+  const diagnoses = (record.diagnoses ?? []) as string[];
+  const vitalsEntries = Object.entries(vitals).filter(
+    ([, v]) => v !== null && v !== undefined && v !== "",
+  );
+  return (
+    <div className="space-y-2 rounded-xl border bg-muted/30 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium">{record.title}</p>
+          <p className="text-xs text-muted-foreground">
+            {record.type} · {formatDate(record.createdAt)}
+          </p>
+        </div>
+      </div>
+      {vitalsEntries.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {vitalsEntries.map(([k, v]) => `${k}: ${v}`).join(" · ")}
+        </p>
+      )}
+      {diagnoses.length > 0 && (
+        <p className="text-xs">
+          <span className="text-muted-foreground">Diagnoses: </span>
+          {diagnoses.join(", ")}
+        </p>
+      )}
+      {(content.subjective ||
+        content.objective ||
+        content.assessment ||
+        content.plan) && (
+        <div className="space-y-1 text-sm">
+          {content.subjective && (
+            <p>
+              <span className="font-medium">S: </span>
+              {content.subjective}
+            </p>
+          )}
+          {content.objective && (
+            <p>
+              <span className="font-medium">O: </span>
+              {content.objective}
+            </p>
+          )}
+          {content.assessment && (
+            <p>
+              <span className="font-medium">A: </span>
+              {content.assessment}
+            </p>
+          )}
+          {content.plan && (
+            <p>
+              <span className="font-medium">P: </span>
+              {content.plan}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

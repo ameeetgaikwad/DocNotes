@@ -1,5 +1,5 @@
 import { eq, and, desc } from "drizzle-orm";
-import { patients, medicalRecords } from "@docnotes/db";
+import { patients, medicalRecords, patientVisits } from "@docnotes/db";
 import {
   exportPatientSummarySchema,
   exportMedicalRecordSchema,
@@ -32,17 +32,30 @@ export const exportRouter = router({
         });
       }
 
-      const records = await ctx.db
-        .select()
-        .from(medicalRecords)
-        .where(
-          and(
-            eq(medicalRecords.patientId, input.patientId),
-            eq(medicalRecords.createdBy, ctx.session.userId),
-          ),
-        )
-        .orderBy(desc(medicalRecords.createdAt))
-        .limit(50);
+      const [records, visits] = await Promise.all([
+        ctx.db
+          .select()
+          .from(medicalRecords)
+          .where(
+            and(
+              eq(medicalRecords.patientId, input.patientId),
+              eq(medicalRecords.createdBy, ctx.session.userId),
+            ),
+          )
+          .orderBy(desc(medicalRecords.createdAt))
+          .limit(50),
+        ctx.db
+          .select()
+          .from(patientVisits)
+          .where(
+            and(
+              eq(patientVisits.patientId, input.patientId),
+              eq(patientVisits.providerId, ctx.session.userId),
+            ),
+          )
+          .orderBy(desc(patientVisits.visitDate))
+          .limit(50),
+      ]);
 
       const pdfBuffer = await renderPatientSummaryPdf(
         {
@@ -66,6 +79,19 @@ export const exportRouter = router({
           } | null,
           vitals: r.vitals as Record<string, number> | null,
           diagnoses: (r.diagnoses ?? []) as string[],
+        })),
+        visits.map((v) => ({
+          visitDate: v.visitDate,
+          bpSystolic: v.bpSystolic,
+          bpDiastolic: v.bpDiastolic,
+          heartRate: v.heartRate,
+          bslFasting: v.bslFasting,
+          bslPostprandial: v.bslPostprandial,
+          bslRandom: v.bslRandom,
+          temperatureCelsius: v.temperatureCelsius,
+          weightKg: v.weightKg,
+          heightCm: v.heightCm,
+          clinicalNotes: v.clinicalNotes,
         })),
       );
 

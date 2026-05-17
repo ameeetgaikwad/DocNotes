@@ -170,9 +170,39 @@ interface RecordData {
   diagnoses?: string[];
 }
 
+interface VisitData {
+  visitDate: string;
+  bpSystolic: number | null;
+  bpDiastolic: number | null;
+  heartRate: number | null;
+  bslFasting: string | null;
+  bslPostprandial: string | null;
+  bslRandom: string | null;
+  temperatureCelsius: string | null;
+  weightKg: string | null;
+  heightCm: string | null;
+  clinicalNotes: string | null;
+}
+
+function formatVisitVitals(v: VisitData): string {
+  const parts: string[] = [];
+  if (v.bpSystolic != null && v.bpDiastolic != null) {
+    parts.push(`BP ${v.bpSystolic}/${v.bpDiastolic}`);
+  }
+  if (v.heartRate != null) parts.push(`HR ${v.heartRate}`);
+  if (v.bslFasting) parts.push(`BSL-F ${v.bslFasting}`);
+  if (v.bslPostprandial) parts.push(`PP ${v.bslPostprandial}`);
+  if (v.bslRandom) parts.push(`R ${v.bslRandom}`);
+  if (v.temperatureCelsius) parts.push(`Temp ${v.temperatureCelsius}°C`);
+  if (v.weightKg) parts.push(`Wt ${v.weightKg}kg`);
+  if (v.heightCm) parts.push(`Ht ${v.heightCm}cm`);
+  return parts.join(" · ");
+}
+
 export async function renderPatientSummaryPdf(
   patient: PatientData,
   records: RecordData[],
+  visits: VisitData[] = [],
 ): Promise<Buffer> {
   const doc = e(
     Document,
@@ -299,7 +329,41 @@ export async function renderPatientSummaryPdf(
             ),
           )
         : null,
-      // Recent Records
+      // Visits (new patient_visits timeline)
+      visits.length > 0
+        ? e(
+            View,
+            { style: styles.section },
+            e(
+              Text,
+              { style: styles.sectionTitle },
+              `Visits (${visits.length})`,
+            ),
+            ...visits.map((v) => {
+              const vitalsLine = formatVisitVitals(v);
+              return e(
+                View,
+                { key: v.visitDate, style: { marginBottom: 10 } },
+                e(
+                  Text,
+                  { style: { fontFamily: "Helvetica-Bold" } },
+                  formatDateDDMMYYYY(v.visitDate),
+                ),
+                vitalsLine
+                  ? e(
+                      Text,
+                      { style: { color: "#64748b", fontSize: 10 } },
+                      vitalsLine,
+                    )
+                  : null,
+                v.clinicalNotes
+                  ? e(Text, { style: { fontSize: 10 } }, v.clinicalNotes)
+                  : null,
+              );
+            }),
+          )
+        : null,
+      // Older notes (legacy medical_records)
       records.length > 0
         ? e(
             View,
@@ -307,7 +371,7 @@ export async function renderPatientSummaryPdf(
             e(
               Text,
               { style: styles.sectionTitle },
-              `Medical Records (${records.length})`,
+              `Older Notes (${records.length})`,
             ),
             ...records.map((rec) =>
               e(
