@@ -7,6 +7,7 @@ import { trpcClient } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 interface PatientData {
@@ -120,13 +121,88 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
       </Card>
 
       <Card className="md:col-span-2">
-        <CardContent className="flex items-center justify-between py-4">
-          <span className="text-sm text-muted-foreground">Mobile Number</span>
-          <span className="text-sm font-medium">
-            {patient.phone || "Not provided"}
-          </span>
+        <CardContent className="py-4">
+          <PhoneEditor patientId={patient.id} initial={patient.phone ?? ""} />
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function PhoneEditor({
+  patientId,
+  initial,
+}: {
+  patientId: string;
+  initial: string;
+}) {
+  const queryClient = useQueryClient();
+  const [value, setValue] = useState(initial);
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setValue(initial);
+  }, [initial]);
+
+  const save = useMutation({
+    mutationFn: () =>
+      trpcClient.patient.update.mutate({
+        id: patientId,
+        data: { phone: value.trim() || null },
+      }),
+    onSuccess: () => {
+      setServerError(null);
+      queryClient.invalidateQueries({ queryKey: [["patient"]] });
+    },
+    onError: (err) => setServerError(err.message),
+  });
+
+  const dirty = initial !== value;
+
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+      <label
+        htmlFor="patient-mobile"
+        className="text-sm text-muted-foreground sm:w-32 sm:shrink-0"
+      >
+        Mobile Number
+      </label>
+      <div className="flex flex-1 items-center gap-2">
+        <Input
+          id="patient-mobile"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="+91 98765 43210"
+          className="flex-1"
+        />
+        {dirty && (
+          <Button
+            type="button"
+            onClick={() => save.mutate()}
+            disabled={save.isPending}
+            size="sm"
+            variant="outline"
+          >
+            {save.isPending ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" /> Saving
+              </>
+            ) : (
+              <>
+                <Save className="h-3 w-3" /> Save
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+      {serverError && (
+        <p className="text-xs text-destructive sm:basis-full sm:pl-32">
+          {serverError}
+        </p>
+      )}
     </div>
   );
 }
