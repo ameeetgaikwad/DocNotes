@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq, and, asc } from "drizzle-orm";
-import { auditLogs, homeopathicMedicines } from "@docnotes/db";
+import { homeopathicMedicines } from "@docnotes/db";
 import {
   createHomeopathicMedicineSchema,
   updateHomeopathicMedicineSchema,
@@ -36,27 +36,15 @@ export const homeopathicMedicineRouter = router({
   }),
 
   seedDefaults: protectedProcedure.mutation(async ({ ctx }) => {
-    // Refuse if any prior homeopathic-medicine activity exists for this
-    // user (create / update / delete / seed_defaults all show up in
-    // audit_logs). This means the seed only fires on a truly fresh
-    // account — deleting everything intentionally won't make the
-    // defaults pop back next time the page loads.
-    const priorActivity = await ctx.db
-      .select({ id: auditLogs.id })
-      .from(auditLogs)
-      .where(
-        and(
-          eq(auditLogs.userId, ctx.session.userId),
-          eq(auditLogs.resource, "homeopathic_medicine"),
-        ),
-      )
-      .limit(1);
-    if (priorActivity.length > 0) {
-      return { inserted: 0 };
-    }
-    // Belt-and-suspenders: also bail if there happen to be medicines
-    // already but no audit log (would only happen for very old rows
-    // pre-audit-logging).
+    // Only check the medicines table — if it's empty for this provider,
+    // seed. Earlier version also consulted audit_logs to suppress re-
+    // seeding after intentional deletes, but that locked Manoj out
+    // (msg 854 + 865) because his earlier "Load suggested defaults"
+    // tap had left a seed_defaults audit entry while the inserted rows
+    // got cleared in another flow. Falling back to the simpler "is the
+    // list currently empty" check matches the expected "defaults just
+    // appear when there's nothing there" behaviour. A doctor who wants
+    // a permanently empty list can add a single sentinel row.
     const existing = await ctx.db
       .select({ id: homeopathicMedicines.id })
       .from(homeopathicMedicines)
