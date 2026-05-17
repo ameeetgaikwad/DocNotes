@@ -490,18 +490,12 @@ export default function Dashboard() {
         />
         {!registerSummaryOpen && (
           <>
-            <StatCard
-              label="Pending Tasks"
-              value="0"
-              icon={ClipboardList}
-              href="/tasks"
-            />
+            <StatCard label="Pending Tasks" value="0" icon={ClipboardList} />
             <StatCard
               label="Records This Week"
               value={data?.recordsThisWeek ?? 0}
               icon={Activity}
               isLoading={isLoading}
-              href="/reports"
             />
           </>
         )}
@@ -511,18 +505,12 @@ export default function Dashboard() {
         <>
           <RegisterSummaryPanel />
           <div className="mb-8 grid gap-4 sm:grid-cols-2">
-            <StatCard
-              label="Pending Tasks"
-              value="0"
-              icon={ClipboardList}
-              href="/tasks"
-            />
+            <StatCard label="Pending Tasks" value="0" icon={ClipboardList} />
             <StatCard
               label="Records This Week"
               value={data?.recordsThisWeek ?? 0}
               icon={Activity}
               isLoading={isLoading}
-              href="/reports"
             />
           </div>
         </>
