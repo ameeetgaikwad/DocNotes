@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Loader2, AlertCircle, BookOpen, Save } from "lucide-react";
+import { Loader2, AlertCircle, BookOpen, Save, Pill } from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
 import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { HomeopathicMedicinePicker } from "@/components/patients/homeopathic-medicine-picker";
 
 interface PatientHistoryProps {
   patientId: string;
@@ -94,6 +95,16 @@ function VisitCard({ visit, isLatest }: { visit: Visit; isLatest: boolean }) {
   // so the doctor can fill in today's data without an extra click; older
   // visits default to false to keep the timeline clean.
   const [editAll, setEditAll] = useState(isLatest);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  function insertHomeopathicLines(lines: string[]) {
+    const current = form.clinicalNotes;
+    const insertion = lines.join("\n");
+    const next = current.trim()
+      ? `${current.replace(/\s+$/, "")}\n${insertion}`
+      : insertion;
+    setForm((prev) => ({ ...prev, clinicalNotes: next }));
+  }
 
   useEffect(() => {
     setForm(visitToForm(visit));
@@ -266,9 +277,21 @@ function VisitCard({ visit, isLatest }: { visit: Visit; isLatest: boolean }) {
 
         {showNotes && (
           <div className="space-y-2">
-            <Label htmlFor={`${visit.id}-notes`} className="md:text-base">
-              Clinical notes
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor={`${visit.id}-notes`} className="md:text-base">
+                Clinical notes
+              </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setPickerOpen(true)}
+                className="h-7 px-2 text-xs"
+                title="Insert homeopathic medicine"
+              >
+                <Pill className="h-3.5 w-3.5" />H
+              </Button>
+            </div>
             <Textarea
               id={`${visit.id}-notes`}
               rows={6}
@@ -282,6 +305,12 @@ function VisitCard({ visit, isLatest }: { visit: Visit; isLatest: boolean }) {
             />
           </div>
         )}
+
+        <HomeopathicMedicinePicker
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          onInsert={insertHomeopathicLines}
+        />
       </div>
 
       {saveMutation.error && (
