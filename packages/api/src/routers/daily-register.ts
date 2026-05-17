@@ -265,11 +265,17 @@ export const dailyRegisterRouter = router({
       }
       const fee = Number(e.feeAmount);
       const clamped = Math.min(Math.max(input.paidAmount, 0), fee);
+      // Once the entry is fully settled (paidAmount >= feeAmount),
+      // flip paymentStatus to "paid" so it stops showing as Due in
+      // the register and stops returning from pendingDuesByPatient.
+      // Use a small epsilon to be safe against decimal rounding.
+      const fullyPaid = clamped + 0.005 >= fee;
       const [updated] = await ctx.db
         .update(dailyRegisterEntries)
         .set({
           paidAmount: clamped.toFixed(2),
           feeReceivedAt: input.feeReceivedAt ?? null,
+          ...(fullyPaid ? { paymentStatus: "paid" as const } : {}),
         })
         .where(
           and(
@@ -369,9 +375,35 @@ export const dailyRegisterRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Read current row so we can reconcile paidAmount whenever
+      // feeAmount or paymentStatus changes — otherwise editing a
+      // paid entry's fee leaves paidAmount stale, and toggling
+      // status between paid/due/nil silently desyncs the books.
+      const [current] = await ctx.db
+        .select({
+          feeAmount: dailyRegisterEntries.feeAmount,
+          paidAmount: dailyRegisterEntries.paidAmount,
+          paymentStatus: dailyRegisterEntries.paymentStatus,
+        })
+        .from(dailyRegisterEntries)
+        .where(
+          and(
+            eq(dailyRegisterEntries.id, input.id),
+            eq(dailyRegisterEntries.providerId, ctx.session.userId),
+          ),
+        )
+        .limit(1);
+      if (!current) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Register entry not found",
+        });
+      }
+
       const patch: {
         serviceType?: string | null;
         feeAmount?: string;
+        paidAmount?: string;
         paymentMode?: "cash" | "digital";
         paymentStatus?: "paid" | "due" | "nil";
         feeReceivedAt?: string | null;
@@ -393,6 +425,32 @@ export const dailyRegisterRouter = router({
           ? input.data.diagnosis.trim()
           : null;
       if (input.data.notes !== undefined) patch.notes = input.data.notes;
+
+      const nextStatus = input.data.paymentStatus ?? current.paymentStatus;
+      const nextFee =
+        input.data.feeAmount !== undefined
+          ? input.data.feeAmount
+          : Number(current.feeAmount);
+      const currentPaid = Number(current.paidAmount);
+      const feeChanged =
+        input.data.feeAmount !== undefined &&
+        Number(current.feeAmount) !== input.data.feeAmount;
+      const statusChanged =
+        input.data.paymentStatus !== undefined &&
+        current.paymentStatus !== input.data.paymentStatus;
+      if (feeChanged || statusChanged) {
+        if (nextStatus === "paid") {
+          patch.paidAmount = nextFee.toFixed(2);
+        } else if (nextStatus === "nil") {
+          patch.paidAmount = "0.00";
+        } else {
+          // due: cap any prior partial payment to the new fee
+          patch.paidAmount = Math.min(
+            Math.max(currentPaid, 0),
+            nextFee,
+          ).toFixed(2);
+        }
+      }
 
       const [entry] = await ctx.db
         .update(dailyRegisterEntries)

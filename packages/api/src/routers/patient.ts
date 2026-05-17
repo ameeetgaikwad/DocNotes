@@ -144,6 +144,10 @@ export const patientRouter = router({
         .where(
           and(
             eq(patients.createdBy, ctx.session.userId),
+            // Archived (soft-deleted) patients should not block name
+            // reuse — otherwise the only way to add a new patient with
+            // the same name is to hard-delete the archived record.
+            eq(patients.isActive, true),
             sql`lower(regexp_replace(trim(${patients.firstName} || ' ' || coalesce(${patients.middleName}, '') || ' ' || ${patients.lastName}), '\\s+', ' ', 'g')) = ${target}`,
           ),
         )
