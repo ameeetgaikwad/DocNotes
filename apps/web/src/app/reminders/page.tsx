@@ -30,7 +30,7 @@ const DEFAULT_TEMPLATES: Record<TemplateLang, string> = {
   english:
     "Dear {patient_name},\n\nThis is a reminder that an outstanding amount of ₹{amount} is pending against your visits at our clinic. It has been {days_overdue} days since the earliest unpaid visit.\n\nKindly arrange to settle the amount at your convenience. Please reach out if you have any questions.\n\nThank you.",
   marathi:
-    "नमस्कार {patient_name},\n\nआमच्या क्लिनिकमधील भेटींपोटी ₹{amount} इतकी रक्कम अद्याप थकित आहे. पहिल्या न भरलेल्या भेटीपासून {days_overdue} दिवस झाले आहेत.\n\nकृपया लवकरात लवकर ती रक्कम भरण्याची व्यवस्था करावी. काही प्रश्न असल्यास संपर्क साधावा.\n\nधन्यवाद.",
+    "{patient_name}\nआमच्या क्लिनिकची फी ₹{amount} बाकी आहे.\n{date}\nकृपया लवकरात लवकर भरण्याची व्यवस्था करावी.\nधन्यवाद.",
   hindi:
     "नमस्कार {patient_name},\n\nहमारे क्लिनिक में आपकी विज़िट के संबंध में ₹{amount} की राशि अभी भी बकाया है। पहली बकाया विज़िट को {days_overdue} दिन हो चुके हैं।\n\nकृपया जल्द ही यह राशि चुकाने का प्रबंध करें। किसी भी प्रश्न के लिए संपर्क करें।\n\nधन्यवाद।",
 };
@@ -58,12 +58,18 @@ function normalizePhoneForWa(phone: string | null): string {
 
 function fillTemplate(
   template: string,
-  values: { patient_name: string; amount: string; days_overdue: number },
+  values: {
+    patient_name: string;
+    amount: string;
+    days_overdue: number;
+    date: string;
+  },
 ): string {
   return template
     .replace(/\{patient_name\}/g, values.patient_name)
     .replace(/\{amount\}/g, values.amount)
-    .replace(/\{days_overdue\}/g, String(values.days_overdue));
+    .replace(/\{days_overdue\}/g, String(values.days_overdue))
+    .replace(/\{date\}/g, values.date);
 }
 
 function formatINR(amount: number): string {
@@ -232,6 +238,7 @@ function ReminderRow({ row, lang }: { row: OverdueRow; lang: TemplateLang }) {
       patient_name: formatPatientName(row),
       amount: row.outstanding.toFixed(2),
       days_overdue: row.daysOverdue,
+      date: formatDate(row.oldestDueDate),
     });
   }, [lang, row]);
 
