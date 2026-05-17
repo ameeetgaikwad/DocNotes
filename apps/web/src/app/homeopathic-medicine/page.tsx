@@ -35,6 +35,12 @@ export default function HomeopathicMedicinePage() {
       queryClient.invalidateQueries({ queryKey: [["homeopathicMedicine"]] }),
   });
 
+  const seedMutation = useMutation({
+    mutationFn: () => trpcClient.homeopathicMedicine.seedDefaults.mutate(),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: [["homeopathicMedicine"]] }),
+  });
+
   function openAdd() {
     setEditing(null);
     setDialogOpen(true);
@@ -84,13 +90,34 @@ export default function HomeopathicMedicinePage() {
 
       {!listQuery.isLoading && items.length === 0 && (
         <div className="rounded-xl border bg-card">
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <div className="flex flex-col items-center justify-center px-4 py-16 text-muted-foreground">
             <Pill className="mb-3 h-12 w-12" />
             <p className="text-base font-medium">No medicines yet</p>
-            <p className="text-sm">
+            <p className="mt-1 max-w-md text-center text-sm">
               Add the medicines you prescribe most often to insert them into
-              clinical notes in one tap.
+              clinical notes in one tap — or load a suggested starter list of 12
+              common remedies you can edit later.
             </p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => seedMutation.mutate()}
+                disabled={seedMutation.isPending}
+              >
+                {seedMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading
+                  </>
+                ) : (
+                  <>Load suggested defaults</>
+                )}
+              </Button>
+              <Button type="button" onClick={openAdd}>
+                <Plus className="h-4 w-4" />
+                Add Medicine
+              </Button>
+            </div>
           </div>
         </div>
       )}

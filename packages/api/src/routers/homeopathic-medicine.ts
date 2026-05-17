@@ -8,6 +8,21 @@ import {
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
 
+const DEFAULT_MEDICINES: ReadonlyArray<{ name: string; potency: string }> = [
+  { name: "Arnica Montana", potency: "30C" },
+  { name: "Arnica Montana", potency: "200C" },
+  { name: "Arsenicum Album", potency: "30C" },
+  { name: "Arsenicum Album", potency: "200C" },
+  { name: "Belladonna", potency: "30C" },
+  { name: "Nux Vomica", potency: "30C" },
+  { name: "Pulsatilla Nigricans", potency: "30C" },
+  { name: "Rhus Toxicodendron", potency: "30C" },
+  { name: "Bryonia Alba", potency: "30C" },
+  { name: "Chamomilla", potency: "30C" },
+  { name: "Allium Cepa", potency: "30C" },
+  { name: "Aconitum Napellus", potency: "30C" },
+];
+
 export const homeopathicMedicineRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     return ctx.db
@@ -18,6 +33,32 @@ export const homeopathicMedicineRouter = router({
         asc(homeopathicMedicines.name),
         asc(homeopathicMedicines.potency),
       );
+  }),
+
+  seedDefaults: protectedProcedure.mutation(async ({ ctx }) => {
+    // Refuse to seed if the provider already has any medicines — keeps
+    // this as a one-shot bootstrap for empty lists rather than a
+    // duplicate-multiplier.
+    const existing = await ctx.db
+      .select({ id: homeopathicMedicines.id })
+      .from(homeopathicMedicines)
+      .where(eq(homeopathicMedicines.providerId, ctx.session.userId))
+      .limit(1);
+    if (existing.length > 0) {
+      return { inserted: 0 };
+    }
+    await ctx.db.insert(homeopathicMedicines).values(
+      DEFAULT_MEDICINES.map((d) => ({
+        providerId: ctx.session.userId,
+        name: d.name,
+        potency: d.potency,
+      })),
+    );
+    logAudit(ctx, {
+      action: "seed_defaults",
+      resource: "homeopathic_medicine",
+    });
+    return { inserted: DEFAULT_MEDICINES.length };
   }),
 
   create: protectedProcedure
