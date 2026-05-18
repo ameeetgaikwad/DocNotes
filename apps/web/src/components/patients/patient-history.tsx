@@ -9,9 +9,11 @@ import {
   Save,
   Pill,
   Archive,
+  Printer,
 } from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
 import { formatDate } from "@/lib/format";
+import { printBase64Pdf } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -402,6 +404,15 @@ function VisitCard({
     },
   });
 
+  // Prescription print: server-rendered PDF on doctor letterhead with
+  // the current visit's clinical notes (Manoj msg 910). Mirrors the
+  // existing "Print Summary" flow on the patient header.
+  const printRxMutation = useMutation({
+    mutationFn: () =>
+      trpcClient.export.prescription.mutate({ visitId: visit.id }),
+    onSuccess: (data) => printBase64Pdf(data.base64),
+  });
+
   const dirty = !sameForm(form, initial);
   const showAllFields = editAll;
   const showBp =
@@ -571,16 +582,34 @@ function VisitCard({
               <Label htmlFor={`${visit.id}-notes`} className="md:text-base">
                 Clinical notes
               </Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setPickerOpen(true)}
-                className="h-7 px-2 text-xs"
-                title="Insert homeopathic medicine"
-              >
-                <Pill className="h-3.5 w-3.5" />H
-              </Button>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPickerOpen(true)}
+                  className="h-7 px-2 text-xs"
+                  title="Insert homeopathic medicine"
+                >
+                  <Pill className="h-3.5 w-3.5" />H
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => printRxMutation.mutate()}
+                  disabled={printRxMutation.isPending}
+                  className="h-7 px-2 text-xs"
+                  title="Open printable prescription"
+                >
+                  {printRxMutation.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Printer className="h-3.5 w-3.5" />
+                  )}
+                  Rx
+                </Button>
+              </div>
             </div>
             <Textarea
               id={`${visit.id}-notes`}
@@ -606,6 +635,12 @@ function VisitCard({
       {saveMutation.error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
           {saveMutation.error.message}
+        </div>
+      )}
+
+      {printRxMutation.error && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+          {printRxMutation.error.message}
         </div>
       )}
 

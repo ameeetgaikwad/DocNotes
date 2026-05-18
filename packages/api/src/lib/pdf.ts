@@ -590,3 +590,213 @@ export async function renderMedicalRecordPdf(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return renderToBuffer(doc as any);
 }
+
+// Prescription rendered to roughly match Manoj's existing hand-printed
+// slip (msg 910 photo): doctor block top-left, clinic line, date
+// right-aligned, body for clinical notes, signature line. Devanagari
+// letterhead block is deliberately deferred — @react-pdf's default
+// Helvetica has no Devanagari glyphs, so adding it requires font
+// registration and per-doctor Marathi input fields (follow-up).
+interface DoctorProfileData {
+  fullName: string;
+  qualification: string;
+  specialization?: string | null;
+  registrationNumber: string;
+  mobileNumber: string;
+  email?: string | null;
+  clinicName: string;
+  taluka: string;
+  district: string;
+  state: string;
+}
+
+interface PrescriptionVisitData {
+  visitDate: string;
+  bpSystolic: number | null;
+  bpDiastolic: number | null;
+  heartRate: number | null;
+  weightKg: string | null;
+  spO2Percent: number | null;
+  clinicalNotes: string | null;
+}
+
+interface PrescriptionPatientData {
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  dateOfBirth: Date | string | null;
+  dobYear: number | null;
+  gender: string | null;
+  phone: string | null;
+}
+
+const rxStyles = StyleSheet.create({
+  page: {
+    paddingHorizontal: 30,
+    paddingVertical: 28,
+    fontSize: 11,
+    fontFamily: "Helvetica",
+    lineHeight: 1.35,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  doctorBlock: { flexDirection: "column" },
+  doctorName: {
+    fontSize: 16,
+    fontFamily: "Helvetica-Bold",
+    color: "#7f1d1d",
+  },
+  doctorLine: { fontSize: 10, color: "#7f1d1d" },
+  doctorRightLine: { fontSize: 10, color: "#7f1d1d", textAlign: "right" },
+  hrThick: {
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#7f1d1d",
+    marginTop: 6,
+  },
+  clinicLine: {
+    fontSize: 10,
+    color: "#7f1d1d",
+    textAlign: "center",
+    marginTop: 4,
+  },
+  hrThin: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#7f1d1d",
+    marginTop: 4,
+  },
+  patientRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 12,
+    fontSize: 11,
+  },
+  bodyHeading: {
+    fontSize: 13,
+    fontFamily: "Helvetica-Bold",
+    marginTop: 14,
+    color: "#1e293b",
+  },
+  vitalsLine: { fontSize: 9, color: "#64748b", marginTop: 2 },
+  rxBody: { fontSize: 12, marginTop: 8, color: "#0f172a" },
+  signatureLine: {
+    marginTop: 40,
+    alignSelf: "flex-end",
+    borderTopWidth: 0.5,
+    borderTopColor: "#1e293b",
+    paddingTop: 4,
+    width: 160,
+    textAlign: "center",
+    fontSize: 9,
+    color: "#475569",
+  },
+});
+
+function calcAgeFromYear(
+  year: number | null,
+  dob: Date | string | null,
+): number | null {
+  if (dob) return calculateAge(dob);
+  if (year != null) return new Date().getFullYear() - year;
+  return null;
+}
+
+function prescriptionVitalsLine(v: PrescriptionVisitData): string {
+  const parts: string[] = [];
+  if (v.bpSystolic != null && v.bpDiastolic != null) {
+    parts.push(`BP ${v.bpSystolic}/${v.bpDiastolic}`);
+  }
+  if (v.heartRate != null) parts.push(`HR ${v.heartRate}`);
+  if (v.spO2Percent != null) parts.push(`SpO2 ${v.spO2Percent}%`);
+  if (v.weightKg) parts.push(`Wt ${v.weightKg}kg`);
+  return parts.join(" · ");
+}
+
+export async function renderPrescriptionPdf(
+  patient: PrescriptionPatientData,
+  doctor: DoctorProfileData,
+  visit: PrescriptionVisitData,
+): Promise<Buffer> {
+  const patientName = [patient.firstName, patient.middleName, patient.lastName]
+    .filter(Boolean)
+    .join(" ");
+  const age = calcAgeFromYear(patient.dobYear, patient.dateOfBirth);
+  const ageSex = [
+    age != null ? `${age} y` : null,
+    patient.gender ? patient.gender[0]!.toUpperCase() : null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
+  const clinicLine = [
+    doctor.clinicName,
+    doctor.taluka,
+    doctor.district,
+    doctor.state,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const vitalsLine = prescriptionVitalsLine(visit);
+
+  const doc = e(
+    Document,
+    null,
+    e(
+      Page,
+      { size: "A5", style: rxStyles.page },
+      e(
+        View,
+        { style: rxStyles.headerRow },
+        e(
+          View,
+          { style: rxStyles.doctorBlock },
+          e(Text, { style: rxStyles.doctorName }, `Dr. ${doctor.fullName}`),
+          e(Text, { style: rxStyles.doctorLine }, doctor.qualification),
+          e(
+            Text,
+            { style: rxStyles.doctorLine },
+            `Reg. No. ${doctor.registrationNumber}`,
+          ),
+          e(
+            Text,
+            { style: rxStyles.doctorLine },
+            `Mob.: ${doctor.mobileNumber}`,
+          ),
+        ),
+        e(
+          View,
+          null,
+          e(
+            Text,
+            { style: rxStyles.doctorRightLine },
+            doctor.specialization ?? "",
+          ),
+          e(
+            Text,
+            { style: rxStyles.doctorRightLine },
+            `Date: ${formatDateDDMMYYYY(visit.visitDate)}`,
+          ),
+        ),
+      ),
+      e(View, { style: rxStyles.hrThick }),
+      clinicLine ? e(Text, { style: rxStyles.clinicLine }, clinicLine) : null,
+      e(View, { style: rxStyles.hrThin }),
+      e(
+        View,
+        { style: rxStyles.patientRow },
+        e(Text, null, `Patient: ${patientName}${ageSex ? ` (${ageSex})` : ""}`),
+        patient.phone ? e(Text, null, `Mob: ${patient.phone}`) : null,
+      ),
+      e(Text, { style: rxStyles.bodyHeading }, "Rx"),
+      vitalsLine ? e(Text, { style: rxStyles.vitalsLine }, vitalsLine) : null,
+      visit.clinicalNotes
+        ? e(Text, { style: rxStyles.rxBody }, visit.clinicalNotes)
+        : e(Text, { style: rxStyles.rxBody }, "—"),
+      e(Text, { style: rxStyles.signatureLine }, `Dr. ${doctor.fullName}`),
+    ),
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return renderToBuffer(doc as any);
+}

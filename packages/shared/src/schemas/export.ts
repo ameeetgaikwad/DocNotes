@@ -11,3 +11,9 @@ export const exportMedicalRecordSchema = z.object({
 });
 
 export type ExportMedicalRecord = z.infer<typeof exportMedicalRecordSchema>;
+
+export const exportPrescriptionSchema = z.object({
+  visitId: z.string().uuid(),
+});
+
+export type ExportPrescription = z.infer<typeof exportPrescriptionSchema>;
