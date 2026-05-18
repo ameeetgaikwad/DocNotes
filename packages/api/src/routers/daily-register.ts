@@ -357,6 +357,36 @@ export const dailyRegisterRouter = router({
           input.visitDate,
           input.notes,
         );
+        // Unified register-entry + new-patient flow (Manoj msg 917):
+        // if vitals were captured alongside the entry, write them onto
+        // the same-date visit row that ensureVisitForDate just created
+        // or reused.
+        const v = input.initialVitals;
+        const hasVitals =
+          v &&
+          (v.weightKg != null ||
+            v.bpSystolic != null ||
+            v.bpDiastolic != null ||
+            v.spO2Percent != null ||
+            v.temperatureCelsius != null);
+        if (hasVitals && v) {
+          await ctx.db
+            .update(patientVisits)
+            .set({
+              weightKg: v.weightKg ?? null,
+              bpSystolic: v.bpSystolic ?? null,
+              bpDiastolic: v.bpDiastolic ?? null,
+              spO2Percent: v.spO2Percent ?? null,
+              temperatureCelsius: v.temperatureCelsius ?? null,
+            })
+            .where(
+              and(
+                eq(patientVisits.patientId, input.patientId),
+                eq(patientVisits.visitDate, input.visitDate),
+                eq(patientVisits.providerId, ctx.session.userId),
+              ),
+            );
+        }
         logAudit(ctx, {
           action: "create",
           resource: "daily_register_entry",

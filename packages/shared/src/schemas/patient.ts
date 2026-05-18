@@ -61,6 +61,30 @@ export const duplicateOverrideSchema = z.object({
 
 export type DuplicateOverride = z.infer<typeof duplicateOverrideSchema>;
 
+// Receptionist-captured baseline vitals attached to today's visit row.
+// Shared between createPatientSchema (registering a new patient) and
+// createDailyRegisterEntrySchema (logging an entry for an existing
+// patient) so both flows write to the same patient_visits columns.
+export const initialVitalsSchema = z.object({
+  weightKg: z
+    .union([z.string(), z.number()])
+    .transform((v) => (typeof v === "number" ? String(v) : v))
+    .pipe(z.string().regex(/^\d+(\.\d+)?$/, "must be numeric"))
+    .nullable()
+    .optional(),
+  bpSystolic: z.number().int().min(40).max(300).nullable().optional(),
+  bpDiastolic: z.number().int().min(20).max(200).nullable().optional(),
+  spO2Percent: z.number().int().min(50).max(100).nullable().optional(),
+  temperatureCelsius: z
+    .union([z.string(), z.number()])
+    .transform((v) => (typeof v === "number" ? String(v) : v))
+    .pipe(z.string().regex(/^\d+(\.\d+)?$/, "must be numeric"))
+    .nullable()
+    .optional(),
+});
+
+export type InitialVitals = z.infer<typeof initialVitalsSchema>;
+
 export const createPatientSchema = z.object({
   firstName: z.string().min(1).max(255),
   middleName: z.string().max(255).nullable().optional(),
@@ -90,19 +114,7 @@ export const createPatientSchema = z.object({
   // receptionist). When any are set, the patient.create handler also
   // upserts a patient_visits row for today so the values flow into
   // History + the doctor's Daily Register view for the same day.
-  initialVitals: z
-    .object({
-      weightKg: z
-        .union([z.string(), z.number()])
-        .transform((v) => (typeof v === "number" ? String(v) : v))
-        .pipe(z.string().regex(/^\d+(\.\d+)?$/, "must be numeric"))
-        .nullable()
-        .optional(),
-      bpSystolic: z.number().int().min(40).max(300).nullable().optional(),
-      bpDiastolic: z.number().int().min(20).max(200).nullable().optional(),
-      spO2Percent: z.number().int().min(50).max(100).nullable().optional(),
-    })
-    .optional(),
+  initialVitals: initialVitalsSchema.optional(),
 });
 
 export type CreatePatient = z.infer<typeof createPatientSchema>;

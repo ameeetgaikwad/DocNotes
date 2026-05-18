@@ -11,6 +11,7 @@ import {
   Banknote,
   Smartphone,
   Save,
+  Pencil,
 } from "lucide-react";
 import { SERVICE_TYPES, type Gender } from "@docnotes/shared";
 import { trpc, trpcClient } from "@/lib/trpc";
@@ -45,12 +46,23 @@ interface NewEntryDialogProps {
 type PaymentStatus = "paid" | "due" | "nil";
 type PaymentMode = "cash" | "digital";
 
+type BloodType = "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-" | "";
+
 interface SelectedPatient {
   id: string;
   label: string;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
   dobDay: number | null;
   dobMonth: number | null;
   dobYear: number | null;
+  gender: Gender | null;
+  bloodType: BloodType;
+  phone: string | null;
+  address: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
 }
 
 function sanitizeDigits(value: string, maxLen: number): string {
@@ -87,15 +99,30 @@ export function NewDailyRegisterEntryDialog({
   const [notes, setNotes] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
 
-  // Inline "Add new patient" mini-form state — auto-shown when the
-  // doctor types a name with no exact match. Per Manoj msg 767, the
-  // separate "Create patient" step is gone; saving the entry creates
-  // the patient on the fly when needed.
-  const [newPatientGender, setNewPatientGender] = useState<Gender | "">("");
-  const [newPatientPhone, setNewPatientPhone] = useState("");
-  const [newPatientDobDay, setNewPatientDobDay] = useState("");
-  const [newPatientDobMonth, setNewPatientDobMonth] = useState("");
-  const [newPatientDobYear, setNewPatientDobYear] = useState("");
+  // Inline patient block state — also covers the "create new patient"
+  // sub-flow (Manoj msg 917 + 919). For an EXISTING patient these
+  // start pre-filled from selectPatient() and stay read-only until
+  // the doctor taps the pencil; for a NEW patient they start blank
+  // and are editable from the start.
+  const [pGender, setPGender] = useState<Gender | "">("");
+  const [pBloodType, setPBloodType] = useState<BloodType>("");
+  const [pPhone, setPPhone] = useState("");
+  const [pAddress, setPAddress] = useState("");
+  const [pEmergencyName, setPEmergencyName] = useState("");
+  const [pEmergencyPhone, setPEmergencyPhone] = useState("");
+  // editingExisting flips read-only → editable for a returning
+  // patient (pencil icon). For new patients (no selected `patient`),
+  // the block is editable unconditionally.
+  const [editingExisting, setEditingExisting] = useState(false);
+
+  // Initial vitals captured at the same time as the register entry.
+  // These flow into today's patient_visits row server-side after
+  // dailyRegister.create returns.
+  const [vWeightKg, setVWeightKg] = useState("");
+  const [vBpSystolic, setVBpSystolic] = useState("");
+  const [vBpDiastolic, setVBpDiastolic] = useState("");
+  const [vSpO2, setVSpO2] = useState("");
+  const [vTempCelsius, setVTempCelsius] = useState("");
 
   const debouncedSearch = useDebounce(patientSearch, 250);
   const trimmedSearch = debouncedSearch.trim();
@@ -126,11 +153,18 @@ export function NewDailyRegisterEntryDialog({
       setDiagnosis("");
       setNotes("");
       setServerError(null);
-      setNewPatientGender("");
-      setNewPatientPhone("");
-      setNewPatientDobDay("");
-      setNewPatientDobMonth("");
-      setNewPatientDobYear("");
+      setPGender("");
+      setPBloodType("");
+      setPPhone("");
+      setPAddress("");
+      setPEmergencyName("");
+      setPEmergencyPhone("");
+      setEditingExisting(false);
+      setVWeightKg("");
+      setVBpSystolic("");
+      setVBpDiastolic("");
+      setVSpO2("");
+      setVTempCelsius("");
     }
   }, [open, visitDate]);
 
@@ -151,6 +185,13 @@ export function NewDailyRegisterEntryDialog({
     setDobDay(p.dobDay != null ? String(p.dobDay) : "");
     setDobMonth(p.dobMonth != null ? String(p.dobMonth) : "");
     setDobYear(p.dobYear != null ? String(p.dobYear) : "");
+    setPGender(p.gender ?? "");
+    setPBloodType(p.bloodType ?? "");
+    setPPhone(p.phone ?? "");
+    setPAddress(p.address ?? "");
+    setPEmergencyName(p.emergencyContactName ?? "");
+    setPEmergencyPhone(p.emergencyContactPhone ?? "");
+    setEditingExisting(false);
   }
 
   function clearPatient() {
@@ -159,6 +200,13 @@ export function NewDailyRegisterEntryDialog({
     setDobDay("");
     setDobMonth("");
     setDobYear("");
+    setPGender("");
+    setPBloodType("");
+    setPPhone("");
+    setPAddress("");
+    setPEmergencyName("");
+    setPEmergencyPhone("");
+    setEditingExisting(false);
   }
 
   const parsedDob = useMemo(() => {
@@ -199,9 +247,31 @@ export function NewDailyRegisterEntryDialog({
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      // Build initialVitals from the bottom-of-form fields. Empty
+      // strings → undefined so the whole object is omitted when nothing
+      // was captured (avoids zero-filling the visit row).
+      const wt = vWeightKg.trim();
+      const bps = vBpSystolic.trim();
+      const bpd = vBpDiastolic.trim();
+      const spo2 = vSpO2.trim();
+      const temp = vTempCelsius.trim();
+      const initialVitals =
+        wt || bps || bpd || spo2 || temp
+          ? {
+              weightKg: wt || null,
+              bpSystolic: bps ? Number(bps) : null,
+              bpDiastolic: bpd ? Number(bpd) : null,
+              spO2Percent: spo2 ? Number(spo2) : null,
+              temperatureCelsius: temp || null,
+            }
+          : undefined;
+
       // Resolve the patient — either the one the doctor selected, or
-      // create a brand new one on the fly from the search text + the
-      // optional gender/mobile/DOB fields below the search.
+      // create a brand new one on the fly. For an existing patient
+      // whose details were edited via the pencil, patient.update first
+      // so the server-side validation can't leave an orphaned entry
+      // behind. For a new patient, patient.create carries the full
+      // patient block and the initial vitals together.
       let resolved = patient;
       if (!resolved) {
         const typed = trimmedSearch.trim();
@@ -211,9 +281,9 @@ export function NewDailyRegisterEntryDialog({
         const middleName =
           parts.length >= 3 ? parts.slice(1, -1).join(" ") : null;
         const lastName = parts.length >= 2 ? parts[parts.length - 1] : null;
-        const d = newPatientDobDay === "" ? null : Number(newPatientDobDay);
-        const m = newPatientDobMonth === "" ? null : Number(newPatientDobMonth);
-        const y = newPatientDobYear === "" ? null : Number(newPatientDobYear);
+        const d = parsedDob.d;
+        const m = parsedDob.m;
+        const y = parsedDob.y;
         const dateOfBirth =
           d != null && m != null && y != null
             ? new Date(Date.UTC(y, m - 1, d))
@@ -226,21 +296,78 @@ export function NewDailyRegisterEntryDialog({
           dobDay: d,
           dobMonth: m,
           dobYear: y,
-          gender: newPatientGender || null,
-          phone: newPatientPhone.trim() || null,
+          gender: pGender || null,
+          bloodType: pBloodType || null,
+          phone: pPhone.trim() || null,
+          address: pAddress.trim() || null,
+          emergencyContactName: pEmergencyName.trim() || null,
+          emergencyContactPhone: pEmergencyPhone.trim() || null,
+          // initialVitals on patient.create writes today's visit row
+          // directly, so the daily-register call below will reuse the
+          // same row and not double-write.
+          ...(initialVitals ? { initialVitals } : {}),
         });
         if (!created) throw new Error("Could not create patient");
         resolved = {
           id: created.id,
           label: formatPatientName(created),
+          firstName: created.firstName,
+          middleName: created.middleName ?? null,
+          lastName: created.lastName,
           dobDay: created.dobDay ?? null,
           dobMonth: created.dobMonth ?? null,
           dobYear: created.dobYear ?? null,
+          gender: (created.gender as Gender | null) ?? null,
+          bloodType: (created.bloodType as BloodType | null) ?? "",
+          phone: created.phone ?? null,
+          address: created.address ?? null,
+          emergencyContactName: created.emergencyContactName ?? null,
+          emergencyContactPhone: created.emergencyContactPhone ?? null,
+        };
+        setPatient(resolved);
+      } else if (editingExisting) {
+        // The pencil was tapped — push the (possibly edited) full
+        // patient block, then save DOB-as-partial. Use patient.update
+        // for the bulk of fields and rely on the existing updateDob
+        // path for partial year-only DOBs.
+        const d = parsedDob.d;
+        const m = parsedDob.m;
+        const y = parsedDob.y;
+        const dateOfBirth =
+          d != null && m != null && y != null
+            ? new Date(Date.UTC(y, m - 1, d))
+            : null;
+        await trpcClient.patient.update.mutate({
+          id: resolved.id,
+          data: {
+            gender: pGender || null,
+            bloodType: pBloodType || null,
+            phone: pPhone.trim() || null,
+            address: pAddress.trim() || null,
+            emergencyContactName: pEmergencyName.trim() || null,
+            emergencyContactPhone: pEmergencyPhone.trim() || null,
+            dateOfBirth,
+            dobDay: d,
+            dobMonth: m,
+            dobYear: y,
+          },
+        });
+        resolved = {
+          ...resolved,
+          gender: pGender || null,
+          bloodType: pBloodType,
+          phone: pPhone.trim() || null,
+          address: pAddress.trim() || null,
+          emergencyContactName: pEmergencyName.trim() || null,
+          emergencyContactPhone: pEmergencyPhone.trim() || null,
+          dobDay: d,
+          dobMonth: m,
+          dobYear: y,
         };
         setPatient(resolved);
       } else if (dobChanged) {
-        // Save DOB first so a server-side DOB rejection can't leave a
-        // committed register entry behind.
+        // Existing patient, not in edit mode but the DOB inputs were
+        // touched (legacy path). Save DOB only.
         const updated = await trpcClient.patient.updateDob.mutate({
           id: resolved.id,
           dobDay: parsedDob.d,
@@ -263,6 +390,12 @@ export function NewDailyRegisterEntryDialog({
       // fees later by reopening.
       const fee =
         paymentStatus === "nil" || feeAmount === "" ? 0 : Number(feeAmount);
+      // For NEW patients we already wrote vitals via patient.create's
+      // initialVitals, so don't re-send here (would overwrite with the
+      // same values, harmless but wasteful). For EXISTING patients,
+      // send vitals along with the entry so the same-date visit row
+      // gets populated.
+      const newPatientPath = patient === null;
       const entry = await trpcClient.dailyRegister.create.mutate({
         patientId: resolved.id,
         visitDate: entryDate,
@@ -273,12 +406,14 @@ export function NewDailyRegisterEntryDialog({
         feeReceivedAt: receiptDate || null,
         diagnosis: diagnosis.trim() || null,
         notes: notes.trim() || null,
+        ...(!newPatientPath && initialVitals ? { initialVitals } : {}),
       });
       return entry;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [["dailyRegister"]] });
       queryClient.invalidateQueries({ queryKey: [["patient"]] });
+      queryClient.invalidateQueries({ queryKey: [["patientVisit"]] });
       onOpenChange(false);
     },
     onError: (e) => {
@@ -360,18 +495,30 @@ export function NewDailyRegisterEntryDialog({
               Patient *
             </Label>
             {patient ? (
-              <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-sm md:px-4 md:py-3 md:text-base">
-                <span className="font-medium">{patient.label}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearPatient}
-                  className="md:h-10 md:px-4"
-                >
-                  Change
-                </Button>
-              </div>
+              <ExistingPatientBlock
+                patient={patient}
+                editing={editingExisting}
+                onStartEdit={() => setEditingExisting(true)}
+                onCancelEdit={() => {
+                  selectPatient(patient);
+                }}
+                onChange={clearPatient}
+                pGender={pGender}
+                setPGender={setPGender}
+                pBloodType={pBloodType}
+                setPBloodType={setPBloodType}
+                pPhone={pPhone}
+                setPPhone={setPPhone}
+                pAddress={pAddress}
+                setPAddress={setPAddress}
+                dobDay={dobDay}
+                dobMonth={dobMonth}
+                dobYear={dobYear}
+                setDobDay={setDobDay}
+                setDobMonth={setDobMonth}
+                setDobYear={setDobYear}
+                dobError={dobError}
+              />
             ) : (
               <>
                 <Input
@@ -407,9 +554,21 @@ export function NewDailyRegisterEntryDialog({
                             selectPatient({
                               id: p.id,
                               label: formatPatientName(p),
+                              firstName: p.firstName,
+                              middleName: p.middleName ?? null,
+                              lastName: p.lastName,
                               dobDay: p.dobDay ?? derived?.day ?? null,
                               dobMonth: p.dobMonth ?? derived?.month ?? null,
                               dobYear: p.dobYear ?? derived?.year ?? null,
+                              gender: (p.gender as Gender | null) ?? null,
+                              bloodType:
+                                (p.bloodType as BloodType | null) ?? "",
+                              phone: p.phone ?? null,
+                              address: p.address ?? null,
+                              emergencyContactName:
+                                p.emergencyContactName ?? null,
+                              emergencyContactPhone:
+                                p.emergencyContactPhone ?? null,
                             })
                           }
                           className="flex w-full flex-col items-start gap-0.5 border-b px-3 py-2 text-left text-sm hover:bg-accent md:px-4 md:py-3 md:text-base"
@@ -428,163 +587,28 @@ export function NewDailyRegisterEntryDialog({
                   </div>
                 )}
                 {canQuickCreate && (
-                  <div className="space-y-3 rounded-md border bg-muted/30 p-3 md:p-4">
-                    <p className="flex items-center gap-2 text-sm font-medium md:text-base">
-                      <UserPlus className="h-4 w-4" />
-                      New patient: &ldquo;{typedName}&rdquo;
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Optional details — leave blank to record just the name.
-                      Tap Save below to add the patient and the entry together.
-                    </p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="new-patient-gender"
-                          className="text-xs md:text-sm"
-                        >
-                          Gender
-                        </Label>
-                        <Select
-                          id="new-patient-gender"
-                          value={newPatientGender}
-                          onChange={(e) =>
-                            setNewPatientGender(
-                              (e.target.value as Gender | "") || "",
-                            )
-                          }
-                          className="md:h-11 md:text-base"
-                        >
-                          <option value="">—</option>
-                          <option value="male">Male</option>
-                          <option value="female">Female</option>
-                          <option value="other">Other</option>
-                          <option value="prefer_not_to_say">
-                            Prefer not to say
-                          </option>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="new-patient-phone"
-                          className="text-xs md:text-sm"
-                        >
-                          Mobile
-                        </Label>
-                        <Input
-                          id="new-patient-phone"
-                          type="tel"
-                          inputMode="tel"
-                          value={newPatientPhone}
-                          onChange={(e) => setNewPatientPhone(e.target.value)}
-                          placeholder="+91 98765 43210"
-                          className="md:h-11 md:text-base"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs md:text-sm">
-                        Date of Birth
-                      </Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          value={newPatientDobDay}
-                          onChange={(e) =>
-                            setNewPatientDobDay(
-                              sanitizeDigits(e.target.value, 2),
-                            )
-                          }
-                          placeholder="DD"
-                          className="w-16 text-center md:h-11 md:text-base"
-                        />
-                        <span className="text-muted-foreground">/</span>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          value={newPatientDobMonth}
-                          onChange={(e) =>
-                            setNewPatientDobMonth(
-                              sanitizeDigits(e.target.value, 2),
-                            )
-                          }
-                          placeholder="MM"
-                          className="w-16 text-center md:h-11 md:text-base"
-                        />
-                        <span className="text-muted-foreground">/</span>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          value={newPatientDobYear}
-                          onChange={(e) =>
-                            setNewPatientDobYear(
-                              sanitizeDigits(e.target.value, 4),
-                            )
-                          }
-                          placeholder="YYYY"
-                          className="w-20 text-center md:h-11 md:text-base"
-                        />
-                      </div>
-                    </div>
-                  </div>
+                  <NewPatientBlock
+                    typedName={typedName}
+                    pGender={pGender}
+                    setPGender={setPGender}
+                    pBloodType={pBloodType}
+                    setPBloodType={setPBloodType}
+                    pPhone={pPhone}
+                    setPPhone={setPPhone}
+                    pAddress={pAddress}
+                    setPAddress={setPAddress}
+                    dobDay={dobDay}
+                    dobMonth={dobMonth}
+                    dobYear={dobYear}
+                    setDobDay={setDobDay}
+                    setDobMonth={setDobMonth}
+                    setDobYear={setDobYear}
+                    dobError={dobError}
+                  />
                 )}
               </>
             )}
           </div>
-
-          {/* Only show this DOB editor for EXISTING patients (the doctor
-              can amend a previously-recorded DOB). For new patients
-              the DOB inputs live inside the inline mini-form above so
-              we don't render a duplicate. */}
-          {patient && (
-            <div className="space-y-2">
-              <Label className="md:text-base">Date of Birth</Label>
-              <div className="flex items-center gap-2 md:gap-3">
-                <Input
-                  aria-label="Day"
-                  inputMode="numeric"
-                  placeholder="DD"
-                  maxLength={2}
-                  className="w-16 text-center md:h-12 md:w-20 md:text-base"
-                  value={dobDay}
-                  onChange={(e) => setDobDay(sanitizeDigits(e.target.value, 2))}
-                />
-                <span className="text-muted-foreground md:text-lg">/</span>
-                <Input
-                  aria-label="Month"
-                  inputMode="numeric"
-                  placeholder="MM"
-                  maxLength={2}
-                  className="w-16 text-center md:h-12 md:w-20 md:text-base"
-                  value={dobMonth}
-                  onChange={(e) =>
-                    setDobMonth(sanitizeDigits(e.target.value, 2))
-                  }
-                />
-                <span className="text-muted-foreground md:text-lg">/</span>
-                <Input
-                  aria-label="Year"
-                  inputMode="numeric"
-                  placeholder="YYYY"
-                  maxLength={4}
-                  className="w-24 text-center md:h-12 md:w-28 md:text-base"
-                  value={dobYear}
-                  onChange={(e) =>
-                    setDobYear(sanitizeDigits(e.target.value, 4))
-                  }
-                />
-              </div>
-              <p className="text-xs text-muted-foreground md:text-sm">
-                Year alone is fine — leave day or month blank if unknown.
-              </p>
-              {dobError && (
-                <p className="text-xs text-destructive md:text-sm">
-                  {dobError}
-                </p>
-              )}
-            </div>
-          )}
 
           <div className="space-y-2">
             <Label htmlFor="service-type" className="md:text-base">
@@ -732,18 +756,113 @@ export function NewDailyRegisterEntryDialog({
 
           <div className="space-y-2">
             <Label htmlFor="notes" className="md:text-base">
-              Remarks
+              Notes / Remarks
             </Label>
             <Textarea
               id="notes"
               rows={2}
               maxLength={1000}
-              placeholder="Referral, notes, medicine given."
+              placeholder="Referral, observations, advice — anything to remember about this visit."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="md:min-h-[5rem] md:text-base"
             />
           </div>
+
+          <div className="space-y-3 rounded-md border bg-muted/30 p-3 md:p-4">
+            <p className="text-sm font-medium md:text-base">
+              Initial Vitals
+              <span className="ml-1 text-xs font-normal text-muted-foreground">
+                (optional)
+              </span>
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="v-wt" className="text-xs md:text-sm">
+                  Weight (kg)
+                </Label>
+                <Input
+                  id="v-wt"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="—"
+                  value={vWeightKg}
+                  onChange={(e) =>
+                    setVWeightKg(
+                      e.target.value.replace(/[^\d.]/g, "").slice(0, 6),
+                    )
+                  }
+                  className="md:h-11 md:text-base"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="v-spo2" className="text-xs md:text-sm">
+                  SpO2 (%)
+                </Label>
+                <Input
+                  id="v-spo2"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="—"
+                  value={vSpO2}
+                  onChange={(e) => setVSpO2(sanitizeDigits(e.target.value, 3))}
+                  className="md:h-11 md:text-base"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs md:text-sm">B.P. (mm of Hg)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="systolic"
+                  value={vBpSystolic}
+                  onChange={(e) =>
+                    setVBpSystolic(sanitizeDigits(e.target.value, 3))
+                  }
+                  className="w-24 text-center md:h-11 md:text-base"
+                />
+                <span className="text-muted-foreground">/</span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="diastolic"
+                  value={vBpDiastolic}
+                  onChange={(e) =>
+                    setVBpDiastolic(sanitizeDigits(e.target.value, 3))
+                  }
+                  className="w-24 text-center md:h-11 md:text-base"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="v-temp" className="text-xs md:text-sm">
+                Temperature (°C)
+              </Label>
+              <Input
+                id="v-temp"
+                type="text"
+                inputMode="decimal"
+                placeholder="—.—"
+                value={vTempCelsius}
+                onChange={(e) =>
+                  setVTempCelsius(
+                    e.target.value.replace(/[^\d.]/g, "").slice(0, 5),
+                  )
+                }
+                className="w-28 md:h-11 md:text-base"
+              />
+            </div>
+          </div>
+
+          <EmergencyContactBlock
+            readOnly={patient !== null && !editingExisting}
+            pEmergencyName={pEmergencyName}
+            setPEmergencyName={setPEmergencyName}
+            pEmergencyPhone={pEmergencyPhone}
+            setPEmergencyPhone={setPEmergencyPhone}
+          />
 
           <DialogFooter className="gap-2 md:gap-3">
             <DialogClose asChild>
@@ -775,5 +894,345 @@ export function NewDailyRegisterEntryDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PatientFieldsForm({
+  pGender,
+  setPGender,
+  pBloodType,
+  setPBloodType,
+  pPhone,
+  setPPhone,
+  pAddress,
+  setPAddress,
+  dobDay,
+  dobMonth,
+  dobYear,
+  setDobDay,
+  setDobMonth,
+  setDobYear,
+  dobError,
+  idPrefix,
+}: {
+  pGender: Gender | "";
+  setPGender: (v: Gender | "") => void;
+  pBloodType: BloodType;
+  setPBloodType: (v: BloodType) => void;
+  pPhone: string;
+  setPPhone: (v: string) => void;
+  pAddress: string;
+  setPAddress: (v: string) => void;
+  dobDay: string;
+  dobMonth: string;
+  dobYear: string;
+  setDobDay: (v: string) => void;
+  setDobMonth: (v: string) => void;
+  setDobYear: (v: string) => void;
+  dobError: string | null;
+  idPrefix: string;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-gender`} className="text-xs md:text-sm">
+            Gender
+          </Label>
+          <Select
+            id={`${idPrefix}-gender`}
+            value={pGender}
+            onChange={(e) => setPGender((e.target.value as Gender | "") || "")}
+            className="md:h-11 md:text-base"
+          >
+            <option value="">—</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+            <option value="prefer_not_to_say">Prefer not to say</option>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-blood`} className="text-xs md:text-sm">
+            Blood Group
+          </Label>
+          <Select
+            id={`${idPrefix}-blood`}
+            value={pBloodType}
+            onChange={(e) => setPBloodType(e.target.value as BloodType)}
+            className="md:h-11 md:text-base"
+          >
+            <option value="">—</option>
+            <option value="A+">A+</option>
+            <option value="A-">A-</option>
+            <option value="B+">B+</option>
+            <option value="B-">B-</option>
+            <option value="AB+">AB+</option>
+            <option value="AB-">AB-</option>
+            <option value="O+">O+</option>
+            <option value="O-">O-</option>
+          </Select>
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs md:text-sm">Date of Birth</Label>
+        <div className="flex items-center gap-2">
+          <Input
+            type="text"
+            inputMode="numeric"
+            value={dobDay}
+            onChange={(e) => setDobDay(sanitizeDigits(e.target.value, 2))}
+            placeholder="DD"
+            className="w-16 text-center md:h-11 md:text-base"
+          />
+          <span className="text-muted-foreground">/</span>
+          <Input
+            type="text"
+            inputMode="numeric"
+            value={dobMonth}
+            onChange={(e) => setDobMonth(sanitizeDigits(e.target.value, 2))}
+            placeholder="MM"
+            className="w-16 text-center md:h-11 md:text-base"
+          />
+          <span className="text-muted-foreground">/</span>
+          <Input
+            type="text"
+            inputMode="numeric"
+            value={dobYear}
+            onChange={(e) => setDobYear(sanitizeDigits(e.target.value, 4))}
+            placeholder="YYYY"
+            className="w-20 text-center md:h-11 md:text-base"
+          />
+        </div>
+        {dobError && <p className="text-xs text-destructive">{dobError}</p>}
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}-phone`} className="text-xs md:text-sm">
+          Mobile
+        </Label>
+        <Input
+          id={`${idPrefix}-phone`}
+          type="tel"
+          inputMode="tel"
+          value={pPhone}
+          onChange={(e) => setPPhone(e.target.value)}
+          placeholder="+91 98765 43210"
+          className="md:h-11 md:text-base"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}-address`} className="text-xs md:text-sm">
+          Address
+        </Label>
+        <Textarea
+          id={`${idPrefix}-address`}
+          rows={2}
+          value={pAddress}
+          onChange={(e) => setPAddress(e.target.value)}
+          placeholder="Street, area, city, pincode"
+          className="md:text-base"
+        />
+      </div>
+    </div>
+  );
+}
+
+function NewPatientBlock(props: {
+  typedName: string;
+  pGender: Gender | "";
+  setPGender: (v: Gender | "") => void;
+  pBloodType: BloodType;
+  setPBloodType: (v: BloodType) => void;
+  pPhone: string;
+  setPPhone: (v: string) => void;
+  pAddress: string;
+  setPAddress: (v: string) => void;
+  dobDay: string;
+  dobMonth: string;
+  dobYear: string;
+  setDobDay: (v: string) => void;
+  setDobMonth: (v: string) => void;
+  setDobYear: (v: string) => void;
+  dobError: string | null;
+}) {
+  return (
+    <div className="space-y-3 rounded-md border bg-muted/30 p-3 md:p-4">
+      <p className="flex items-center gap-2 text-sm font-medium md:text-base">
+        <UserPlus className="h-4 w-4" />
+        New patient: &ldquo;{props.typedName}&rdquo;
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Optional details — leave blank to record just the name. Save adds the
+        patient and the entry together.
+      </p>
+      <PatientFieldsForm {...props} idPrefix="np" />
+    </div>
+  );
+}
+
+function ExistingPatientBlock(props: {
+  patient: SelectedPatient;
+  editing: boolean;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onChange: () => void;
+  pGender: Gender | "";
+  setPGender: (v: Gender | "") => void;
+  pBloodType: BloodType;
+  setPBloodType: (v: BloodType) => void;
+  pPhone: string;
+  setPPhone: (v: string) => void;
+  pAddress: string;
+  setPAddress: (v: string) => void;
+  dobDay: string;
+  dobMonth: string;
+  dobYear: string;
+  setDobDay: (v: string) => void;
+  setDobMonth: (v: string) => void;
+  setDobYear: (v: string) => void;
+  dobError: string | null;
+}) {
+  const {
+    patient,
+    editing,
+    onStartEdit,
+    onCancelEdit,
+    onChange,
+    dobDay,
+    dobMonth,
+    dobYear,
+  } = props;
+  const dobDisplay =
+    dobDay && dobMonth && dobYear
+      ? `${dobDay.padStart(2, "0")}/${dobMonth.padStart(2, "0")}/${dobYear}`
+      : dobYear || "—";
+  return (
+    <div className="space-y-3 rounded-md border bg-muted/30 p-3 md:p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium md:text-base">{patient.label}</p>
+          <p className="text-xs text-muted-foreground">
+            Returning patient — fields below are read-only until you tap the
+            pencil.
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={editing ? onCancelEdit : onStartEdit}
+            className="md:h-10"
+            aria-label={editing ? "Cancel edit" : "Edit patient"}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            {editing ? "Cancel" : "Edit"}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onChange}
+            className="md:h-10"
+          >
+            Change
+          </Button>
+        </div>
+      </div>
+
+      {editing ? (
+        <PatientFieldsForm {...props} idPrefix="ep" />
+      ) : (
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs md:text-sm">
+          <div>
+            <dt className="text-muted-foreground">Gender</dt>
+            <dd>{patient.gender ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Blood Group</dt>
+            <dd>{patient.bloodType || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Date of Birth</dt>
+            <dd>{dobDisplay}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Mobile</dt>
+            <dd>{patient.phone ?? "—"}</dd>
+          </div>
+          <div className="col-span-2">
+            <dt className="text-muted-foreground">Address</dt>
+            <dd className="whitespace-pre-wrap">{patient.address ?? "—"}</dd>
+          </div>
+        </dl>
+      )}
+    </div>
+  );
+}
+
+function EmergencyContactBlock({
+  readOnly,
+  pEmergencyName,
+  setPEmergencyName,
+  pEmergencyPhone,
+  setPEmergencyPhone,
+}: {
+  readOnly: boolean;
+  pEmergencyName: string;
+  setPEmergencyName: (v: string) => void;
+  pEmergencyPhone: string;
+  setPEmergencyPhone: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-md border bg-muted/30 p-3 md:p-4">
+      <p className="text-sm font-medium md:text-base">
+        Emergency Contact
+        <span className="ml-1 text-xs font-normal text-muted-foreground">
+          (optional)
+        </span>
+      </p>
+      {readOnly ? (
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs md:text-sm">
+          <div>
+            <dt className="text-muted-foreground">Name</dt>
+            <dd>{pEmergencyName || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Phone</dt>
+            <dd>{pEmergencyPhone || "—"}</dd>
+          </div>
+        </dl>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="em-name" className="text-xs md:text-sm">
+              Contact Name
+            </Label>
+            <Input
+              id="em-name"
+              type="text"
+              placeholder="—"
+              value={pEmergencyName}
+              onChange={(e) => setPEmergencyName(e.target.value)}
+              className="md:h-11 md:text-base"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="em-phone" className="text-xs md:text-sm">
+              Contact Phone
+            </Label>
+            <Input
+              id="em-phone"
+              type="tel"
+              inputMode="tel"
+              placeholder="+91 98765 43210"
+              value={pEmergencyPhone}
+              onChange={(e) => setPEmergencyPhone(e.target.value)}
+              className="md:h-11 md:text-base"
+            />
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

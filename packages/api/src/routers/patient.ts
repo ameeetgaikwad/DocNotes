@@ -142,7 +142,8 @@ export const patientRouter = router({
         (initialVitals.weightKg != null ||
           initialVitals.bpSystolic != null ||
           initialVitals.bpDiastolic != null ||
-          initialVitals.spO2Percent != null);
+          initialVitals.spO2Percent != null ||
+          initialVitals.temperatureCelsius != null);
       if (patient && hasVitals) {
         const visitDate = todayIsoDate();
         await ensureVisitForDate(
@@ -158,6 +159,7 @@ export const patientRouter = router({
             bpSystolic: initialVitals.bpSystolic ?? null,
             bpDiastolic: initialVitals.bpDiastolic ?? null,
             spO2Percent: initialVitals.spO2Percent ?? null,
+            temperatureCelsius: initialVitals.temperatureCelsius ?? null,
           })
           .where(
             and(
