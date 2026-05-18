@@ -86,11 +86,34 @@ export const createPatientSchema = z.object({
   dietNotes: z.string().max(5000).nullable().optional(),
   notes: z.string().nullable().optional(),
   duplicateOverride: duplicateOverrideSchema.optional(),
+  // Optional initial vitals captured at registration (e.g., by the
+  // receptionist). When any are set, the patient.create handler also
+  // upserts a patient_visits row for today so the values flow into
+  // History + the doctor's Daily Register view for the same day.
+  initialVitals: z
+    .object({
+      weightKg: z
+        .union([z.string(), z.number()])
+        .transform((v) => (typeof v === "number" ? String(v) : v))
+        .pipe(z.string().regex(/^\d+(\.\d+)?$/, "must be numeric"))
+        .nullable()
+        .optional(),
+      bpSystolic: z.number().int().min(40).max(300).nullable().optional(),
+      bpDiastolic: z.number().int().min(20).max(200).nullable().optional(),
+      spO2Percent: z.number().int().min(50).max(100).nullable().optional(),
+    })
+    .optional(),
 });
 
 export type CreatePatient = z.infer<typeof createPatientSchema>;
 
-export const updatePatientSchema = createPatientSchema.partial();
+// initialVitals only makes sense at creation time (it spawns the
+// patient's first visit row). Strip it from the update path so the
+// patient.update handler can spread input.data into the patients
+// table without trying to write a column that doesn't exist.
+export const updatePatientSchema = createPatientSchema
+  .omit({ initialVitals: true, duplicateOverride: true })
+  .partial();
 
 export type UpdatePatient = z.infer<typeof updatePatientSchema>;
 

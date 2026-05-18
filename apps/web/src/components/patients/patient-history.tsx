@@ -34,6 +34,7 @@ type Visit = {
   temperatureCelsius: string | null;
   weightKg: string | null;
   heightCm: string | null;
+  spO2Percent: number | null;
   clinicalNotes: string | null;
 };
 
@@ -412,7 +413,8 @@ function VisitCard({
   const showTemp = showAllFields || form.temperatureCelsius !== "";
   const showWt = showAllFields || form.weightKg !== "";
   const showHt = showAllFields || form.heightCm !== "";
-  const showVitalsRow1 = showBp || showHr;
+  const showSpO2 = showAllFields || form.spO2Percent !== "";
+  const showVitalsRow1 = showBp || showHr || showSpO2;
   const showVitalsRow2 = showBslF || showBslPp || showBslR;
   const showVitalsRow3 = showTemp || showWt || showHt;
   const showNotes = showAllFields || form.clinicalNotes !== "";
@@ -468,6 +470,17 @@ function VisitCard({
                   id={`${visit.id}-hr`}
                   value={form.heartRate}
                   onChange={(v) => setForm({ ...form, heartRate: v })}
+                  placeholder="—"
+                  className="w-20"
+                />
+              </FieldGroup>
+            )}
+            {showSpO2 && (
+              <FieldGroup label="SpO2 (%)" htmlFor={`${visit.id}-spo2`}>
+                <NumInput
+                  id={`${visit.id}-spo2`}
+                  value={form.spO2Percent}
+                  onChange={(v) => setForm({ ...form, spO2Percent: v })}
                   placeholder="—"
                   className="w-20"
                 />
@@ -718,6 +731,7 @@ type VisitFormState = {
   temperatureCelsius: string;
   weightKg: string;
   heightCm: string;
+  spO2Percent: string;
   clinicalNotes: string;
 };
 
@@ -732,6 +746,7 @@ function visitToForm(v: Visit): VisitFormState {
     temperatureCelsius: v.temperatureCelsius ?? "",
     weightKg: v.weightKg ?? "",
     heightCm: v.heightCm ?? "",
+    spO2Percent: v.spO2Percent != null ? String(v.spO2Percent) : "",
     clinicalNotes: v.clinicalNotes ?? "",
   };
 }
@@ -747,6 +762,7 @@ function sameForm(a: VisitFormState, b: VisitFormState): boolean {
     a.temperatureCelsius === b.temperatureCelsius &&
     a.weightKg === b.weightKg &&
     a.heightCm === b.heightCm &&
+    a.spO2Percent === b.spO2Percent &&
     a.clinicalNotes === b.clinicalNotes
   );
 }
@@ -775,6 +791,7 @@ function formToPatch(f: VisitFormState) {
     temperatureCelsius: emptyToNull(f.temperatureCelsius),
     weightKg: emptyToNull(f.weightKg),
     heightCm: emptyToNull(f.heightCm),
+    spO2Percent: toIntOrNull(f.spO2Percent),
     clinicalNotes: emptyToNull(f.clinicalNotes),
   };
 }

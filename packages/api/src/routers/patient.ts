@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { and, eq, ilike, or, desc, sql, exists } from "drizzle-orm";
-import { patients, dailyRegisterEntries } from "@docnotes/db";
+import { patients, dailyRegisterEntries, patientVisits } from "@docnotes/db";
 import {
   createPatientSchema,
   updatePatientSchema,
@@ -10,6 +10,12 @@ import {
 } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
+import { ensureVisitForDate } from "./patient-visit.js";
+
+function todayIsoDate(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export const patientRouter = router({
   list: protectedProcedure
@@ -97,7 +103,8 @@ export const patientRouter = router({
   create: protectedProcedure
     .input(createPatientSchema)
     .mutation(async ({ ctx, input }) => {
-      const { duplicateOverride, dateOfBirth, ...patientInput } = input;
+      const { duplicateOverride, dateOfBirth, initialVitals, ...patientInput } =
+        input;
       const [patient] = await ctx.db
         .insert(patients)
         .values({
@@ -124,6 +131,42 @@ export const patientRouter = router({
             }
           : null,
       });
+
+      // Receptionist-captured baseline vitals: spawn today's visit row
+      // and seed it. The same row is reused later when the doctor adds
+      // a Daily Register entry for this patient on the same date
+      // (ensureVisitForDate is idempotent via the patient_id + visit_date
+      // unique index), so the values flow naturally into History.
+      const hasVitals =
+        initialVitals &&
+        (initialVitals.weightKg != null ||
+          initialVitals.bpSystolic != null ||
+          initialVitals.bpDiastolic != null ||
+          initialVitals.spO2Percent != null);
+      if (patient && hasVitals) {
+        const visitDate = todayIsoDate();
+        await ensureVisitForDate(
+          ctx.db,
+          ctx.session.userId,
+          patient.id,
+          visitDate,
+        );
+        await ctx.db
+          .update(patientVisits)
+          .set({
+            weightKg: initialVitals.weightKg ?? null,
+            bpSystolic: initialVitals.bpSystolic ?? null,
+            bpDiastolic: initialVitals.bpDiastolic ?? null,
+            spO2Percent: initialVitals.spO2Percent ?? null,
+          })
+          .where(
+            and(
+              eq(patientVisits.patientId, patient.id),
+              eq(patientVisits.visitDate, visitDate),
+              eq(patientVisits.providerId, ctx.session.userId),
+            ),
+          );
+      }
 
       return patient;
     }),

@@ -12,6 +12,7 @@ import {
   Download,
   Printer,
   Share2,
+  Pencil,
 } from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
 import {
@@ -37,6 +38,7 @@ import { PatientDocuments } from "@/components/patients/patient-documents";
 import { PatientDiet } from "@/components/patients/patient-diet";
 import { PatientPendingDues } from "@/components/patients/patient-pending-dues";
 import { ShareDialog } from "@/components/patients/share-dialog";
+import { EditPatientDialog } from "@/components/patients/edit-patient-dialog";
 
 export default function PatientProfilePage({
   params,
@@ -45,6 +47,7 @@ export default function PatientProfilePage({
 }) {
   const { patientId } = use(params);
   const [shareOpen, setShareOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const {
     data: patient,
@@ -192,10 +195,15 @@ export default function PatientProfilePage({
         </div>
 
         <div className="flex shrink-0 gap-2">
-          {/* Edit pencil removed (commit context: Amit msg 832, 2026-05-17) —
-              had no onClick handler and just looked broken on mobile. Inline
-              editing already lives on the Summary / Diet tabs and in the
-              New Patient dialog. */}
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-11 w-11"
+            aria-label="Edit patient"
+            onClick={() => setEditOpen(true)}
+          >
+            <Pencil className="h-5 w-5" />
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -305,6 +313,12 @@ export default function PatientProfilePage({
         resourceType="patient_summary"
         resourceId={patientId}
         resourceLabel={`${fullName}'s records`}
+      />
+
+      <EditPatientDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        patient={patient}
       />
     </div>
   );

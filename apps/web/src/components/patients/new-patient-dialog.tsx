@@ -70,6 +70,14 @@ export function NewPatientDialog({
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [bloodType, setBloodType] = useState<BloodType>("");
   const [notes, setNotes] = useState("");
+  // Initial vitals captured by the receptionist at registration. When
+  // any are filled, they spawn a patient_visits row for today so the
+  // values appear in History and in the doctor's view of the day's
+  // Daily Register entry. Empty means "no vitals taken".
+  const [initialWeightKg, setInitialWeightKg] = useState("");
+  const [initialBpSystolic, setInitialBpSystolic] = useState("");
+  const [initialBpDiastolic, setInitialBpDiastolic] = useState("");
+  const [initialSpO2, setInitialSpO2] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
 
   const [confirmingOverride, setConfirmingOverride] = useState(false);
@@ -90,6 +98,10 @@ export function NewPatientDialog({
     setEmergencyPhone("");
     setBloodType("");
     setNotes("");
+    setInitialWeightKg("");
+    setInitialBpSystolic("");
+    setInitialBpDiastolic("");
+    setInitialSpO2("");
     setServerError(null);
     setConfirmingOverride(false);
     setOverrideReason("");
@@ -174,6 +186,19 @@ export function NewPatientDialog({
       d != null && m != null && y != null
         ? new Date(Date.UTC(y, m - 1, d))
         : null;
+    const wt = initialWeightKg.trim();
+    const bps = initialBpSystolic.trim();
+    const bpd = initialBpDiastolic.trim();
+    const spo2 = initialSpO2.trim();
+    const initialVitals =
+      wt || bps || bpd || spo2
+        ? {
+            weightKg: wt || null,
+            bpSystolic: bps ? Number(bps) : null,
+            bpDiastolic: bpd ? Number(bpd) : null,
+            spO2Percent: spo2 ? Number(spo2) : null,
+          }
+        : undefined;
     return {
       firstName,
       middleName: middleName || null,
@@ -190,6 +215,7 @@ export function NewPatientDialog({
       emergencyContactPhone: emergencyPhone.trim() || null,
       bloodType: bloodType || null,
       notes: notes.trim() || null,
+      ...(initialVitals ? { initialVitals } : {}),
       ...(overrideReasonText
         ? {
             duplicateOverride: {
@@ -510,7 +536,7 @@ export function NewPatientDialog({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="phone">Mobile</Label>
                 <Input
                   id="phone"
                   type="tel"
@@ -535,6 +561,73 @@ export function NewPatientDialog({
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
               />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground">
+              Initial Vitals
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Optional. If filled, these flow into today&apos;s visit row so the
+              doctor sees them in History and on the Daily Register entry for
+              the same day.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="initialWeightKg">Weight (kg)</Label>
+                <Input
+                  id="initialWeightKg"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="—"
+                  value={initialWeightKg}
+                  onChange={(e) =>
+                    setInitialWeightKg(
+                      e.target.value.replace(/[^\d.]/g, "").slice(0, 6),
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="initialSpO2">SpO2 (%)</Label>
+                <Input
+                  id="initialSpO2"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="—"
+                  value={initialSpO2}
+                  onChange={(e) =>
+                    setInitialSpO2(sanitizeDigits(e.target.value, 3))
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>B.P. (mm of Hg)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="systolic"
+                  value={initialBpSystolic}
+                  onChange={(e) =>
+                    setInitialBpSystolic(sanitizeDigits(e.target.value, 3))
+                  }
+                  className="w-24 text-center"
+                />
+                <span className="text-muted-foreground">/</span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="diastolic"
+                  value={initialBpDiastolic}
+                  onChange={(e) =>
+                    setInitialBpDiastolic(sanitizeDigits(e.target.value, 3))
+                  }
+                  className="w-24 text-center"
+                />
+              </div>
             </div>
           </div>
 
