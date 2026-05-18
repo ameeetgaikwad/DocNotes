@@ -18,6 +18,7 @@ import {
   formatGender,
   formatPatientName,
   formatPatientAgeDob,
+  todayLocalIsoDate,
 } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +31,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { NewPatientDialog } from "@/components/patients/new-patient-dialog";
+import { NewDailyRegisterEntryDialog } from "@/components/daily-register/new-entry-dialog";
 
 export default function PatientsPage() {
   const [search, setSearch] = useState("");
@@ -261,7 +262,11 @@ export default function PatientsPage() {
         </>
       )}
 
-      <NewPatientDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <NewDailyRegisterEntryDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        visitDate={todayLocalIsoDate()}
+      />
 
       <button
         type="button"
