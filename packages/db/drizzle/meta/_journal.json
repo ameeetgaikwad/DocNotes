@@ -113,6 +113,13 @@
       "when": 1778925000000,
       "tag": "0015_patient_allergy_condition_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1779580800000,
+      "tag": "0016_patient_visits_spo2",
+      "breakpoints": true
     }
   ]
 }
