@@ -1,7 +1,10 @@
-import ReactPDF from "@react-pdf/renderer";
+import ReactPDF, { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 
-const { StyleSheet, renderToBuffer } = ReactPDF;
+// renderToBuffer is a named export on @react-pdf/renderer@4.3.2 — the
+// default-export object only carries renderToStream/renderToFile/etc.
+// We import it directly above so this destructuring works regardless.
+const { StyleSheet } = ReactPDF;
 
 // Cast to any to avoid React 18/19 type mismatch with @react-pdf/renderer
 /* eslint-disable @typescript-eslint/no-explicit-any */
