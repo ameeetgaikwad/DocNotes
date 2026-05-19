@@ -26,7 +26,7 @@ const navItems = [
   { to: "/schedule", label: "Schedule", icon: Calendar },
   {
     to: "/daily-register",
-    label: "Daily Register",
+    label: "Daily Case Register",
     icon: DailyCaseRegisterIcon,
   },
   { to: "/purchase-list", label: "Purchase List", icon: ShoppingCart },

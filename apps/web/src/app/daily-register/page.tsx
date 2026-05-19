@@ -56,7 +56,9 @@ export default function DailyRegisterPage() {
     <div className="p-4 sm:p-6 md:p-8">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between md:mb-8">
         <div>
-          <h1 className="text-2xl font-semibold md:text-3xl">Daily Register</h1>
+          <h1 className="text-2xl font-semibold md:text-3xl">
+            Daily Case Register
+          </h1>
           <p className="text-muted-foreground md:text-base">
             Daily case register (Form 25) — patient visits and fees received
           </p>
