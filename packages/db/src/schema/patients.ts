@@ -37,6 +37,7 @@ export const patients = pgTable(
     dietNotes: text("diet_notes"),
     notes: text("notes"),
     isActive: boolean("is_active").notNull().default(true),
+    marked: boolean("marked").notNull().default(false),
     createdBy: text("created_by")
       .notNull()
       .references(() => users.id),
