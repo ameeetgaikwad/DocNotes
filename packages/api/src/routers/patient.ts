@@ -1,5 +1,14 @@
 import { z } from "zod";
-import { and, eq, ilike, or, desc, sql, exists } from "drizzle-orm";
+import {
+  and,
+  eq,
+  ilike,
+  or,
+  desc,
+  sql,
+  exists,
+  getTableColumns,
+} from "drizzle-orm";
 import { patients, dailyRegisterEntries, patientVisits } from "@docnotes/db";
 import {
   createPatientSchema,
@@ -60,7 +69,21 @@ export const patientRouter = router({
 
       const [items, countResult] = await Promise.all([
         ctx.db
-          .select()
+          .select({
+            ...getTableColumns(patients),
+            // Most-recent non-empty diagnosis from this patient's daily
+            // register entries — surfaced on the mobile list row per
+            // Manoj msg 981. Returns null when the patient has no
+            // diagnosis on file yet.
+            latestDiagnosis: sql<
+              string | null
+            >`(SELECT diagnosis FROM daily_register_entries
+                WHERE patient_id = ${patients.id}
+                  AND diagnosis IS NOT NULL
+                  AND diagnosis <> ''
+                ORDER BY visit_date DESC, created_at DESC
+                LIMIT 1)`,
+          })
           .from(patients)
           .where(where)
           .orderBy(desc(patients.updatedAt))

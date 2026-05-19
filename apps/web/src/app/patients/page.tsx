@@ -281,6 +281,15 @@ export default function PatientsPage() {
   );
 }
 
+function shortGender(gender: string | null): string | null {
+  if (!gender) return null;
+  const lower = gender.toLowerCase();
+  if (lower.startsWith("m")) return "M";
+  if (lower.startsWith("f")) return "F";
+  // Fall back to the first letter uppercase for "other", "unknown", etc.
+  return gender[0]?.toUpperCase() ?? null;
+}
+
 function PatientMobileMeta({
   patient,
 }: {
@@ -290,14 +299,14 @@ function PatientMobileMeta({
     dobMonth: number | null;
     dobYear: number | null;
     gender: string | null;
-    phone: string | null;
+    latestDiagnosis?: string | null;
   };
 }) {
   const { age } = formatPatientAgeDob(patient);
   const parts = [
     age != null ? `${age} yrs` : null,
-    formatGender(patient.gender) || null,
-    patient.phone || null,
+    shortGender(patient.gender),
+    patient.latestDiagnosis?.trim() || null,
   ].filter((s): s is string => Boolean(s));
   if (parts.length === 0) return <span>—</span>;
   return <>{parts.join(" · ")}</>;
