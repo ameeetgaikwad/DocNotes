@@ -14,6 +14,8 @@ import {
   AlertCircle,
   Wallet,
   Pencil,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { todayLocalIsoDate, formatPatientName, formatDate } from "@/lib/format";
@@ -157,13 +159,24 @@ function readStoredThreshold(): number {
   return Number.isFinite(n) && n >= 0 ? n : HIGHLIGHT_DEFAULT;
 }
 
+type PatientAggregate = {
+  patientId: string;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  total: number;
+  oldestDate: string;
+  entries: DueEntryRow[];
+};
+
 function PendingDuesPanel() {
   const duesQuery = useQuery(trpc.dailyRegister.allPendingDues.queryOptions());
-  const items = duesQuery.data ?? [];
-  const total = items.reduce((acc, r) => acc + r.outstanding, 0);
+  const items = useMemo(() => duesQuery.data ?? [], [duesQuery.data]);
   const [editingEntry, setEditingEntry] = useState<RegisterEntryForEdit | null>(
     null,
   );
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [view, setView] = useState<"summary" | "consolidated">("summary");
 
   const [threshold, setThreshold] = useState<number>(HIGHLIGHT_DEFAULT);
   const [thresholdInput, setThresholdInput] = useState<string>(
@@ -189,8 +202,47 @@ function PendingDuesPanel() {
     }
   }
 
-  const high = items.filter((r) => r.outstanding > threshold);
-  const rest = items.filter((r) => r.outstanding <= threshold);
+  // Per-patient aggregation for the Summary tab. Manoj msg 1087: one
+  // row per patient with total outstanding + oldest due date, the
+  // breakdown is reachable via an expand chevron.
+  const aggregates = useMemo<PatientAggregate[]>(() => {
+    const byPatient = new Map<string, PatientAggregate>();
+    for (const e of items) {
+      const existing = byPatient.get(e.patientId);
+      if (existing) {
+        existing.total += e.outstanding;
+        if (e.visitDate < existing.oldestDate)
+          existing.oldestDate = e.visitDate;
+        existing.entries.push(e);
+      } else {
+        byPatient.set(e.patientId, {
+          patientId: e.patientId,
+          firstName: e.firstName,
+          middleName: e.middleName,
+          lastName: e.lastName,
+          total: e.outstanding,
+          oldestDate: e.visitDate,
+          entries: [e],
+        });
+      }
+    }
+    return Array.from(byPatient.values()).sort(
+      (a, b) => b.total - a.total || a.lastName.localeCompare(b.lastName),
+    );
+  }, [items]);
+
+  const total = aggregates.reduce((acc, a) => acc + a.total, 0);
+  const high = aggregates.filter((a) => a.total > threshold);
+  const rest = aggregates.filter((a) => a.total <= threshold);
+
+  function toggleExpanded(patientId: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(patientId)) next.delete(patientId);
+      else next.add(patientId);
+      return next;
+    });
+  }
 
   return (
     <div className="mb-8 rounded-xl border bg-card">
@@ -199,91 +251,131 @@ function PendingDuesPanel() {
           <Wallet className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">Pending Dues</h2>
         </div>
-        {!duesQuery.isLoading && items.length > 0 && (
+        {!duesQuery.isLoading && aggregates.length > 0 && (
           <p className="text-sm text-muted-foreground">
             <span className="font-semibold text-foreground">
               {formatINR(total)}
             </span>{" "}
-            outstanding across {items.length}{" "}
-            {items.length === 1 ? "entry" : "entries"}
+            outstanding across {aggregates.length}{" "}
+            {aggregates.length === 1 ? "patient" : "patients"}
           </p>
         )}
       </div>
-      {!duesQuery.isLoading && items.length > 0 && (
-        <div className="flex items-center gap-2 border-b bg-muted/30 px-4 py-2 text-xs sm:px-6">
-          <label
-            htmlFor="dues-threshold"
-            className="font-medium text-muted-foreground"
+
+      <Tabs
+        value={view}
+        onValueChange={(v) => setView(v as "summary" | "consolidated")}
+      >
+        <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+          <TabsTrigger
+            value="summary"
+            className="rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
           >
-            Highlight above ₹
-          </label>
-          <input
-            id="dues-threshold"
-            type="number"
-            min="0"
-            step="100"
-            inputMode="numeric"
-            value={thresholdInput}
-            onChange={(e) => setThresholdInput(e.target.value)}
-            onBlur={(e) => commitThreshold(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                commitThreshold((e.target as HTMLInputElement).value);
-              }
-            }}
-            className="h-7 w-24 rounded border border-input bg-background px-2 text-right"
-          />
-        </div>
-      )}
-      {duesQuery.isLoading ? (
-        <div className="flex items-center justify-center py-10">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-          <Wallet className="mb-3 h-10 w-10" />
-          <p className="text-sm">No outstanding dues from any patient.</p>
-        </div>
-      ) : (
-        <>
-          {high.length > 0 && (
-            <div>
-              <p className="bg-amber-50 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-amber-800 sm:px-6 dark:bg-amber-950/40 dark:text-amber-200">
-                Above {formatINR(threshold)} ({high.length})
-              </p>
-              <ul className="divide-y">
-                {high.map((row) => (
-                  <DueRow
-                    key={row.id}
-                    row={row}
-                    onEdit={() => setEditingEntry(rowToEntry(row))}
-                    highlighted
-                  />
-                ))}
-              </ul>
+            Summary
+          </TabsTrigger>
+          <TabsTrigger
+            value="consolidated"
+            className="rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+          >
+            Consolidated
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="summary" className="m-0">
+          {!duesQuery.isLoading && aggregates.length > 0 && (
+            <div className="flex items-center gap-2 border-b bg-muted/30 px-4 py-2 text-xs sm:px-6">
+              <label
+                htmlFor="dues-threshold"
+                className="font-medium text-muted-foreground"
+              >
+                Highlight above ₹
+              </label>
+              <input
+                id="dues-threshold"
+                type="number"
+                min="0"
+                step="100"
+                inputMode="numeric"
+                value={thresholdInput}
+                onChange={(e) => setThresholdInput(e.target.value)}
+                onBlur={(e) => commitThreshold(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitThreshold((e.target as HTMLInputElement).value);
+                  }
+                }}
+                className="h-7 w-24 rounded border border-input bg-background px-2 text-right"
+              />
             </div>
           )}
-          {rest.length > 0 && (
-            <div>
+          {duesQuery.isLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : aggregates.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <Wallet className="mb-3 h-10 w-10" />
+              <p className="text-sm">No outstanding dues from any patient.</p>
+            </div>
+          ) : (
+            <>
               {high.length > 0 && (
-                <p className="bg-muted/30 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:px-6">
-                  Other ({rest.length})
-                </p>
+                <div>
+                  <p className="bg-amber-50 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-amber-800 sm:px-6 dark:bg-amber-950/40 dark:text-amber-200">
+                    Above {formatINR(threshold)} ({high.length})
+                  </p>
+                  <ul className="divide-y">
+                    {high.map((agg) => (
+                      <SummaryRow
+                        key={agg.patientId}
+                        agg={agg}
+                        expanded={expanded.has(agg.patientId)}
+                        onToggle={() => toggleExpanded(agg.patientId)}
+                        onEditEntry={(e) => setEditingEntry(rowToEntry(e))}
+                        highlighted
+                      />
+                    ))}
+                  </ul>
+                </div>
               )}
-              <ul className="divide-y">
-                {rest.map((row) => (
-                  <DueRow
-                    key={row.id}
-                    row={row}
-                    onEdit={() => setEditingEntry(rowToEntry(row))}
-                  />
-                ))}
-              </ul>
-            </div>
+              {rest.length > 0 && (
+                <div>
+                  {high.length > 0 && (
+                    <p className="bg-muted/30 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:px-6">
+                      Other ({rest.length})
+                    </p>
+                  )}
+                  <ul className="divide-y">
+                    {rest.map((agg) => (
+                      <SummaryRow
+                        key={agg.patientId}
+                        agg={agg}
+                        expanded={expanded.has(agg.patientId)}
+                        onToggle={() => toggleExpanded(agg.patientId)}
+                        onEditEntry={(e) => setEditingEntry(rowToEntry(e))}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
           )}
-        </>
-      )}
+        </TabsContent>
+
+        <TabsContent value="consolidated" className="m-0">
+          <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
+            <Users className="h-10 w-10" />
+            <p className="text-sm font-medium">Consolidated View coming soon</p>
+            <p className="max-w-xs text-xs">
+              Will group dues from the same family under the head of family —
+              waiting on the household / family-relationship setup. Use Summary
+              for now.
+            </p>
+          </div>
+        </TabsContent>
+      </Tabs>
+
       <EditDailyRegisterEntryDialog
         open={editingEntry !== null}
         onOpenChange={(o) => !o && setEditingEntry(null)}
@@ -329,35 +421,56 @@ function rowToEntry(row: DueEntryRow): RegisterEntryForEdit {
   };
 }
 
-function DueRow({
-  row,
+function SummaryRow({
+  agg,
+  expanded,
+  onToggle,
+  onEditEntry,
   highlighted = false,
-  onEdit,
 }: {
-  row: DueEntryRow;
+  agg: PatientAggregate;
+  expanded: boolean;
+  onToggle: () => void;
+  onEditEntry: (entry: DueEntryRow) => void;
   highlighted?: boolean;
-  onEdit: () => void;
 }) {
+  const hasMultiple = agg.entries.length > 1;
   return (
     <li
       className={
-        highlighted
-          ? "flex items-center justify-between gap-3 bg-amber-50/40 px-4 py-3 sm:px-6 dark:bg-amber-950/10"
-          : "flex items-center justify-between gap-3 px-4 py-3 sm:px-6"
+        highlighted ? "bg-amber-50/40 dark:bg-amber-950/10" : undefined
       }
     >
-      <div className="min-w-0 flex-1">
-        <Link
-          href={`/patients/${row.patientId}#pending-dues`}
-          className="block truncate text-sm font-medium text-primary hover:underline md:text-base"
-        >
-          {formatPatientName(row)}
-        </Link>
-        <p className="text-xs text-muted-foreground">
-          {formatDate(row.visitDate)}
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 px-4 py-3 sm:px-6">
+        {hasMultiple ? (
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label={expanded ? "Collapse entries" : "Expand entries"}
+            className="-ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted"
+          >
+            {expanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </button>
+        ) : (
+          <span className="w-7 shrink-0" aria-hidden />
+        )}
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/patients/${agg.patientId}#pending-dues`}
+            className="block truncate text-sm font-medium text-primary hover:underline md:text-base"
+          >
+            {formatPatientName(agg)}
+          </Link>
+          <p className="text-xs text-muted-foreground">
+            {hasMultiple
+              ? `${agg.entries.length} entries · oldest ${formatDate(agg.oldestDate)}`
+              : formatDate(agg.oldestDate)}
+          </p>
+        </div>
         <span
           className={
             highlighted
@@ -365,20 +478,51 @@ function DueRow({
               : "font-mono text-sm md:text-base"
           }
         >
-          {formatINR(row.outstanding)}
+          {formatINR(agg.total)}
         </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onEdit}
-          aria-label="Edit fees for this entry"
-          title="Edit fees"
-          className="h-8 w-8"
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
+        {!hasMultiple && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => onEditEntry(agg.entries[0]!)}
+            aria-label="Edit fees for this entry"
+            title="Edit fees"
+            className="h-8 w-8"
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+        )}
       </div>
+      {expanded && hasMultiple && (
+        <ul className="divide-y border-t bg-muted/20">
+          {agg.entries.map((entry) => (
+            <li
+              key={entry.id}
+              className="flex items-center gap-2 px-4 py-2 pl-12 sm:px-6 sm:pl-16"
+            >
+              <p className="flex-1 text-xs text-muted-foreground">
+                {formatDate(entry.visitDate)}
+                {entry.diagnosis ? ` · ${entry.diagnosis}` : ""}
+              </p>
+              <span className="font-mono text-sm">
+                {formatINR(entry.outstanding)}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onEditEntry(entry)}
+                aria-label="Edit fees for this entry"
+                title="Edit fees"
+                className="h-7 w-7"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
     </li>
   );
 }
