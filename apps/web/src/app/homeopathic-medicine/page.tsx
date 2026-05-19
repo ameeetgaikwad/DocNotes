@@ -35,10 +35,18 @@ export default function HomeopathicMedicinePage() {
       queryClient.invalidateQueries({ queryKey: [["homeopathicMedicine"]] }),
   });
 
+  const [seedFeedback, setSeedFeedback] = useState<string | null>(null);
+
   const seedMutation = useMutation({
     mutationFn: () => trpcClient.homeopathicMedicine.seedDefaults.mutate(),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: [["homeopathicMedicine"]] }),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: [["homeopathicMedicine"]] });
+      setSeedFeedback(
+        result.inserted > 0
+          ? `Added ${result.inserted} medicine${result.inserted === 1 ? "" : "s"} from the suggested list.`
+          : "All suggested defaults are already in your list.",
+      );
+    },
   });
 
   // Auto-seed the 12 starter medicines the first time the doctor opens
@@ -91,14 +99,35 @@ export default function HomeopathicMedicinePage() {
             &ldquo;H&rdquo; picker in Clinical Notes.
           </p>
         </div>
-        <Button
-          onClick={openAdd}
-          className="self-start md:h-12 md:px-6 md:text-base"
-        >
-          <Plus className="h-4 w-4 md:h-5 md:w-5" />
-          Add Medicine
-        </Button>
+        <div className="flex flex-wrap items-start gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => seedMutation.mutate()}
+            disabled={seedMutation.isPending}
+            className="md:h-12 md:px-5 md:text-base"
+          >
+            {seedMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin md:h-5 md:w-5" />
+                Loading
+              </>
+            ) : (
+              <>Load suggested defaults</>
+            )}
+          </Button>
+          <Button onClick={openAdd} className="md:h-12 md:px-6 md:text-base">
+            <Plus className="h-4 w-4 md:h-5 md:w-5" />
+            Add Medicine
+          </Button>
+        </div>
       </div>
+
+      {seedFeedback && (
+        <div className="mb-4 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-foreground">
+          {seedFeedback}
+        </div>
+      )}
 
       {listQuery.isLoading && (
         <div className="flex items-center justify-center py-16">

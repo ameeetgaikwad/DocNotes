@@ -36,25 +36,32 @@ export const homeopathicMedicineRouter = router({
   }),
 
   seedDefaults: protectedProcedure.mutation(async ({ ctx }) => {
-    // Only check the medicines table — if it's empty for this provider,
-    // seed. Earlier version also consulted audit_logs to suppress re-
-    // seeding after intentional deletes, but that locked Manoj out
-    // (msg 854 + 865) because his earlier "Load suggested defaults"
-    // tap had left a seed_defaults audit entry while the inserted rows
-    // got cleared in another flow. Falling back to the simpler "is the
-    // list currently empty" check matches the expected "defaults just
-    // appear when there's nothing there" behaviour. A doctor who wants
-    // a permanently empty list can add a single sentinel row.
+    // Insert only the defaults that aren't already present for this
+    // provider (matched on name+potency, case-insensitive). The earlier
+    // "skip if any row exists at all" check (Manoj msg 854 → b08e733)
+    // wedged accounts that had added one stray medicine (msg 971: he
+    // had Belladonna 30C and never got the other 11 defaults). This
+    // version is idempotent — tapping the button on a populated list
+    // tops up the missing defaults without duplicating anything.
     const existing = await ctx.db
-      .select({ id: homeopathicMedicines.id })
+      .select({
+        name: homeopathicMedicines.name,
+        potency: homeopathicMedicines.potency,
+      })
       .from(homeopathicMedicines)
-      .where(eq(homeopathicMedicines.providerId, ctx.session.userId))
-      .limit(1);
-    if (existing.length > 0) {
+      .where(eq(homeopathicMedicines.providerId, ctx.session.userId));
+    const existingKey = new Set(
+      existing.map((r) => `${r.name.toLowerCase()}|${r.potency.toLowerCase()}`),
+    );
+    const toInsert = DEFAULT_MEDICINES.filter(
+      (d) =>
+        !existingKey.has(`${d.name.toLowerCase()}|${d.potency.toLowerCase()}`),
+    );
+    if (toInsert.length === 0) {
       return { inserted: 0 };
     }
     await ctx.db.insert(homeopathicMedicines).values(
-      DEFAULT_MEDICINES.map((d) => ({
+      toInsert.map((d) => ({
         providerId: ctx.session.userId,
         name: d.name,
         potency: d.potency,
@@ -64,7 +71,7 @@ export const homeopathicMedicineRouter = router({
       action: "seed_defaults",
       resource: "homeopathic_medicine",
     });
-    return { inserted: DEFAULT_MEDICINES.length };
+    return { inserted: toInsert.length };
   }),
 
   create: protectedProcedure
