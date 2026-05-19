@@ -200,13 +200,26 @@ export const dailyRegisterRouter = router({
     }),
 
   allPendingDues: protectedProcedure.query(async ({ ctx }) => {
+    // Per-entry rows so the dashboard can show the original visit date
+    // alongside each due (Manoj msg 1083 #1) and pass the entry into
+    // the existing EditDailyRegisterEntryDialog for fee edits (#2).
+    // Aggregating by patient (the prior shape) hid both pieces.
     const rows = await ctx.db
       .select({
+        id: dailyRegisterEntries.id,
         patientId: dailyRegisterEntries.patientId,
+        visitDate: dailyRegisterEntries.visitDate,
+        serviceType: dailyRegisterEntries.serviceType,
+        feeAmount: dailyRegisterEntries.feeAmount,
+        paidAmount: dailyRegisterEntries.paidAmount,
+        paymentMode: dailyRegisterEntries.paymentMode,
+        paymentStatus: dailyRegisterEntries.paymentStatus,
+        feeReceivedAt: dailyRegisterEntries.feeReceivedAt,
+        diagnosis: dailyRegisterEntries.diagnosis,
+        notes: dailyRegisterEntries.notes,
         firstName: patients.firstName,
         middleName: patients.middleName,
         lastName: patients.lastName,
-        outstanding: sql<string>`coalesce(sum(greatest(${dailyRegisterEntries.feeAmount} - ${dailyRegisterEntries.paidAmount}, 0)), 0)`,
       })
       .from(dailyRegisterEntries)
       .innerJoin(patients, eq(patients.id, dailyRegisterEntries.patientId))
@@ -214,22 +227,17 @@ export const dailyRegisterRouter = router({
         and(
           eq(dailyRegisterEntries.providerId, ctx.session.userId),
           eq(dailyRegisterEntries.paymentStatus, "due"),
+          sql`${dailyRegisterEntries.feeAmount} > ${dailyRegisterEntries.paidAmount}`,
         ),
       )
-      .groupBy(
-        dailyRegisterEntries.patientId,
-        patients.firstName,
-        patients.middleName,
-        patients.lastName,
-      )
-      .having(
-        sql`coalesce(sum(greatest(${dailyRegisterEntries.feeAmount} - ${dailyRegisterEntries.paidAmount}, 0)), 0) > 0`,
-      )
-      .orderBy(asc(patients.lastName), asc(patients.firstName));
+      .orderBy(desc(dailyRegisterEntries.visitDate));
 
     return rows.map((r) => ({
       ...r,
-      outstanding: Number(r.outstanding),
+      outstanding: Math.max(
+        Number(r.feeAmount ?? 0) - Number(r.paidAmount ?? 0),
+        0,
+      ),
     }));
   }),
 

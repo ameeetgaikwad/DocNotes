@@ -13,11 +13,17 @@ import {
   IndianRupee,
   AlertCircle,
   Wallet,
+  Pencil,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { todayLocalIsoDate, formatPatientName } from "@/lib/format";
+import { todayLocalIsoDate, formatPatientName, formatDate } from "@/lib/format";
+import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  EditDailyRegisterEntryDialog,
+  type RegisterEntryForEdit,
+} from "@/components/daily-register/edit-entry-dialog";
 
 function StatCard({
   label,
@@ -155,6 +161,9 @@ function PendingDuesPanel() {
   const duesQuery = useQuery(trpc.dailyRegister.allPendingDues.queryOptions());
   const items = duesQuery.data ?? [];
   const total = items.reduce((acc, r) => acc + r.outstanding, 0);
+  const [editingEntry, setEditingEntry] = useState<RegisterEntryForEdit | null>(
+    null,
+  );
 
   const [threshold, setThreshold] = useState<number>(HIGHLIGHT_DEFAULT);
   const [thresholdInput, setThresholdInput] = useState<string>(
@@ -195,8 +204,8 @@ function PendingDuesPanel() {
             <span className="font-semibold text-foreground">
               {formatINR(total)}
             </span>{" "}
-            outstanding across {items.length} patient
-            {items.length === 1 ? "" : "s"}
+            outstanding across {items.length}{" "}
+            {items.length === 1 ? "entry" : "entries"}
           </p>
         )}
       </div>
@@ -245,7 +254,12 @@ function PendingDuesPanel() {
               </p>
               <ul className="divide-y">
                 {high.map((row) => (
-                  <DueRow key={row.patientId} row={row} highlighted />
+                  <DueRow
+                    key={row.id}
+                    row={row}
+                    onEdit={() => setEditingEntry(rowToEntry(row))}
+                    highlighted
+                  />
                 ))}
               </ul>
             </div>
@@ -259,53 +273,112 @@ function PendingDuesPanel() {
               )}
               <ul className="divide-y">
                 {rest.map((row) => (
-                  <DueRow key={row.patientId} row={row} />
+                  <DueRow
+                    key={row.id}
+                    row={row}
+                    onEdit={() => setEditingEntry(rowToEntry(row))}
+                  />
                 ))}
               </ul>
             </div>
           )}
         </>
       )}
+      <EditDailyRegisterEntryDialog
+        open={editingEntry !== null}
+        onOpenChange={(o) => !o && setEditingEntry(null)}
+        entry={editingEntry}
+      />
     </div>
   );
+}
+
+type DueEntryRow = {
+  id: string;
+  patientId: string;
+  visitDate: string;
+  serviceType: string | null;
+  feeAmount: string | number | null;
+  paymentMode: string | null;
+  paymentStatus: string | null;
+  feeReceivedAt: string | null;
+  diagnosis: string | null;
+  notes: string | null;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  outstanding: number;
+};
+
+function rowToEntry(row: DueEntryRow): RegisterEntryForEdit {
+  return {
+    id: row.id,
+    visitDate: row.visitDate,
+    serviceType: row.serviceType,
+    feeAmount: row.feeAmount,
+    paymentMode: row.paymentMode,
+    paymentStatus: row.paymentStatus,
+    feeReceivedAt: row.feeReceivedAt,
+    diagnosis: row.diagnosis,
+    notes: row.notes,
+    patient: {
+      firstName: row.firstName,
+      middleName: row.middleName,
+      lastName: row.lastName,
+    },
+  };
 }
 
 function DueRow({
   row,
   highlighted = false,
+  onEdit,
 }: {
-  row: {
-    patientId: string;
-    firstName: string;
-    middleName?: string | null;
-    lastName: string;
-    outstanding: number;
-  };
+  row: DueEntryRow;
   highlighted?: boolean;
+  onEdit: () => void;
 }) {
   return (
     <li
       className={
         highlighted
-          ? "flex items-center justify-between bg-amber-50/40 px-4 py-3 sm:px-6 dark:bg-amber-950/10"
-          : "flex items-center justify-between px-4 py-3 sm:px-6"
+          ? "flex items-center justify-between gap-3 bg-amber-50/40 px-4 py-3 sm:px-6 dark:bg-amber-950/10"
+          : "flex items-center justify-between gap-3 px-4 py-3 sm:px-6"
       }
     >
-      <Link
-        href={`/patients/${row.patientId}#pending-dues`}
-        className="text-sm font-medium text-primary hover:underline md:text-base"
-      >
-        {formatPatientName(row)}
-      </Link>
-      <span
-        className={
-          highlighted
-            ? "font-mono text-sm font-semibold md:text-base"
-            : "font-mono text-sm md:text-base"
-        }
-      >
-        {formatINR(row.outstanding)}
-      </span>
+      <div className="min-w-0 flex-1">
+        <Link
+          href={`/patients/${row.patientId}#pending-dues`}
+          className="block truncate text-sm font-medium text-primary hover:underline md:text-base"
+        >
+          {formatPatientName(row)}
+        </Link>
+        <p className="text-xs text-muted-foreground">
+          {formatDate(row.visitDate)}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <span
+          className={
+            highlighted
+              ? "font-mono text-sm font-semibold md:text-base"
+              : "font-mono text-sm md:text-base"
+          }
+        >
+          {formatINR(row.outstanding)}
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onEdit}
+          aria-label="Edit fees for this entry"
+          title="Edit fees"
+          className="h-8 w-8"
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+      </div>
     </li>
   );
 }
