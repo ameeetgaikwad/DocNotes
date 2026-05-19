@@ -89,7 +89,13 @@ export function MobileBottomNav() {
                       item.to === "/daily-register" ? "h-7 w-7" : "h-5 w-5"
                     }
                   />
-                  <span>{item.label}</span>
+                  <span
+                    className={
+                      item.to === "/daily-register" ? "font-bold" : undefined
+                    }
+                  >
+                    {item.label}
+                  </span>
                 </Link>
               </li>
             );
