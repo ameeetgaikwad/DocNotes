@@ -9,7 +9,6 @@ import {
   ClipboardList,
   Activity,
   Loader2,
-  Clock,
   Receipt,
   IndianRupee,
   AlertCircle,
@@ -17,7 +16,6 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { todayLocalIsoDate, formatPatientName } from "@/lib/format";
-import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
@@ -83,15 +81,6 @@ function StatCard({
   return <div className="rounded-xl border bg-card p-6">{body}</div>;
 }
 
-function formatTime(date: Date | string): string {
-  const d = new Date(date);
-  return d.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
-
 function formatINR(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -124,14 +113,6 @@ function thisMonthRange(): { startDate: string; endDate: string } {
     endDate: `${y}-${mm}-${String(last).padStart(2, "0")}`,
   };
 }
-
-const typeLabels: Record<string, string> = {
-  new_patient: "New Patient",
-  follow_up: "Follow-up",
-  routine: "Routine",
-  urgent: "Urgent",
-  telehealth: "Telehealth",
-};
 
 function MetricTile({
   label,
@@ -513,75 +494,6 @@ export default function Dashboard() {
       )}
 
       <PendingDuesPanel />
-
-      <div className="grid gap-6 lg:grid-cols-5">
-        <div className="rounded-xl border bg-card p-6 lg:col-span-3">
-          <h2 className="mb-4 text-lg font-semibold">Today&apos;s Schedule</h2>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : data?.todaySchedule && data.todaySchedule.length > 0 ? (
-            <div className="space-y-3">
-              {data.todaySchedule.map((appt) => (
-                <div
-                  key={appt.id}
-                  className="flex items-center gap-3 rounded-lg border p-3"
-                >
-                  <div className="flex w-16 flex-col items-center text-center">
-                    <span className="text-sm font-medium">
-                      {formatTime(appt.scheduledAt)}
-                    </span>
-                    <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      {appt.durationMinutes}m
-                    </span>
-                  </div>
-                  <div className="h-8 w-px bg-border" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">
-                        Patient: {appt.patientId.slice(0, 8)}...
-                      </span>
-                      <Badge variant="outline" className="text-xs">
-                        {typeLabels[appt.type] ?? appt.type}
-                      </Badge>
-                    </div>
-                    {appt.reason && (
-                      <p className="text-xs text-muted-foreground">
-                        {appt.reason}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-              <Link
-                href="/schedule"
-                className="block text-center text-sm text-primary hover:underline"
-              >
-                View full schedule
-              </Link>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <Calendar className="mb-3 h-10 w-10" />
-              <p>No appointments scheduled for today</p>
-              <p className="text-sm">
-                Appointments will appear here once you start scheduling
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-xl border bg-card p-6 lg:col-span-2">
-          <h2 className="mb-4 text-lg font-semibold">Action Items</h2>
-          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <ClipboardList className="mb-3 h-10 w-10" />
-            <p>No pending actions</p>
-            <p className="text-sm">Tasks and reminders will appear here</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

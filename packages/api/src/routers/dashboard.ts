@@ -1,4 +1,4 @@
-import { sql, eq, gte, lte, and, asc } from "drizzle-orm";
+import { sql, eq, gte, lte, and } from "drizzle-orm";
 import { patients, appointments, medicalRecords } from "@docnotes/db";
 import { protectedProcedure, router } from "../trpc.js";
 
@@ -21,59 +21,43 @@ export const dashboardRouter = router({
 
     const userId = ctx.session.userId;
 
-    const [patientCount, todayAppointments, weekRecords, todaySchedule] =
-      await Promise.all([
-        // Total active patients owned by this doctor
-        ctx.db
-          .select({ count: sql<number>`count(*)` })
-          .from(patients)
-          .where(
-            and(eq(patients.isActive, true), eq(patients.createdBy, userId)),
-          ),
+    const [patientCount, todayAppointments, weekRecords] = await Promise.all([
+      // Total active patients owned by this doctor
+      ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(patients)
+        .where(
+          and(eq(patients.isActive, true), eq(patients.createdBy, userId)),
+        ),
 
-        // Today's appointments count for this doctor
-        ctx.db
-          .select({ count: sql<number>`count(*)` })
-          .from(appointments)
-          .where(
-            and(
-              eq(appointments.providerId, userId),
-              gte(appointments.scheduledAt, todayStart),
-              lte(appointments.scheduledAt, todayEnd),
-            ),
+      // Today's appointments count for this doctor
+      ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.providerId, userId),
+            gte(appointments.scheduledAt, todayStart),
+            lte(appointments.scheduledAt, todayEnd),
           ),
+        ),
 
-        // Medical records this doctor created this week
-        ctx.db
-          .select({ count: sql<number>`count(*)` })
-          .from(medicalRecords)
-          .where(
-            and(
-              eq(medicalRecords.createdBy, userId),
-              gte(medicalRecords.createdAt, weekStart),
-            ),
+      // Medical records this doctor created this week
+      ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(medicalRecords)
+        .where(
+          and(
+            eq(medicalRecords.createdBy, userId),
+            gte(medicalRecords.createdAt, weekStart),
           ),
-
-        // Today's appointments list for this doctor (for schedule panel)
-        ctx.db
-          .select()
-          .from(appointments)
-          .where(
-            and(
-              eq(appointments.providerId, userId),
-              gte(appointments.scheduledAt, todayStart),
-              lte(appointments.scheduledAt, todayEnd),
-            ),
-          )
-          .orderBy(asc(appointments.scheduledAt))
-          .limit(10),
-      ]);
+        ),
+    ]);
 
     return {
       totalPatients: Number(patientCount[0]?.count ?? 0),
       todayAppointments: Number(todayAppointments[0]?.count ?? 0),
       recordsThisWeek: Number(weekRecords[0]?.count ?? 0),
-      todaySchedule,
     };
   }),
 });
