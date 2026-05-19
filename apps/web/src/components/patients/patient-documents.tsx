@@ -7,6 +7,7 @@ import {
   Loader2,
   Upload,
   File,
+  Eye,
 } from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -61,8 +62,21 @@ export function PatientDocuments({ patientId }: { patientId: string }) {
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / 20);
 
+  async function handleView(id: string) {
+    const result = await trpcClient.document.getDownloadUrl.query({
+      id,
+      disposition: "inline",
+    });
+    if (result?.url) {
+      window.open(result.url, "_blank");
+    }
+  }
+
   async function handleDownload(id: string) {
-    const result = await trpcClient.document.getDownloadUrl.query({ id });
+    const result = await trpcClient.document.getDownloadUrl.query({
+      id,
+      disposition: "attachment",
+    });
     if (result?.url) {
       window.open(result.url, "_blank");
     }
@@ -138,7 +152,19 @@ export function PatientDocuments({ patientId }: { patientId: string }) {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
+                      onClick={() => handleView(doc.id)}
+                      aria-label="View"
+                      title="View"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
                       onClick={() => handleDownload(doc.id)}
+                      aria-label="Download"
+                      title="Download"
                     >
                       <Download className="h-4 w-4" />
                     </Button>
@@ -148,6 +174,8 @@ export function PatientDocuments({ patientId }: { patientId: string }) {
                       className="h-8 w-8"
                       onClick={() => archiveMutation.mutate(doc.id)}
                       disabled={archiveMutation.isPending}
+                      aria-label="Archive"
+                      title="Archive"
                     >
                       <Archive className="h-4 w-4" />
                     </Button>

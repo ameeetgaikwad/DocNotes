@@ -137,7 +137,15 @@ export const documentRouter = router({
     }),
 
   getDownloadUrl: protectedProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        // "inline" → browser renders (View); "attachment" → forces save
+        // (Download). Default "attachment" preserves the existing behaviour
+        // for any other call sites that haven't been updated yet.
+        disposition: z.enum(["attachment", "inline"]).default("attachment"),
+      }),
+    )
     .query(async ({ ctx, input }) => {
       const result = await ctx.db
         .select()
@@ -154,7 +162,11 @@ export const documentRouter = router({
       const doc = result[0];
       if (!doc) return null;
 
-      const url = await createPresignedDownloadUrl(doc.s3Key, doc.name);
+      const url = await createPresignedDownloadUrl(
+        doc.s3Key,
+        doc.name,
+        input.disposition,
+      );
 
       logAudit(ctx, {
         action: "read",

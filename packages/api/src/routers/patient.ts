@@ -348,7 +348,10 @@ export const patientRouter = router({
       // Anyone in the clinic can mark or unmark — the doctor still owns
       // the row via createdBy, so we scope to that.
       const [current] = await ctx.db
-        .select({ marked: patients.marked })
+        .select({
+          marked: patients.marked,
+          updatedAt: patients.updatedAt,
+        })
         .from(patients)
         .where(
           and(
@@ -364,9 +367,14 @@ export const patientRouter = router({
         });
       }
       const next = !current.marked;
+      // Explicitly carry the existing updatedAt forward — the schema's
+      // $onUpdate bumps it on every update otherwise, and Manoj msg 1071
+      // flagged that marking a patient was jumping their row to the top
+      // of the desc-sorted list. Mark is a bookmark-like flag, not a
+      // material edit, so the row's "last touched" time shouldn't move.
       const [updated] = await ctx.db
         .update(patients)
-        .set({ marked: next })
+        .set({ marked: next, updatedAt: current.updatedAt })
         .where(
           and(
             eq(patients.id, input.id),
