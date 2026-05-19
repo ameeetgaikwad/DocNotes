@@ -1062,10 +1062,6 @@ function NewPatientBlock(props: {
         <UserPlus className="h-4 w-4" />
         New patient: &ldquo;{props.typedName}&rdquo;
       </p>
-      <p className="text-xs text-muted-foreground">
-        Optional details — leave blank to record just the name. Save adds the
-        patient and the entry together.
-      </p>
       <PatientFieldsForm {...props} idPrefix="np" />
     </div>
   );
