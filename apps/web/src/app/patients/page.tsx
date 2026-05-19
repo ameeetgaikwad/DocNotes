@@ -39,7 +39,6 @@ type PatientRow = {
   firstName: string;
   middleName: string | null;
   lastName: string;
-  marked: boolean;
 };
 
 export default function PatientsPage() {
@@ -157,13 +156,7 @@ export default function PatientsPage() {
                     onClick={() => setActionsForPatient(patient)}
                     className="flex min-w-0 flex-1 flex-col items-stretch px-3 py-3 text-left active:bg-muted/40"
                   >
-                    <p
-                      className={
-                        patient.marked
-                          ? "truncate font-medium text-destructive"
-                          : "truncate font-medium"
-                      }
-                    >
+                    <p className="truncate font-medium">
                       {formatPatientName(patient)}
                     </p>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -215,11 +208,7 @@ export default function PatientsPage() {
                     <TableCell>
                       <Link
                         href={`/patients/${patient.id}`}
-                        className={
-                          patient.marked
-                            ? "font-medium text-destructive hover:underline"
-                            : "font-medium text-primary hover:underline"
-                        }
+                        className="font-medium text-primary hover:underline"
                       >
                         {formatPatientName(patient)}
                       </Link>
@@ -313,7 +302,6 @@ export default function PatientsPage() {
             firstName: "",
             middleName: null,
             lastName: "",
-            marked: false,
           }
         }
       />
