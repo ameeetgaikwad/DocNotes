@@ -75,6 +75,40 @@ export const patientVisitRouter = router({
       });
       return visit;
     }),
+
+  // Distinct lines from this provider's past clinical notes, sorted by
+  // frequency. Powers the inline autocomplete in the visit notes textarea
+  // (Manoj msg 972 → 976). Source is strictly the doctor's own past
+  // prescriptions — we do NOT pull from a global corpus or the homeopathic
+  // list, per Manoj's explicit ask.
+  medicineHints: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db
+      .select({ notes: patientVisits.clinicalNotes })
+      .from(patientVisits)
+      .where(eq(patientVisits.providerId, ctx.session.userId))
+      .limit(5000);
+
+    const counts = new Map<string, number>();
+    const display = new Map<string, string>();
+    for (const r of rows) {
+      if (!r.notes) continue;
+      for (const raw of r.notes.split(/\n/)) {
+        const line = raw.trim();
+        // Skip lines too short to autocomplete usefully OR too long to
+        // plausibly be a single medicine entry. 80 chars covers "Nux
+        // Vomica 200 - 4 drops three times daily" with room to spare.
+        if (line.length < 2 || line.length > 80) continue;
+        const key = line.toLowerCase();
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+        if (!display.has(key)) display.set(key, line);
+      }
+    }
+    const hints = Array.from(counts.entries())
+      .map(([k, count]) => ({ phrase: display.get(k) as string, count }))
+      .sort((a, b) => b.count - a.count || a.phrase.localeCompare(b.phrase))
+      .slice(0, 500);
+    return hints;
+  }),
 });
 
 // Helper used by daily-register.create — idempotent ensure-visit-for-date.

@@ -17,8 +17,8 @@ import { printBase64Pdf } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { HomeopathicMedicinePicker } from "@/components/patients/homeopathic-medicine-picker";
+import { MedicineAutocompleteTextarea } from "@/components/patients/medicine-autocomplete-textarea";
 
 interface PatientHistoryProps {
   patientId: string;
@@ -299,6 +299,14 @@ function VisitCard({
   const queryClient = useQueryClient();
   const initial = visitToForm(visit);
   const [form, setForm] = useState(initial);
+  // Inline-autocomplete corpus for the clinical-notes textarea (Manoj
+  // msg 972 → 976). Pulled once per session — tanstack-query caches
+  // the result across all VisitCard instances on the page.
+  const hintsQuery = useQuery({
+    ...trpc.patientVisit.medicineHints.queryOptions(),
+    staleTime: 60_000,
+  });
+  const medicineHints = hintsQuery.data ?? [];
   // editAll = true means all fields are visible (empty included) AND the
   // Save / Discard buttons are usable. The latest visit defaults to true
   // so the doctor can fill in today's data without an extra click; older
@@ -611,15 +619,16 @@ function VisitCard({
                 </Button>
               </div>
             </div>
-            <Textarea
+            <MedicineAutocompleteTextarea
               id={`${visit.id}-notes`}
               rows={6}
               maxLength={20000}
               placeholder="Symptoms, examination findings, plan, medications, advice…"
               value={form.clinicalNotes}
-              onChange={(e) =>
-                setForm({ ...form, clinicalNotes: e.target.value })
+              onChange={(next) =>
+                setForm((prev) => ({ ...prev, clinicalNotes: next }))
               }
+              hints={medicineHints}
               className="md:min-h-[10rem] md:text-base"
             />
           </div>
