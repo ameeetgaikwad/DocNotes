@@ -23,6 +23,7 @@ interface PatientActionsSheetProps {
     firstName: string;
     middleName: string | null;
     lastName: string;
+    marked: boolean;
   };
 }
 
@@ -40,6 +41,15 @@ export function PatientActionsSheet({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [["patient"]] });
       setConfirmDelete(false);
+      onOpenChange(false);
+    },
+  });
+
+  const toggleMarkedMutation = useMutation({
+    mutationFn: () =>
+      trpcClient.patient.toggleMarked.mutate({ id: patient.id }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [["patient"]] });
       onOpenChange(false);
     },
   });
@@ -117,11 +127,21 @@ export function PatientActionsSheet({
               type="button"
               variant="outline"
               className="h-12 justify-start text-base"
-              disabled
-              title="Coming soon — needs a database change"
+              onClick={() => toggleMarkedMutation.mutate()}
+              disabled={toggleMarkedMutation.isPending}
             >
-              <Bookmark className="h-5 w-5" />
-              Mark <span className="ml-1 text-xs">(coming soon)</span>
+              {toggleMarkedMutation.isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Bookmark
+                  className={
+                    patient.marked
+                      ? "h-5 w-5 fill-destructive text-destructive"
+                      : "h-5 w-5"
+                  }
+                />
+              )}
+              {patient.marked ? "Unmark" : "Mark"}
             </Button>
             <Button
               type="button"

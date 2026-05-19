@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import {
   and,
   eq,
@@ -338,6 +339,47 @@ export const patientRouter = router({
       });
 
       return patient;
+    }),
+
+  toggleMarked: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // Persistent + clinic-wide red-name flag (Manoj msg 986, option a).
+      // Anyone in the clinic can mark or unmark — the doctor still owns
+      // the row via createdBy, so we scope to that.
+      const [current] = await ctx.db
+        .select({ marked: patients.marked })
+        .from(patients)
+        .where(
+          and(
+            eq(patients.id, input.id),
+            eq(patients.createdBy, ctx.session.userId),
+          ),
+        )
+        .limit(1);
+      if (!current) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Patient not found",
+        });
+      }
+      const next = !current.marked;
+      const [updated] = await ctx.db
+        .update(patients)
+        .set({ marked: next })
+        .where(
+          and(
+            eq(patients.id, input.id),
+            eq(patients.createdBy, ctx.session.userId),
+          ),
+        )
+        .returning();
+      logAudit(ctx, {
+        action: next ? "mark" : "unmark",
+        resource: "patient",
+        resourceId: input.id,
+      });
+      return updated ?? null;
     }),
 
   archive: protectedProcedure
