@@ -34,7 +34,7 @@ export const patientSchema = z.object({
   gender: Gender.nullable(),
   email: z.string().email().nullable(),
   phone: z.string().max(20).nullable(),
-  address: z.string().max(500).nullable(),
+  address: z.string().max(75).nullable(),
   emergencyContactName: z.string().max(255).nullable(),
   emergencyContactPhone: z.string().max(20).nullable(),
   bloodType: z

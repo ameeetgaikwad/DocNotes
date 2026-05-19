@@ -140,7 +140,7 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
             label="Address"
             initial={patient.address ?? ""}
             multiline
-            placeholder="Street, area, city, pincode"
+            maxLength={75}
           />
           <FieldEditor
             patientId={patient.id}
@@ -179,6 +179,7 @@ function FieldEditor({
   placeholder,
   type,
   multiline,
+  maxLength,
 }: {
   patientId: string;
   field:
@@ -192,6 +193,7 @@ function FieldEditor({
   placeholder?: string;
   type?: "email" | "tel";
   multiline?: boolean;
+  maxLength?: number;
 }) {
   const queryClient = useQueryClient();
   const [value, setValue] = useState(initial);
@@ -233,7 +235,7 @@ function FieldEditor({
             onChange={(e) => setValue(e.target.value)}
             placeholder={placeholder}
             rows={2}
-            maxLength={5000}
+            maxLength={maxLength ?? 5000}
             className="flex-1 text-sm"
           />
         ) : (
@@ -245,6 +247,7 @@ function FieldEditor({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={placeholder}
+            maxLength={maxLength}
             className="flex-1"
           />
         )}
