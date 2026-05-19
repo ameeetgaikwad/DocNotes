@@ -12,6 +12,7 @@ import {
   Smartphone,
   Save,
   Pencil,
+  X,
 } from "lucide-react";
 import { SERVICE_TYPES, type Gender } from "@docnotes/shared";
 import { trpc, trpcClient } from "@/lib/trpc";
@@ -1112,26 +1113,28 @@ function ExistingPatientBlock(props: {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium md:text-base">{patient.label}</p>
         </div>
-        <div className="flex shrink-0 gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <Button
             type="button"
             variant="ghost"
-            size="sm"
+            size="icon"
             onClick={editing ? onCancelEdit : onStartEdit}
-            className="md:h-10"
             aria-label={editing ? "Cancel edit" : "Edit patient"}
+            title={editing ? "Cancel edit" : "Edit patient"}
+            className="h-9 w-9 md:h-10 md:w-10"
           >
-            <Pencil className="h-3.5 w-3.5" />
-            {editing ? "Cancel" : "Edit"}
+            <Pencil className="h-4 w-4" />
           </Button>
           <Button
             type="button"
             variant="ghost"
-            size="sm"
+            size="icon"
             onClick={onChange}
-            className="md:h-10"
+            aria-label="Change patient"
+            title="Change patient"
+            className="h-9 w-9 md:h-10 md:w-10"
           >
-            Change
+            <X className="h-4 w-4" />
           </Button>
         </div>
       </div>
