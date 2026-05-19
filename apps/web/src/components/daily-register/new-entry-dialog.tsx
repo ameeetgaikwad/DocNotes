@@ -1109,12 +1109,8 @@ function ExistingPatientBlock(props: {
   return (
     <div className="space-y-3 rounded-md border bg-muted/30 p-3 md:p-4">
       <div className="flex items-start justify-between gap-2">
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-medium md:text-base">{patient.label}</p>
-          <p className="text-xs text-muted-foreground">
-            Returning patient — fields below are read-only until you tap the
-            pencil.
-          </p>
         </div>
         <div className="flex shrink-0 gap-1">
           <Button
