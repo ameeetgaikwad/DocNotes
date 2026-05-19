@@ -32,10 +32,10 @@ export const documentRouter = router({
       if (category) {
         conditions.push(eq(documents.category, category));
       }
-      // Exclude uploading docs that are stale (not confirmed within an hour)
-      conditions.push(
-        sql`(${documents.status} != 'uploading' OR ${documents.createdAt} > now() - interval '1 hour')`,
-      );
+      // Only return active documents — archive was replaced with hard
+      // delete in Manoj msg 1077, but any pre-existing archived rows
+      // should also be hidden so the list stays clean.
+      conditions.push(eq(documents.status, "active"));
 
       const where = and(...conditions);
 
@@ -183,29 +183,6 @@ export const documentRouter = router({
       const [doc] = await ctx.db
         .update(documents)
         .set(input.data)
-        .where(
-          and(
-            eq(documents.id, input.id),
-            eq(documents.uploadedBy, ctx.session.userId),
-          ),
-        )
-        .returning();
-
-      logAudit(ctx, {
-        action: "update",
-        resource: "document",
-        resourceId: input.id,
-      });
-
-      return doc;
-    }),
-
-  archive: protectedProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      const [doc] = await ctx.db
-        .update(documents)
-        .set({ status: "archived" })
         .where(
           and(
             eq(documents.id, input.id),

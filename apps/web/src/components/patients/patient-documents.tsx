@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   FileText,
   Download,
-  Archive,
+  Trash2,
   Loader2,
   Upload,
   File,
@@ -51,12 +51,24 @@ export function PatientDocuments({ patientId }: { patientId: string }) {
     }),
   );
 
-  const archiveMutation = useMutation({
-    mutationFn: (id: string) => trpcClient.document.archive.mutate({ id }),
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => trpcClient.document.delete.mutate({ id }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [["document"]] });
     },
   });
+
+  function handleDelete(id: string, name: string) {
+    // Hard delete — removes from DB AND R2. Confirm explicitly so the
+    // doctor doesn't blow away a real report by mistake.
+    if (
+      window.confirm(
+        `Delete "${name}"? This permanently removes the file from storage and cannot be undone.`,
+      )
+    ) {
+      deleteMutation.mutate(id);
+    }
+  }
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -134,9 +146,6 @@ export function PatientDocuments({ patientId }: { patientId: string }) {
                     </Badge>
                     <span>{formatFileSize(doc.sizeBytes)}</span>
                     <span>{formatDate(doc.createdAt)}</span>
-                    {doc.status === "archived" && (
-                      <Badge variant="secondary">Archived</Badge>
-                    )}
                   </div>
                   {doc.notes && (
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -146,41 +155,37 @@ export function PatientDocuments({ patientId }: { patientId: string }) {
                 </div>
               </div>
               <div className="flex shrink-0 gap-1 self-end sm:self-auto">
-                {doc.status === "active" && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => handleView(doc.id)}
-                      aria-label="View"
-                      title="View"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => handleDownload(doc.id)}
-                      aria-label="Download"
-                      title="Download"
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => archiveMutation.mutate(doc.id)}
-                      disabled={archiveMutation.isPending}
-                      aria-label="Archive"
-                      title="Archive"
-                    >
-                      <Archive className="h-4 w-4" />
-                    </Button>
-                  </>
-                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handleView(doc.id)}
+                  aria-label="View"
+                  title="View"
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handleDownload(doc.id)}
+                  aria-label="Download"
+                  title="Download"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => handleDelete(doc.id, doc.name)}
+                  disabled={deleteMutation.isPending}
+                  aria-label="Delete"
+                  title="Delete"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           ))}
