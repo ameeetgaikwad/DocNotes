@@ -74,15 +74,20 @@ export const patientRouter = router({
             ...getTableColumns(patients),
             // Most-recent non-empty diagnosis from this patient's daily
             // register entries — surfaced on the mobile list row per
-            // Manoj msg 981. Returns null when the patient has no
-            // diagnosis on file yet.
+            // Manoj msg 981. Manoj msg 1085 caught that it was rendering
+            // blank: a previous version interpolated ${patients.id} into
+            // the sql template, which drizzle rendered as a bare "id" and
+            // PostgreSQL resolved against daily_register_entries.id (the
+            // subquery's own column), so the WHERE never matched. Hand-
+            // qualify with table names so the correlated subquery binds
+            // to the outer "patients.id" instead.
             latestDiagnosis: sql<
               string | null
-            >`(SELECT diagnosis FROM daily_register_entries
-                WHERE patient_id = ${patients.id}
-                  AND diagnosis IS NOT NULL
-                  AND diagnosis <> ''
-                ORDER BY visit_date DESC, created_at DESC
+            >`(SELECT dr.diagnosis FROM daily_register_entries dr
+                WHERE dr.patient_id = patients.id
+                  AND dr.diagnosis IS NOT NULL
+                  AND dr.diagnosis <> ''
+                ORDER BY dr.visit_date DESC, dr.created_at DESC
                 LIMIT 1)`,
           })
           .from(patients)
