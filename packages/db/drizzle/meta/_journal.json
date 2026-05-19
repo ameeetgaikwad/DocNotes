@@ -127,6 +127,13 @@
       "when": 1779580800001,
       "tag": "0017_patient_marked",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1779580800002,
+      "tag": "0018_patients_responsible_party",
+      "breakpoints": true
     }
   ]
 }
