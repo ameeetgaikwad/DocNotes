@@ -238,7 +238,7 @@ export function UploadDocumentDialog({
                 id="doc-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                rows={2}
+                rows={1}
               />
             </div>
 
