@@ -2,6 +2,7 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -48,6 +49,21 @@ export default function PatientProfilePage({
   const { patientId } = use(params);
   const [shareOpen, setShareOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  // Honour ?tab=<value> so the Patients list can deep-link to a specific
+  // tab (Manoj msg 983: "Review" should open History, not Summary).
+  const searchParams = useSearchParams();
+  const initialTab = (() => {
+    const raw = searchParams.get("tab");
+    const allowed = [
+      "summary",
+      "history",
+      "documents",
+      "diet",
+      "pending-dues",
+      "appointments",
+    ];
+    return raw && allowed.includes(raw) ? raw : "summary";
+  })();
 
   const {
     data: patient,
@@ -244,7 +260,7 @@ export default function PatientProfilePage({
         </div>
       </div>
 
-      <Tabs defaultValue="summary">
+      <Tabs defaultValue={initialTab}>
         <div className="relative">
           <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 [&::-webkit-scrollbar]:hidden">
             {[

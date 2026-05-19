@@ -32,11 +32,22 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { NewDailyRegisterEntryDialog } from "@/components/daily-register/new-entry-dialog";
+import { PatientActionsSheet } from "@/components/patients/patient-actions-sheet";
+
+type PatientRow = {
+  id: string;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+};
 
 export default function PatientsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [actionsForPatient, setActionsForPatient] = useState<PatientRow | null>(
+    null,
+  );
   const limit = 20;
 
   const debouncedSearch = useDebounce(search, 300);
@@ -127,39 +138,51 @@ export default function PatientsPage() {
 
       {data && data.items.length > 0 && (
         <>
-          {/* Mobile: tappable card per patient. Desktop (≥md): table. */}
+          {/* Mobile: card per patient with two distinct tap targets
+              (Manoj msg 983). Tapping the name+meta area opens the
+              actions sheet (Review / Delete / Mark); tapping the
+              right-side chevron opens the patient on Summary. Desktop
+              (≥md) keeps the single-link table below. */}
           <ul className="space-y-2 md:hidden">
             {data.items.map((patient) => {
               const conditions = patient.activeConditions as string[];
               return (
-                <li key={patient.id}>
+                <li
+                  key={patient.id}
+                  className="flex items-stretch overflow-hidden rounded-xl border bg-card"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setActionsForPatient(patient)}
+                    className="flex min-w-0 flex-1 flex-col items-stretch px-3 py-3 text-left active:bg-muted/40"
+                  >
+                    <p className="truncate font-medium">
+                      {formatPatientName(patient)}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      <PatientMobileMeta patient={patient} />
+                    </p>
+                    {conditions.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {conditions.slice(0, 3).map((c) => (
+                          <Badge key={c} variant="secondary">
+                            {c}
+                          </Badge>
+                        ))}
+                        {conditions.length > 3 && (
+                          <Badge variant="outline">
+                            +{conditions.length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </button>
                   <Link
                     href={`/patients/${patient.id}`}
-                    className="flex items-center gap-3 rounded-xl border bg-card p-3 active:bg-muted/40"
+                    aria-label={`Open summary for ${formatPatientName(patient)}`}
+                    className="flex w-12 shrink-0 items-center justify-center border-l border-border text-muted-foreground active:bg-muted/40"
                   >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">
-                        {formatPatientName(patient)}
-                      </p>
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                        <PatientMobileMeta patient={patient} />
-                      </p>
-                      {conditions.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {conditions.slice(0, 3).map((c) => (
-                            <Badge key={c} variant="secondary">
-                              {c}
-                            </Badge>
-                          ))}
-                          {conditions.length > 3 && (
-                            <Badge variant="outline">
-                              +{conditions.length - 3}
-                            </Badge>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <ChevronRight className="h-5 w-5" />
                   </Link>
                 </li>
               );
@@ -266,6 +289,21 @@ export default function PatientsPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         visitDate={todayLocalIsoDate()}
+      />
+
+      <PatientActionsSheet
+        open={actionsForPatient !== null}
+        onOpenChange={(next) => {
+          if (!next) setActionsForPatient(null);
+        }}
+        patient={
+          actionsForPatient ?? {
+            id: "",
+            firstName: "",
+            middleName: null,
+            lastName: "",
+          }
+        }
       />
 
       <button
