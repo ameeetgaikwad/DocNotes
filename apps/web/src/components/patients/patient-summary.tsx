@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Save } from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 interface PatientData {
   id: string;
@@ -214,7 +215,7 @@ function FieldEditor({
   maxLength?: number;
   suggestions?: ReadonlyArray<string>;
 }) {
-  const datalistId = useId();
+  const [focused, setFocused] = useState(false);
   const queryClient = useQueryClient();
   const [value, setValue] = useState(initial);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -258,30 +259,33 @@ function FieldEditor({
             maxLength={maxLength ?? 5000}
             className="flex-1 text-sm"
           />
+        ) : suggestions && suggestions.length > 0 ? (
+          <SuggestInput
+            id={inputId}
+            type={type ?? "text"}
+            inputMode={type === "tel" ? "tel" : undefined}
+            autoComplete={type ?? "off"}
+            value={value}
+            onChange={setValue}
+            placeholder={placeholder}
+            maxLength={maxLength}
+            suggestions={suggestions}
+            focused={focused}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+          />
         ) : (
-          <>
-            <Input
-              id={inputId}
-              type={type ?? "text"}
-              inputMode={type === "tel" ? "tel" : undefined}
-              autoComplete={type ?? "off"}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder={placeholder}
-              maxLength={maxLength}
-              list={
-                suggestions && suggestions.length > 0 ? datalistId : undefined
-              }
-              className="flex-1"
-            />
-            {suggestions && suggestions.length > 0 && (
-              <datalist id={datalistId}>
-                {suggestions.map((s) => (
-                  <option key={s} value={s} />
-                ))}
-              </datalist>
-            )}
-          </>
+          <Input
+            id={inputId}
+            type={type ?? "text"}
+            inputMode={type === "tel" ? "tel" : undefined}
+            autoComplete={type ?? "off"}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={placeholder}
+            maxLength={maxLength}
+            className="flex-1"
+          />
         )}
         {dirty && (
           <Button
@@ -307,6 +311,95 @@ function FieldEditor({
         <p className="text-xs text-destructive sm:basis-full sm:pl-32">
           {serverError}
         </p>
+      )}
+    </div>
+  );
+}
+
+// Native <datalist> support is patchy on mobile browsers (Samsung
+// Internet, some Android Chrome builds), so this is a hand-rolled
+// suggestion popover that works the same across phones and desktops.
+// Filters case-insensitively, ranks startsWith above contains.
+function SuggestInput({
+  id,
+  type,
+  inputMode,
+  autoComplete,
+  value,
+  onChange,
+  placeholder,
+  maxLength,
+  suggestions,
+  focused,
+  onFocus,
+  onBlur,
+}: {
+  id: string;
+  type: string;
+  inputMode?: "tel" | undefined;
+  autoComplete: string;
+  value: string;
+  onChange: (next: string) => void;
+  placeholder?: string;
+  maxLength?: number;
+  suggestions: ReadonlyArray<string>;
+  focused: boolean;
+  onFocus: () => void;
+  onBlur: () => void;
+}) {
+  const matches = (() => {
+    const q = value.trim().toLowerCase();
+    const exact = q && suggestions.some((s) => s.toLowerCase() === q);
+    if (exact) return [];
+    const starts: string[] = [];
+    const contains: string[] = [];
+    for (const s of suggestions) {
+      const lower = s.toLowerCase();
+      if (q.length === 0) {
+        starts.push(s);
+      } else if (lower.startsWith(q)) {
+        starts.push(s);
+      } else if (lower.includes(q)) {
+        contains.push(s);
+      }
+    }
+    return [...starts, ...contains].slice(0, 8);
+  })();
+  const open = focused && matches.length > 0;
+
+  return (
+    <div className="relative flex-1">
+      <Input
+        id={id}
+        type={type}
+        inputMode={inputMode}
+        autoComplete={autoComplete}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        onFocus={onFocus}
+        // Delay blur so a click on a suggestion fires before the
+        // popover unmounts.
+        onBlur={() => setTimeout(onBlur, 120)}
+      />
+      {open && (
+        <ul className="absolute left-0 right-0 top-full z-20 mt-1 max-h-60 overflow-auto rounded-md border bg-popover shadow-md">
+          {matches.map((s) => (
+            <li key={s}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onChange(s)}
+                className={cn(
+                  "block w-full px-3 py-2 text-left text-sm transition hover:bg-accent",
+                )}
+              >
+                {s}
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
