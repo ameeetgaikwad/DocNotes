@@ -6,6 +6,22 @@ export function todayLocalIsoDate(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// Indian Financial Year helpers: FY starts April 1 and ends March 31 of
+// the next year. Used by Daily Case Register export + the Register
+// Summary panel on the Dashboard.
+export function currentFinancialYear(): number {
+  const now = new Date();
+  return now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+}
+
+export function fyLabel(y: number): string {
+  return `FY ${y}-${String(y + 1).slice(2)}`;
+}
+
+export function fyRange(y: number): { startDate: string; endDate: string } {
+  return { startDate: `${y}-04-01`, endDate: `${y + 1}-03-31` };
+}
+
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "—";
   const d = new Date(date);

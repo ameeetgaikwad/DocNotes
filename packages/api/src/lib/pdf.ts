@@ -805,3 +805,238 @@ export async function renderPrescriptionPdf(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return renderToBuffer(doc as any);
 }
+
+// ---------- Daily Case Register export (Manoj msg 1105) ----------
+
+const dcrStyles = StyleSheet.create({
+  page: {
+    paddingTop: 32,
+    paddingBottom: 40,
+    paddingHorizontal: 36,
+    fontSize: 10,
+    fontFamily: "Helvetica",
+    lineHeight: 1.35,
+  },
+  title: {
+    fontSize: 16,
+    fontFamily: "Helvetica-Bold",
+    color: "#0f172a",
+    textAlign: "center",
+    marginBottom: 2,
+  },
+  subtitle: {
+    fontSize: 10,
+    color: "#475569",
+    textAlign: "center",
+    marginBottom: 14,
+  },
+  dayHeader: {
+    fontSize: 11,
+    fontFamily: "Helvetica-Bold",
+    color: "#0f172a",
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  row: {
+    flexDirection: "row",
+    marginBottom: 2,
+  },
+  serial: {
+    width: 22,
+    textAlign: "right",
+    paddingRight: 4,
+    color: "#475569",
+  },
+  body: {
+    flex: 1,
+    color: "#0f172a",
+  },
+  footer: {
+    position: "absolute",
+    bottom: 18,
+    left: 36,
+    right: 36,
+    fontSize: 8,
+    color: "#94a3b8",
+    textAlign: "center",
+  },
+  totalsBlock: {
+    marginTop: 14,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: "#cbd5e1",
+  },
+  totalRow: {
+    flexDirection: "row",
+    fontSize: 10,
+  },
+  totalLabel: {
+    width: 140,
+    fontFamily: "Helvetica-Bold",
+    color: "#475569",
+  },
+  totalValue: {
+    flex: 1,
+    color: "#0f172a",
+  },
+});
+
+export interface DailyCaseRegisterEntry {
+  visitDate: string; // YYYY-MM-DD
+  patientName: string;
+  serviceType: string | null;
+  feeAmount: string | number | null;
+  paymentMode: string | null;
+  paymentStatus: string | null;
+  feeReceivedAt: string | null;
+}
+
+function titleCase(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
+function formatPaymentMode(mode: string | null, status: string | null): string {
+  if (status === "nil") return "—";
+  if (mode === "cash") return "Cash";
+  if (mode === "digital") return "Digital";
+  return mode ? titleCase(mode) : "—";
+}
+
+function formatFee(
+  amount: string | number | null,
+  status: string | null,
+): string {
+  if (status === "nil") return "—";
+  const n = amount == null ? 0 : Number(amount);
+  if (!Number.isFinite(n)) return "—";
+  return `₹${n.toFixed(0)}`;
+}
+
+function formatService(s: string | null): string {
+  return s && s.trim() ? s.trim() : "—";
+}
+
+export async function renderDailyRegisterExportPdf(
+  startDate: string,
+  endDate: string,
+  entries: ReadonlyArray<DailyCaseRegisterEntry>,
+  doctor: {
+    fullName: string | null;
+    clinicName: string | null;
+  } | null,
+): Promise<Buffer> {
+  // entries are pre-sorted by visit_date ascending then created_at;
+  // group locally so the renderer just walks the list.
+  const byDate = new Map<string, DailyCaseRegisterEntry[]>();
+  for (const en of entries) {
+    const list = byDate.get(en.visitDate) ?? [];
+    list.push(en);
+    byDate.set(en.visitDate, list);
+  }
+  const dateKeys = Array.from(byDate.keys()).sort();
+
+  // Continuous serial numbering across days (Manoj's sample format
+  // increments across the date boundary: day 1 → 1,2,3; day 2 → 4,5).
+  let serial = 0;
+  const totalFees = entries.reduce(
+    (acc, en) =>
+      en.paymentStatus === "nil" ? acc : acc + (Number(en.feeAmount ?? 0) || 0),
+    0,
+  );
+  const countNonNil = entries.filter((e) => e.paymentStatus !== "nil").length;
+
+  const doctorLine = doctor
+    ? [doctor.fullName ? `Dr. ${doctor.fullName}` : null, doctor.clinicName]
+        .filter(Boolean)
+        .join(" — ")
+    : "";
+
+  const doc = e(
+    Document,
+    null,
+    e(
+      Page,
+      { size: "A4", style: dcrStyles.page },
+      e(Text, { style: dcrStyles.title }, "Daily Case Register"),
+      e(
+        Text,
+        { style: dcrStyles.subtitle },
+        `Period: ${formatDateDDMMYYYY(startDate)} to ${formatDateDDMMYYYY(endDate)}${
+          doctorLine ? `   ·   ${doctorLine}` : ""
+        }`,
+      ),
+
+      entries.length === 0
+        ? e(
+            Text,
+            {
+              style: { textAlign: "center", color: "#64748b", marginTop: 24 },
+            },
+            "No entries in this period.",
+          )
+        : dateKeys.flatMap((date) => {
+            const rows = byDate.get(date) ?? [];
+            return [
+              e(
+                Text,
+                { key: `h-${date}`, style: dcrStyles.dayHeader },
+                formatDateDDMMYYYY(date),
+              ),
+              ...rows.map((en) => {
+                serial += 1;
+                const parts = [
+                  en.patientName,
+                  formatService(en.serviceType),
+                  formatFee(en.feeAmount, en.paymentStatus),
+                  formatPaymentMode(en.paymentMode, en.paymentStatus),
+                  en.feeReceivedAt ? formatDateDDMMYYYY(en.feeReceivedAt) : "—",
+                ];
+                return e(
+                  View,
+                  { key: `r-${date}-${serial}`, style: dcrStyles.row },
+                  e(Text, { style: dcrStyles.serial }, `${serial}.`),
+                  e(Text, { style: dcrStyles.body }, parts.join(" – ")),
+                );
+              }),
+            ];
+          }),
+
+      entries.length > 0
+        ? e(
+            View,
+            { style: dcrStyles.totalsBlock },
+            e(
+              View,
+              { style: dcrStyles.totalRow },
+              e(Text, { style: dcrStyles.totalLabel }, "Total entries:"),
+              e(Text, { style: dcrStyles.totalValue }, String(entries.length)),
+            ),
+            e(
+              View,
+              { style: dcrStyles.totalRow },
+              e(Text, { style: dcrStyles.totalLabel }, "Fees recorded:"),
+              e(
+                Text,
+                { style: dcrStyles.totalValue },
+                `₹${totalFees.toFixed(0)}  (over ${countNonNil} chargeable ${
+                  countNonNil === 1 ? "entry" : "entries"
+                })`,
+              ),
+            ),
+          )
+        : null,
+
+      e(
+        Text,
+        { style: dcrStyles.footer, fixed: true },
+        `Generated ${formatDateDDMMYYYY(new Date())}`,
+      ),
+    ),
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return renderToBuffer(doc as any);
+}

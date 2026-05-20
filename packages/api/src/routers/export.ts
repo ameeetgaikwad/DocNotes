@@ -1,14 +1,16 @@
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, asc, desc, gte, lte } from "drizzle-orm";
 import {
   patients,
   medicalRecords,
   patientVisits,
   doctorProfiles,
+  dailyRegisterEntries,
 } from "@docnotes/db";
 import {
   exportPatientSummarySchema,
   exportMedicalRecordSchema,
   exportPrescriptionSchema,
+  exportDailyRegisterSchema,
 } from "@docnotes/shared";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../trpc.js";
@@ -17,6 +19,7 @@ import {
   renderPatientSummaryPdf,
   renderMedicalRecordPdf,
   renderPrescriptionPdf,
+  renderDailyRegisterExportPdf,
 } from "../lib/pdf.js";
 
 export const exportRouter = router({
@@ -291,6 +294,84 @@ export const exportRouter = router({
       return {
         base64: pdfBuffer.toString("base64"),
         filename: `${patient.firstName}_${patient.lastName}_Rx_${visit.visitDate}.pdf`,
+      };
+    }),
+
+  // Daily Case Register (Form 25) printer-friendly PDF for a date
+  // range — Manoj msg 1105. One date header per visit_date, then a
+  // numbered list of entries beneath it with continuous serials.
+  dailyRegister: protectedProcedure
+    .input(exportDailyRegisterSchema)
+    .mutation(async ({ ctx, input }) => {
+      const rows = await ctx.db
+        .select({
+          visitDate: dailyRegisterEntries.visitDate,
+          serviceType: dailyRegisterEntries.serviceType,
+          feeAmount: dailyRegisterEntries.feeAmount,
+          paymentMode: dailyRegisterEntries.paymentMode,
+          paymentStatus: dailyRegisterEntries.paymentStatus,
+          feeReceivedAt: dailyRegisterEntries.feeReceivedAt,
+          createdAt: dailyRegisterEntries.createdAt,
+          firstName: patients.firstName,
+          middleName: patients.middleName,
+          lastName: patients.lastName,
+        })
+        .from(dailyRegisterEntries)
+        .innerJoin(patients, eq(patients.id, dailyRegisterEntries.patientId))
+        .where(
+          and(
+            eq(dailyRegisterEntries.providerId, ctx.session.userId),
+            gte(dailyRegisterEntries.visitDate, input.startDate),
+            lte(dailyRegisterEntries.visitDate, input.endDate),
+          ),
+        )
+        .orderBy(
+          asc(dailyRegisterEntries.visitDate),
+          asc(dailyRegisterEntries.createdAt),
+        );
+
+      const doctor = await ctx.db
+        .select({
+          fullName: doctorProfiles.fullName,
+          clinicName: doctorProfiles.clinicName,
+        })
+        .from(doctorProfiles)
+        .where(eq(doctorProfiles.userId, ctx.session.userId))
+        .limit(1)
+        .then((r) => r[0] ?? null);
+
+      const entries = rows.map((r) => ({
+        visitDate: r.visitDate,
+        patientName: [r.firstName, r.middleName, r.lastName]
+          .filter(Boolean)
+          .join(" "),
+        serviceType: r.serviceType,
+        feeAmount: r.feeAmount,
+        paymentMode: r.paymentMode,
+        paymentStatus: r.paymentStatus,
+        feeReceivedAt: r.feeReceivedAt,
+      }));
+
+      const pdfBuffer = await renderDailyRegisterExportPdf(
+        input.startDate,
+        input.endDate,
+        entries,
+        doctor,
+      );
+
+      logAudit(ctx, {
+        action: "export",
+        resource: "daily_register",
+        metadata: {
+          startDate: input.startDate,
+          endDate: input.endDate,
+          count: entries.length,
+        },
+      });
+
+      return {
+        base64: pdfBuffer.toString("base64"),
+        filename: `Daily_Case_Register_${input.startDate}_to_${input.endDate}.pdf`,
       };
     }),
 });
