@@ -184,6 +184,7 @@ interface VisitData {
   temperatureCelsius: string | null;
   weightKg: string | null;
   heightCm: string | null;
+  spO2Percent: number | null;
   clinicalNotes: string | null;
 }
 
@@ -193,6 +194,7 @@ function formatVisitVitals(v: VisitData): string {
     parts.push(`BP ${v.bpSystolic}/${v.bpDiastolic}`);
   }
   if (v.heartRate != null) parts.push(`HR ${v.heartRate}`);
+  if (v.spO2Percent != null) parts.push(`SpO2 ${v.spO2Percent}%`);
   if (v.bslFasting) parts.push(`BSL-F ${v.bslFasting}`);
   if (v.bslPostprandial) parts.push(`PP ${v.bslPostprandial}`);
   if (v.bslRandom) parts.push(`R ${v.bslRandom}`);

@@ -67,6 +67,16 @@ export type DuplicateOverride = z.infer<typeof duplicateOverrideSchema>;
 // createDailyRegisterEntrySchema (logging an entry for an existing
 // patient) so both flows write to the same patient_visits columns.
 export const initialVitalsSchema = z.object({
+  // Visit date the vitals belong to (ISO YYYY-MM-DD). Optional so
+  // existing callers stay working; when present, the server attaches
+  // the vitals to that date's patient_visits row instead of the
+  // server's "today". Required for back-dated register entries and
+  // for UTC-hosted deployments where the server's calendar day can
+  // disagree with the user's local one near midnight.
+  visitDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD")
+    .optional(),
   weightKg: z
     .union([z.string(), z.number()])
     .transform((v) => (typeof v === "number" ? String(v) : v))

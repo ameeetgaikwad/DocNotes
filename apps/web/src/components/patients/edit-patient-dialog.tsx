@@ -174,7 +174,11 @@ export function EditPatientDialog({
     saveMutation.mutate({
       firstName,
       middleName: middleName || null,
-      lastName: lastName || null,
+      // patients.last_name is NOT NULL in the DB — patient.create
+      // implicitly coerces null→'' but patient.update doesn't, so a
+      // single-word edit (where parseFullName returns null) would 500.
+      // Coerce here to match the create path (Amit review msg 1097 P1).
+      lastName: lastName ?? "",
       dateOfBirth,
       dobDay: d,
       dobMonth: m,

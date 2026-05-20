@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eq, and, asc } from "drizzle-orm";
-import { homeopathicMedicines } from "@docnotes/db";
+import { homeopathicMedicines, auditLogs } from "@docnotes/db";
 import {
   createHomeopathicMedicineSchema,
   updateHomeopathicMedicineSchema,
@@ -33,6 +33,56 @@ export const homeopathicMedicineRouter = router({
         asc(homeopathicMedicines.name),
         asc(homeopathicMedicines.potency),
       );
+  }),
+
+  // Called automatically by the Homeopathic Medicine page on first
+  // visit. Returns `seeded: true` only if the provider has never had a
+  // `seed_defaults` audit entry — so a doctor who later deletes all of
+  // the suggested medicines won't get them re-inserted on the next
+  // refresh (Amit review msg 1097 P2). The manual "Load suggested
+  // defaults" button stays on `seedDefaults` below and is unaffected.
+  seedDefaultsIfFirstUse: protectedProcedure.mutation(async ({ ctx }) => {
+    const priorSeed = await ctx.db
+      .select({ id: auditLogs.id })
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.userId, ctx.session.userId),
+          eq(auditLogs.action, "seed_defaults"),
+          eq(auditLogs.resource, "homeopathic_medicine"),
+        ),
+      )
+      .limit(1);
+    if (priorSeed.length > 0) {
+      return { seeded: false, inserted: 0 };
+    }
+    const existing = await ctx.db
+      .select({ id: homeopathicMedicines.id })
+      .from(homeopathicMedicines)
+      .where(eq(homeopathicMedicines.providerId, ctx.session.userId))
+      .limit(1);
+    if (existing.length > 0) {
+      // Already has some medicines and no audit entry — could be a
+      // long-lived account from before the audit logging existed. Treat
+      // as "already used" and don't seed.
+      logAudit(ctx, {
+        action: "seed_defaults",
+        resource: "homeopathic_medicine",
+      });
+      return { seeded: false, inserted: 0 };
+    }
+    await ctx.db.insert(homeopathicMedicines).values(
+      DEFAULT_MEDICINES.map((d) => ({
+        providerId: ctx.session.userId,
+        name: d.name,
+        potency: d.potency,
+      })),
+    );
+    logAudit(ctx, {
+      action: "seed_defaults",
+      resource: "homeopathic_medicine",
+    });
+    return { seeded: true, inserted: DEFAULT_MEDICINES.length };
   }),
 
   seedDefaults: protectedProcedure.mutation(async ({ ctx }) => {

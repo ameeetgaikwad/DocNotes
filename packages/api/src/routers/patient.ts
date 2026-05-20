@@ -176,7 +176,12 @@ export const patientRouter = router({
           initialVitals.spO2Percent != null ||
           initialVitals.temperatureCelsius != null);
       if (patient && hasVitals) {
-        const visitDate = todayIsoDate();
+        // Honour an explicit visitDate from the caller (e.g. the
+        // receptionist is back-dating a register entry), else default
+        // to the server's local "today". Without this thread, UTC-hosted
+        // deployments would attach vitals to the wrong calendar day near
+        // local midnight (Amit review msg 1097 P1).
+        const visitDate = initialVitals?.visitDate ?? todayIsoDate();
         await ensureVisitForDate(
           ctx.db,
           ctx.session.userId,

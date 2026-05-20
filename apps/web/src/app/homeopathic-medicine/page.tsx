@@ -49,11 +49,23 @@ export default function HomeopathicMedicinePage() {
     },
   });
 
-  // Auto-seed the 12 starter medicines the first time the doctor opens
-  // this page on an empty list (Manoj msg 854: the suggested defaults
-  // should appear without needing to tap a button). The backend's
-  // seedDefaults checks audit logs to avoid re-seeding after the doctor
-  // has intentionally deleted everything, so this auto-fire is safe.
+  // Auto-seed only on the doctor's first ever visit to this page
+  // (Manoj msg 854 wanted the defaults to "just appear" the first
+  // time; Amit review msg 1097 P2 then flagged that the previous
+  // implementation re-seeded after a delete-all). The backend's
+  // seedDefaultsIfFirstUse no-ops when a prior seed_defaults audit
+  // entry exists, so it's safe to fire every empty-list mount —
+  // returns { seeded: false } after the first run and the doctor
+  // stays in control via the manual "Load suggested defaults" button.
+  const autoSeedFirstUse = useMutation({
+    mutationFn: () =>
+      trpcClient.homeopathicMedicine.seedDefaultsIfFirstUse.mutate(),
+    onSuccess: (result) => {
+      if (result.seeded) {
+        queryClient.invalidateQueries({ queryKey: [["homeopathicMedicine"]] });
+      }
+    },
+  });
   const autoSeedAttempted = useRef(false);
   useEffect(() => {
     if (
@@ -63,9 +75,9 @@ export default function HomeopathicMedicinePage() {
       !autoSeedAttempted.current
     ) {
       autoSeedAttempted.current = true;
-      seedMutation.mutate();
+      autoSeedFirstUse.mutate();
     }
-  }, [listQuery.isLoading, listQuery.isError, items.length, seedMutation]);
+  }, [listQuery.isLoading, listQuery.isError, items.length, autoSeedFirstUse]);
 
   function openAdd() {
     setEditing(null);

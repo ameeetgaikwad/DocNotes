@@ -359,6 +359,43 @@ function VisitCard({
         (!priorFollowUp ||
           priorFollowUp.matchText.toLowerCase() !==
             followUp.matchText.toLowerCase());
+
+      // If the doctor changed the follow-up phrase ("after 2 weeks!" →
+      // "after 3 weeks!"), cancel the previously auto-created appointment
+      // before scheduling the new one — otherwise the patient ends up
+      // with both reminders (Amit review msg 1097 P2). We identify the
+      // prior auto-create by (patient + type=follow_up + reason matching
+      // the old phrase + scheduled within a day of the old date), and
+      // only cancel those still in "scheduled" state so we don't undo
+      // anything the doctor manually updated since.
+      if (isNewTrigger && priorFollowUp) {
+        try {
+          const fromTs = new Date(priorFollowUp.date.getTime() - 86_400_000);
+          const toTs = new Date(priorFollowUp.date.getTime() + 86_400_000);
+          const existing = await trpcClient.appointment.list.query({
+            patientId,
+            status: "scheduled",
+            from: fromTs,
+            to: toTs,
+            page: 1,
+            limit: 20,
+          });
+          const target = existing.items.find(
+            (a) =>
+              a.type === "follow_up" &&
+              (a.reason ?? "").trim().toLowerCase() ===
+                priorFollowUp.matchText.trim().toLowerCase(),
+          );
+          if (target) {
+            await trpcClient.appointment.cancel.mutate({ id: target.id });
+          }
+        } catch {
+          // Best-effort — if the lookup or cancel fails we still proceed
+          // to create the new appointment. Worst case is a duplicate,
+          // which is at least as good as the pre-fix behaviour.
+        }
+      }
+
       if (followUp && isNewTrigger) {
         try {
           const created = await trpcClient.appointment.create.mutate({

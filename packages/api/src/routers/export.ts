@@ -101,6 +101,7 @@ export const exportRouter = router({
           temperatureCelsius: v.temperatureCelsius,
           weightKg: v.weightKg,
           heightCm: v.heightCm,
+          spO2Percent: v.spO2Percent,
           clinicalNotes: v.clinicalNotes,
         })),
       );

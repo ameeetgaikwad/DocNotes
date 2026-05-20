@@ -259,6 +259,10 @@ export function NewDailyRegisterEntryDialog({
       const initialVitals =
         wt || bps || bpd || spo2 || temp
           ? {
+              // Carry the form's entryDate so the visit row lands on
+              // the back-dated calendar day instead of the server's
+              // "today" (Amit review msg 1097 P1).
+              visitDate: entryDate,
               weightKg: wt || null,
               bpSystolic: bps ? Number(bps) : null,
               bpDiastolic: bpd ? Number(bpd) : null,
