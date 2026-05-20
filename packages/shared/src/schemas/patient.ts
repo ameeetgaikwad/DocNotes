@@ -110,6 +110,7 @@ export const createPatientSchema = z.object({
   conditionNotes: z.string().max(5000).nullable().optional(),
   dietNotes: z.string().max(5000).nullable().optional(),
   notes: z.string().nullable().optional(),
+  responsiblePartyName: z.string().max(255).nullable().optional(),
   duplicateOverride: duplicateOverrideSchema.optional(),
   // Optional initial vitals captured at registration (e.g., by the
   // receptionist). When any are set, the patient.create handler also

@@ -244,20 +244,23 @@ function PendingDuesPanel() {
   }, [items]);
 
   const total = aggregates.reduce((acc, a) => acc + a.total, 0);
-  const high = aggregates.filter((a) => a.total > threshold);
-  const rest = aggregates.filter((a) => a.total <= threshold);
 
-  // Roll the per-patient aggregates up to whichever "responsible party"
-  // name is set on each patient (Manoj msg 1089). Unlinked patients
-  // stand alone — their patient name acts as the group label so the
-  // Consolidated view never silently hides anyone.
-  const consolidated = useMemo<ResponsiblePartyAggregate[]>(() => {
+  // Split aggregates into "consolidated" (>=2 patients sharing a
+  // responsible-party label) and the rest, which stay in Summary
+  // (Manoj msg 1095 #1 + #2 — Summary and Consolidated must be
+  // mutually exclusive). A label with only one patient linked isn't
+  // really a group, so we treat that patient as unlinked and leave
+  // them in Summary; the doctor can add a second patient to the same
+  // label to promote the row to Consolidated.
+  const { consolidated, consolidatedKeys } = useMemo<{
+    consolidated: ResponsiblePartyAggregate[];
+    consolidatedKeys: Set<string>;
+  }>(() => {
     const byKey = new Map<string, ResponsiblePartyAggregate>();
     for (const a of aggregates) {
       const rawRp = a.entries[0]?.responsiblePartyName?.trim() ?? "";
-      const ownName = formatPatientName(a);
-      const label = rawRp || ownName;
-      const key = label.toLowerCase();
+      if (!rawRp) continue;
+      const key = rawRp.toLowerCase();
       const existing = byKey.get(key);
       if (existing) {
         existing.total += a.total;
@@ -266,7 +269,7 @@ function PendingDuesPanel() {
         existing.patients.push(a);
       } else {
         byKey.set(key, {
-          label,
+          label: rawRp,
           key,
           total: a.total,
           oldestDate: a.oldestDate,
@@ -274,10 +277,31 @@ function PendingDuesPanel() {
         });
       }
     }
-    return Array.from(byKey.values()).sort(
-      (a, b) => b.total - a.total || a.label.localeCompare(b.label),
-    );
+    const groups: ResponsiblePartyAggregate[] = [];
+    const keys = new Set<string>();
+    for (const g of byKey.values()) {
+      if (g.patients.length >= 2) {
+        groups.push(g);
+        keys.add(g.key);
+      }
+    }
+    groups.sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
+    return { consolidated: groups, consolidatedKeys: keys };
   }, [aggregates]);
+
+  // Patients that are part of a consolidated group are hidden from
+  // Summary — they only exist under their Responsible Party there.
+  const summaryAggregates = useMemo(
+    () =>
+      aggregates.filter((a) => {
+        const rp = a.entries[0]?.responsiblePartyName?.trim();
+        return !rp || !consolidatedKeys.has(rp.toLowerCase());
+      }),
+    [aggregates, consolidatedKeys],
+  );
+
+  const summaryHigh = summaryAggregates.filter((a) => a.total > threshold);
+  const summaryRest = summaryAggregates.filter((a) => a.total <= threshold);
 
   function toggleExpanded(patientId: string) {
     setExpanded((prev) => {
@@ -362,15 +386,23 @@ function PendingDuesPanel() {
               <Wallet className="mb-3 h-10 w-10" />
               <p className="text-sm">No outstanding dues from any patient.</p>
             </div>
+          ) : summaryAggregates.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <Wallet className="mb-3 h-10 w-10" />
+              <p className="text-sm">
+                All outstanding dues are grouped under a Responsible Party — see
+                the Consolidated tab.
+              </p>
+            </div>
           ) : (
             <>
-              {high.length > 0 && (
+              {summaryHigh.length > 0 && (
                 <div>
                   <p className="bg-amber-50 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-amber-800 sm:px-6 dark:bg-amber-950/40 dark:text-amber-200">
-                    Above {formatINR(threshold)} ({high.length})
+                    Above {formatINR(threshold)} ({summaryHigh.length})
                   </p>
                   <ul className="divide-y">
-                    {high.map((agg) => (
+                    {summaryHigh.map((agg) => (
                       <SummaryRow
                         key={agg.patientId}
                         agg={agg}
@@ -383,15 +415,15 @@ function PendingDuesPanel() {
                   </ul>
                 </div>
               )}
-              {rest.length > 0 && (
+              {summaryRest.length > 0 && (
                 <div>
-                  {high.length > 0 && (
+                  {summaryHigh.length > 0 && (
                     <p className="bg-muted/30 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:px-6">
-                      Other ({rest.length})
+                      Other ({summaryRest.length})
                     </p>
                   )}
                   <ul className="divide-y">
-                    {rest.map((agg) => (
+                    {summaryRest.map((agg) => (
                       <SummaryRow
                         key={agg.patientId}
                         agg={agg}
@@ -413,9 +445,14 @@ function PendingDuesPanel() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : consolidated.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <Wallet className="mb-3 h-10 w-10" />
-              <p className="text-sm">No outstanding dues from any patient.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+              <Users className="mb-3 h-10 w-10" />
+              <p className="text-sm font-medium">No consolidated groups yet</p>
+              <p className="max-w-xs text-xs">
+                Set the same &ldquo;Responsible party&rdquo; name on two or more
+                patients (from their Summary card) to group their dues here.
+                Patients without a shared label stay in the Summary tab.
+              </p>
             </div>
           ) : (
             <ul className="divide-y">

@@ -8,6 +8,8 @@ import {
   desc,
   sql,
   exists,
+  isNotNull,
+  ne,
   getTableColumns,
 } from "drizzle-orm";
 import { patients, dailyRegisterEntries, patientVisits } from "@docnotes/db";
@@ -345,6 +347,26 @@ export const patientRouter = router({
 
       return patient;
     }),
+
+  responsiblePartyNames: protectedProcedure.query(async ({ ctx }) => {
+    // Distinct list of Responsible Party labels this provider has used
+    // before — powers the Summary card autocomplete (Manoj msg 1095 #4).
+    // Sorted alphabetically; case preserved from the first occurrence.
+    const rows = await ctx.db
+      .selectDistinct({ name: patients.responsiblePartyName })
+      .from(patients)
+      .where(
+        and(
+          eq(patients.createdBy, ctx.session.userId),
+          isNotNull(patients.responsiblePartyName),
+          ne(patients.responsiblePartyName, ""),
+        ),
+      );
+    return rows
+      .map((r) => r.name)
+      .filter((n): n is string => Boolean(n))
+      .sort((a, b) => a.localeCompare(b));
+  }),
 
   toggleMarked: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))

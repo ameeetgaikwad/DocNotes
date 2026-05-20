@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useId, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Save } from "lucide-react";
-import { trpcClient } from "@/lib/trpc";
+import { trpc, trpcClient } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,13 @@ type Allergy = {
 export function PatientSummary({ patient }: PatientSummaryProps) {
   const allergies = (patient.allergies ?? []) as Allergy[];
   const conditions = (patient.activeConditions ?? []) as string[];
+  // Previously-used Responsible Party labels — powers the datalist
+  // autocomplete on the Summary card (Manoj msg 1095 #4).
+  const rpNamesQuery = useQuery({
+    ...trpc.patient.responsiblePartyNames.queryOptions(),
+    staleTime: 30_000,
+  });
+  const rpSuggestions = rpNamesQuery.data ?? [];
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -164,6 +171,7 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
             label="Responsible party"
             initial={patient.responsiblePartyName ?? ""}
             maxLength={255}
+            suggestions={rpSuggestions}
           />
           <FieldEditor
             patientId={patient.id}
@@ -188,6 +196,7 @@ function FieldEditor({
   type,
   multiline,
   maxLength,
+  suggestions,
 }: {
   patientId: string;
   field:
@@ -203,7 +212,9 @@ function FieldEditor({
   type?: "email" | "tel";
   multiline?: boolean;
   maxLength?: number;
+  suggestions?: ReadonlyArray<string>;
 }) {
+  const datalistId = useId();
   const queryClient = useQueryClient();
   const [value, setValue] = useState(initial);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -248,17 +259,29 @@ function FieldEditor({
             className="flex-1 text-sm"
           />
         ) : (
-          <Input
-            id={inputId}
-            type={type ?? "text"}
-            inputMode={type === "tel" ? "tel" : undefined}
-            autoComplete={type ?? "off"}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder={placeholder}
-            maxLength={maxLength}
-            className="flex-1"
-          />
+          <>
+            <Input
+              id={inputId}
+              type={type ?? "text"}
+              inputMode={type === "tel" ? "tel" : undefined}
+              autoComplete={type ?? "off"}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={placeholder}
+              maxLength={maxLength}
+              list={
+                suggestions && suggestions.length > 0 ? datalistId : undefined
+              }
+              className="flex-1"
+            />
+            {suggestions && suggestions.length > 0 && (
+              <datalist id={datalistId}>
+                {suggestions.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+            )}
+          </>
         )}
         {dirty && (
           <Button
