@@ -169,6 +169,18 @@ type PatientAggregate = {
   entries: DueEntryRow[];
 };
 
+type ResponsiblePartyAggregate = {
+  // The display label (responsible party name as the user typed it, OR
+  // the patient's own name when no responsible party is set).
+  label: string;
+  // Lowercase-normalized key used to group rows even when the user
+  // typed inconsistent casing on different patient records.
+  key: string;
+  total: number;
+  oldestDate: string;
+  patients: PatientAggregate[];
+};
+
 function PendingDuesPanel() {
   const duesQuery = useQuery(trpc.dailyRegister.allPendingDues.queryOptions());
   const items = useMemo(() => duesQuery.data ?? [], [duesQuery.data]);
@@ -234,6 +246,38 @@ function PendingDuesPanel() {
   const total = aggregates.reduce((acc, a) => acc + a.total, 0);
   const high = aggregates.filter((a) => a.total > threshold);
   const rest = aggregates.filter((a) => a.total <= threshold);
+
+  // Roll the per-patient aggregates up to whichever "responsible party"
+  // name is set on each patient (Manoj msg 1089). Unlinked patients
+  // stand alone — their patient name acts as the group label so the
+  // Consolidated view never silently hides anyone.
+  const consolidated = useMemo<ResponsiblePartyAggregate[]>(() => {
+    const byKey = new Map<string, ResponsiblePartyAggregate>();
+    for (const a of aggregates) {
+      const rawRp = a.entries[0]?.responsiblePartyName?.trim() ?? "";
+      const ownName = formatPatientName(a);
+      const label = rawRp || ownName;
+      const key = label.toLowerCase();
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.total += a.total;
+        if (a.oldestDate < existing.oldestDate)
+          existing.oldestDate = a.oldestDate;
+        existing.patients.push(a);
+      } else {
+        byKey.set(key, {
+          label,
+          key,
+          total: a.total,
+          oldestDate: a.oldestDate,
+          patients: [a],
+        });
+      }
+    }
+    return Array.from(byKey.values()).sort(
+      (a, b) => b.total - a.total || a.label.localeCompare(b.label),
+    );
+  }, [aggregates]);
 
   function toggleExpanded(patientId: string) {
     setExpanded((prev) => {
@@ -364,15 +408,34 @@ function PendingDuesPanel() {
         </TabsContent>
 
         <TabsContent value="consolidated" className="m-0">
-          <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
-            <Users className="h-10 w-10" />
-            <p className="text-sm font-medium">Consolidated View coming soon</p>
-            <p className="max-w-xs text-xs">
-              Will group dues from the same family under the head of family —
-              waiting on the household / family-relationship setup. Use Summary
-              for now.
-            </p>
-          </div>
+          {duesQuery.isLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : consolidated.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <Wallet className="mb-3 h-10 w-10" />
+              <p className="text-sm">No outstanding dues from any patient.</p>
+            </div>
+          ) : (
+            <ul className="divide-y">
+              {consolidated.map((group) => (
+                <ConsolidatedRow
+                  key={group.key}
+                  group={group}
+                  expanded={expanded.has(group.key)}
+                  onToggle={() => toggleExpanded(group.key)}
+                  onEditEntry={(e) => setEditingEntry(rowToEntry(e))}
+                />
+              ))}
+            </ul>
+          )}
+          <p className="border-t bg-muted/20 px-4 py-2 text-xs text-muted-foreground sm:px-6">
+            Tip: set the &ldquo;Responsible party&rdquo; field on a
+            patient&rsquo;s Summary card to roll their dues up to a head of
+            family / employer / payer here. Patients without one show under
+            their own name.
+          </p>
         </TabsContent>
       </Tabs>
 
@@ -399,6 +462,7 @@ type DueEntryRow = {
   firstName: string;
   middleName: string | null;
   lastName: string;
+  responsiblePartyName: string | null;
   outstanding: number;
 };
 
@@ -419,6 +483,105 @@ function rowToEntry(row: DueEntryRow): RegisterEntryForEdit {
       lastName: row.lastName,
     },
   };
+}
+
+function ConsolidatedRow({
+  group,
+  expanded,
+  onToggle,
+  onEditEntry,
+}: {
+  group: ResponsiblePartyAggregate;
+  expanded: boolean;
+  onToggle: () => void;
+  onEditEntry: (entry: DueEntryRow) => void;
+}) {
+  const hasMultiplePatients = group.patients.length > 1;
+  const totalEntries = group.patients.reduce(
+    (acc, p) => acc + p.entries.length,
+    0,
+  );
+  return (
+    <li>
+      <div className="flex items-center gap-2 px-4 py-3 sm:px-6">
+        {hasMultiplePatients ? (
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label={
+              expanded ? "Collapse linked patients" : "Expand linked patients"
+            }
+            className="-ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted"
+          >
+            {expanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </button>
+        ) : (
+          <span className="w-7 shrink-0" aria-hidden />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium md:text-base">
+            {group.label}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {hasMultiplePatients
+              ? `${group.patients.length} patients · ${totalEntries} ${totalEntries === 1 ? "entry" : "entries"} · oldest ${formatDate(group.oldestDate)}`
+              : `${totalEntries} ${totalEntries === 1 ? "entry" : "entries"} · oldest ${formatDate(group.oldestDate)}`}
+          </p>
+        </div>
+        <span className="font-mono text-sm md:text-base">
+          {formatINR(group.total)}
+        </span>
+      </div>
+      {expanded && hasMultiplePatients && (
+        <ul className="divide-y border-t bg-muted/20">
+          {group.patients.map((p) => (
+            <li key={p.patientId} className="px-4 py-2 pl-12 sm:px-6 sm:pl-16">
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/patients/${p.patientId}#pending-dues`}
+                  className="flex-1 truncate text-sm font-medium text-primary hover:underline"
+                >
+                  {formatPatientName(p)}
+                </Link>
+                <span className="font-mono text-sm">{formatINR(p.total)}</span>
+              </div>
+              <ul className="mt-1 space-y-1">
+                {p.entries.map((entry) => (
+                  <li
+                    key={entry.id}
+                    className="flex items-center gap-2 text-xs text-muted-foreground"
+                  >
+                    <span className="flex-1">
+                      {formatDate(entry.visitDate)}
+                      {entry.diagnosis ? ` · ${entry.diagnosis}` : ""}
+                    </span>
+                    <span className="font-mono">
+                      {formatINR(entry.outstanding)}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onEditEntry(entry)}
+                      aria-label="Edit fees for this entry"
+                      title="Edit fees"
+                      className="h-6 w-6"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  );
 }
 
 function SummaryRow({

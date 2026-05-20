@@ -38,6 +38,7 @@ export const patients = pgTable(
     notes: text("notes"),
     isActive: boolean("is_active").notNull().default(true),
     marked: boolean("marked").notNull().default(false),
+    responsiblePartyName: varchar("responsible_party_name", { length: 255 }),
     createdBy: text("created_by")
       .notNull()
       .references(() => users.id),

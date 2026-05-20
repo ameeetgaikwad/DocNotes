@@ -220,6 +220,7 @@ export const dailyRegisterRouter = router({
         firstName: patients.firstName,
         middleName: patients.middleName,
         lastName: patients.lastName,
+        responsiblePartyName: patients.responsiblePartyName,
       })
       .from(dailyRegisterEntries)
       .innerJoin(patients, eq(patients.id, dailyRegisterEntries.patientId))

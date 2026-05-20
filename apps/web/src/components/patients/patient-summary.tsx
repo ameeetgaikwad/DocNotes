@@ -28,6 +28,7 @@ interface PatientData {
   activeConditions: unknown;
   conditionNotes: string | null;
   notes: string | null;
+  responsiblePartyName: string | null;
   createdAt: Date;
 }
 
@@ -159,6 +160,13 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
           />
           <FieldEditor
             patientId={patient.id}
+            field="responsiblePartyName"
+            label="Responsible party"
+            initial={patient.responsiblePartyName ?? ""}
+            maxLength={255}
+          />
+          <FieldEditor
+            patientId={patient.id}
             field="notes"
             label="Notes"
             initial={patient.notes ?? ""}
@@ -187,6 +195,7 @@ function FieldEditor({
     | "address"
     | "emergencyContactName"
     | "emergencyContactPhone"
+    | "responsiblePartyName"
     | "notes";
   label: string;
   initial: string;

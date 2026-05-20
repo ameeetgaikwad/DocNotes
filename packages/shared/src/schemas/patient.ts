@@ -46,6 +46,7 @@ export const patientSchema = z.object({
   conditionNotes: z.string().nullable(),
   dietNotes: z.string().nullable(),
   notes: z.string().nullable(),
+  responsiblePartyName: z.string().max(255).nullable(),
   isActive: z.boolean(),
   createdBy: z.string().uuid(),
   createdAt: z.coerce.date(),
