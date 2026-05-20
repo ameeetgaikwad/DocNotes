@@ -10,7 +10,6 @@ import {
   BookOpen,
   Trash2,
   Pencil,
-  Download,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { todayLocalIsoDate, formatPatientName } from "@/lib/format";
@@ -31,7 +30,6 @@ import {
   EditDailyRegisterEntryDialog,
   type RegisterEntryForEdit,
 } from "@/components/daily-register/edit-entry-dialog";
-import { ExportDailyRegisterDialog } from "@/components/daily-register/export-dialog";
 
 function formatINR(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
@@ -44,7 +42,6 @@ function formatINR(amount: number): string {
 export default function DailyRegisterPage() {
   const [visitDate, setVisitDate] = useState(todayLocalIsoDate());
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<RegisterEntryForEdit | null>(
     null,
   );
@@ -66,24 +63,13 @@ export default function DailyRegisterPage() {
             Daily case register (Form 25) — patient visits and fees received
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setExportOpen(true)}
-            className="self-start md:h-12 md:px-5 md:text-base"
-          >
-            <Download className="h-4 w-4 md:h-5 md:w-5" />
-            Export
-          </Button>
-          <Button
-            onClick={() => setDialogOpen(true)}
-            className="self-start md:h-12 md:px-6 md:text-base"
-          >
-            <Plus className="h-4 w-4 md:h-5 md:w-5" />
-            Add Entry
-          </Button>
-        </div>
+        <Button
+          onClick={() => setDialogOpen(true)}
+          className="self-start md:h-12 md:px-6 md:text-base"
+        >
+          <Plus className="h-4 w-4 md:h-5 md:w-5" />
+          Add Entry
+        </Button>
       </div>
 
       <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end md:mb-8 md:gap-4">
@@ -420,11 +406,6 @@ export default function DailyRegisterPage() {
         open={editingEntry !== null}
         onOpenChange={(o) => !o && setEditingEntry(null)}
         entry={editingEntry}
-      />
-
-      <ExportDailyRegisterDialog
-        open={exportOpen}
-        onOpenChange={setExportOpen}
       />
     </div>
   );
