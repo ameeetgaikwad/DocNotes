@@ -55,7 +55,12 @@ function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
   const router = useRouter();
   const isAuthPage = pathname.startsWith("/auth");
-  const isPublicPage = pathname.startsWith("/share");
+  const isPublicPage =
+    pathname.startsWith("/share") ||
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
+    pathname === "/disclaimer";
+  const isHomePage = pathname === "/";
   const isOnboardingPage = pathname === "/onboarding";
 
   const profileQuery = useQuery({
@@ -67,6 +72,9 @@ function Shell({ children }: { children: React.ReactNode }) {
     if (!isLoaded) return;
     if (isAuthPage || isPublicPage) return;
     if (!isSignedIn) {
+      // Signed-out users may view the landing page at /; everything else
+      // pushes them to login.
+      if (isHomePage) return;
       router.replace("/auth/login");
       return;
     }
@@ -81,6 +89,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     isSignedIn,
     isAuthPage,
     isPublicPage,
+    isHomePage,
     isOnboardingPage,
     profileQuery.isLoading,
     profileQuery.data,
@@ -100,6 +109,9 @@ function Shell({ children }: { children: React.ReactNode }) {
   }
 
   if (!isSignedIn) {
+    if (isHomePage) {
+      return <>{children}</>;
+    }
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
