@@ -5,6 +5,7 @@ import {
   timestamp,
   text,
   index,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { users } from "./users.js";
 
@@ -20,6 +21,7 @@ export const auditLogs = pgTable(
     resourceId: uuid("resource_id"),
     ipAddress: varchar("ip_address", { length: 45 }),
     userAgent: varchar("user_agent", { length: 500 }),
+    metadata: jsonb("metadata"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

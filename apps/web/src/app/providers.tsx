@@ -13,6 +13,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/AppSidebar";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => {
@@ -54,7 +55,12 @@ function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
   const router = useRouter();
   const isAuthPage = pathname.startsWith("/auth");
-  const isPublicPage = pathname.startsWith("/share");
+  const isPublicPage =
+    pathname.startsWith("/share") ||
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
+    pathname === "/disclaimer";
+  const isHomePage = pathname === "/";
   const isOnboardingPage = pathname === "/onboarding";
 
   const profileQuery = useQuery({
@@ -66,6 +72,9 @@ function Shell({ children }: { children: React.ReactNode }) {
     if (!isLoaded) return;
     if (isAuthPage || isPublicPage) return;
     if (!isSignedIn) {
+      // Signed-out users may view the landing page at /; everything else
+      // pushes them to login.
+      if (isHomePage) return;
       router.replace("/auth/login");
       return;
     }
@@ -80,6 +89,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     isSignedIn,
     isAuthPage,
     isPublicPage,
+    isHomePage,
     isOnboardingPage,
     profileQuery.isLoading,
     profileQuery.data,
@@ -99,6 +109,9 @@ function Shell({ children }: { children: React.ReactNode }) {
   }
 
   if (!isSignedIn) {
+    if (isHomePage) {
+      return <>{children}</>;
+    }
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -121,7 +134,10 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen flex-col overflow-hidden md:flex-row">
       <AppSidebar />
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      <main className="flex-1 overflow-y-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
+        {children}
+      </main>
+      <MobileBottomNav />
     </div>
   );
 }

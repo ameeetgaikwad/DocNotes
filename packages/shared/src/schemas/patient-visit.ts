@@ -23,6 +23,7 @@ export const patientVisitSchema = z.object({
   temperatureCelsius: z.string().nullable(),
   weightKg: z.string().nullable(),
   heightCm: z.string().nullable(),
+  spO2Percent: z.number().int().nullable(),
   clinicalNotes: z.string().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -48,6 +49,7 @@ export const updatePatientVisitSchema = z.object({
     temperatureCelsius: decimalString.nullable().optional(),
     weightKg: decimalString.nullable().optional(),
     heightCm: decimalString.nullable().optional(),
+    spO2Percent: z.number().int().min(50).max(100).nullable().optional(),
     clinicalNotes: z.string().max(20000).nullable().optional(),
   }),
 });

@@ -35,6 +35,7 @@ export const patientVisits = pgTable(
     }),
     weightKg: numeric("weight_kg", { precision: 5, scale: 1 }),
     heightCm: numeric("height_cm", { precision: 5, scale: 1 }),
+    spO2Percent: smallint("sp_o2_percent"),
     clinicalNotes: text("clinical_notes"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

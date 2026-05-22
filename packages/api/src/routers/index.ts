@@ -10,6 +10,9 @@ import { shareRouter } from "./share.js";
 import { dailyRegisterRouter } from "./daily-register.js";
 import { patientVisitRouter } from "./patient-visit.js";
 import { doctorProfileRouter } from "./doctor-profile.js";
+import { medicineDealerRouter } from "./medicine-dealer.js";
+import { purchaseItemRouter } from "./purchase-item.js";
+import { homeopathicMedicineRouter } from "./homeopathic-medicine.js";
 
 export const appRouter = router({
   dashboard: dashboardRouter,
@@ -23,6 +26,9 @@ export const appRouter = router({
   dailyRegister: dailyRegisterRouter,
   patientVisit: patientVisitRouter,
   doctorProfile: doctorProfileRouter,
+  medicineDealer: medicineDealerRouter,
+  purchaseItem: purchaseItemRouter,
+  homeopathicMedicine: homeopathicMedicineRouter,
 });
 
 export type AppRouter = typeof appRouter;

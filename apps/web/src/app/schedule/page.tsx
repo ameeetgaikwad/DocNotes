@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   Calendar,
@@ -12,6 +13,7 @@ import {
   Clock,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { formatPatientName } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -146,7 +148,10 @@ export default function SchedulePage() {
             Manage appointments and availability
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)} className="self-start">
+        <Button
+          onClick={() => setDialogOpen(true)}
+          className="hidden self-start sm:inline-flex"
+        >
           <Plus className="h-4 w-4" />
           New Appointment
         </Button>
@@ -234,9 +239,14 @@ export default function SchedulePage() {
 
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium">
-                      Patient: {appointment.patientId.slice(0, 8)}...
-                    </span>
+                    <Link
+                      href={`/patients/${appointment.patientId}`}
+                      className="text-sm font-medium text-primary hover:underline"
+                    >
+                      {appointment.patient
+                        ? formatPatientName(appointment.patient)
+                        : "Unknown patient"}
+                    </Link>
                     <Badge variant="outline" className="text-xs">
                       {typeLabels[appointment.type] ?? appointment.type}
                     </Badge>
@@ -265,6 +275,16 @@ export default function SchedulePage() {
         onOpenChange={setDialogOpen}
         defaultDate={toDateString(selectedDate)}
       />
+
+      <button
+        type="button"
+        onClick={() => setDialogOpen(true)}
+        aria-label="New Appointment"
+        className="fixed right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 sm:hidden"
+        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 5rem)" }}
+      >
+        <Plus className="h-6 w-6" />
+      </button>
     </div>
   );
 }

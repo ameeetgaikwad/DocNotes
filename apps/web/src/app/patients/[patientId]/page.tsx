@@ -2,20 +2,25 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Loader2,
   AlertCircle,
-  Edit,
   MoreHorizontal,
   Archive,
   Download,
   Printer,
   Share2,
+  Pencil,
 } from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
-import { formatDate, calculateAge, formatGender } from "@/lib/format";
+import {
+  formatGender,
+  formatPatientName,
+  formatPatientAgeDob,
+} from "@/lib/format";
 import { downloadBase64File, printBase64Pdf } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +37,9 @@ import { PatientSummary } from "@/components/patients/patient-summary";
 import { PatientHistory } from "@/components/patients/patient-history";
 import { PatientDocuments } from "@/components/patients/patient-documents";
 import { PatientDiet } from "@/components/patients/patient-diet";
+import { PatientPendingDues } from "@/components/patients/patient-pending-dues";
 import { ShareDialog } from "@/components/patients/share-dialog";
+import { EditPatientDialog } from "@/components/patients/edit-patient-dialog";
 
 export default function PatientProfilePage({
   params,
@@ -41,6 +48,22 @@ export default function PatientProfilePage({
 }) {
   const { patientId } = use(params);
   const [shareOpen, setShareOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  // Honour ?tab=<value> so the Patients list can deep-link to a specific
+  // tab (Manoj msg 983: "Review" should open History, not Summary).
+  const searchParams = useSearchParams();
+  const initialTab = (() => {
+    const raw = searchParams.get("tab");
+    const allowed = [
+      "summary",
+      "history",
+      "documents",
+      "diet",
+      "pending-dues",
+      "appointments",
+    ];
+    return raw && allowed.includes(raw) ? raw : "summary";
+  })();
 
   const {
     data: patient,
@@ -114,6 +137,8 @@ export default function PatientProfilePage({
   }
 
   const initials = (patient.firstName[0] ?? "") + (patient.lastName[0] ?? "");
+  const fullName = formatPatientName(patient);
+  const { age: patientAge, display: dobDisplay } = formatPatientAgeDob(patient);
   const allergies = (patient.allergies ?? []) as Array<{
     name: string;
     severity: string;
@@ -138,17 +163,12 @@ export default function PatientProfilePage({
           </Avatar>
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-xl font-semibold sm:text-2xl">
-              {patient.firstName} {patient.lastName}
+              {fullName}
             </h1>
             <p className="text-sm text-muted-foreground sm:text-base">
               {formatGender(patient.gender)}
-              {patient.dateOfBirth && (
-                <>
-                  {" "}
-                  &middot; {calculateAge(patient.dateOfBirth)} years &middot;
-                  DOB: {formatDate(patient.dateOfBirth)}
-                </>
-              )}
+              {patientAge != null && <> &middot; {patientAge} years</>}
+              {dobDisplay && <> &middot; DOB: {dobDisplay}</>}
               {patient.bloodType && (
                 <>
                   {" "}
@@ -191,14 +211,24 @@ export default function PatientProfilePage({
         </div>
 
         <div className="flex shrink-0 gap-2">
-          <Button variant="outline" size="sm">
-            <Edit className="h-4 w-4" />
-            <span className="hidden sm:inline">Edit</span>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-11 w-11"
+            aria-label="Edit patient"
+            onClick={() => setEditOpen(true)}
+          >
+            <Pencil className="h-5 w-5" />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-9 w-9">
-                <MoreHorizontal className="h-4 w-4" />
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-11 w-11"
+                aria-label="Patient actions"
+              >
+                <MoreHorizontal className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -230,14 +260,31 @@ export default function PatientProfilePage({
         </div>
       </div>
 
-      <Tabs defaultValue="summary">
-        <TabsList className="w-full justify-start overflow-x-auto">
-          <TabsTrigger value="summary">Summary</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="diet">Diet</TabsTrigger>
-          <TabsTrigger value="appointments">Appointments</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue={initialTab}>
+        <div className="relative">
+          <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 [&::-webkit-scrollbar]:hidden">
+            {[
+              { value: "summary", label: "Summary" },
+              { value: "history", label: "History" },
+              { value: "documents", label: "Documents" },
+              { value: "diet", label: "Diet" },
+              { value: "pending-dues", label: "Pending Dues" },
+              { value: "appointments", label: "Appointments" },
+            ].map((t) => (
+              <TabsTrigger
+                key={t.value}
+                value={t.value}
+                className="shrink-0 rounded-none border-b-2 border-transparent bg-transparent px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none md:px-4"
+              >
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-background to-transparent"
+          />
+        </div>
 
         <TabsContent value="summary">
           <PatientSummary patient={patient} />
@@ -258,14 +305,19 @@ export default function PatientProfilePage({
           />
         </TabsContent>
 
+        <TabsContent value="pending-dues">
+          <PatientPendingDues patientId={patient.id} />
+        </TabsContent>
+
         <TabsContent value="appointments">
           <div className="rounded-xl border bg-card p-6">
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <p className="text-lg font-medium">No appointments</p>
-              <p className="mb-4 text-sm">
-                Schedule an appointment for this patient
+              <p className="text-lg font-medium">Coming soon</p>
+              <p className="mt-1 max-w-md text-center text-sm">
+                Appointment scheduling per patient isn&apos;t wired into this
+                tab yet. Use the Schedule tab in the bottom nav to create
+                appointments in the meantime.
               </p>
-              <Button variant="outline">Schedule Appointment</Button>
             </div>
           </div>
         </TabsContent>
@@ -276,7 +328,13 @@ export default function PatientProfilePage({
         onOpenChange={setShareOpen}
         resourceType="patient_summary"
         resourceId={patientId}
-        resourceLabel={`${patient.firstName} ${patient.lastName}'s records`}
+        resourceLabel={`${fullName}'s records`}
+      />
+
+      <EditPatientDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        patient={patient}
       />
     </div>
   );

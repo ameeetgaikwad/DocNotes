@@ -46,11 +46,16 @@ export async function createPresignedUploadUrl(
 export async function createPresignedDownloadUrl(
   s3Key: string,
   fileName: string,
+  disposition: "attachment" | "inline" = "attachment",
 ): Promise<string> {
+  // attachment forces the browser to download; inline lets the browser
+  // render PDFs / images / etc. in place. Manoj msg 1071 asked for a
+  // View action that opens the file, so the document router passes
+  // "inline" for the View URL and "attachment" for explicit Download.
   const command = new GetObjectCommand({
     Bucket: S3_BUCKET,
     Key: s3Key,
-    ResponseContentDisposition: `attachment; filename="${fileName}"`,
+    ResponseContentDisposition: `${disposition}; filename="${fileName}"`,
   });
   return getSignedUrl(getClient(), command, { expiresIn: 3600 }); // 1 hour
 }

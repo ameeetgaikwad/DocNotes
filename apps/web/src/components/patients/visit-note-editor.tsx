@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { Pill } from "lucide-react";
 import { soapNoteSchema, vitalsSchema } from "@docnotes/shared";
 import { trpcClient } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -10,14 +11,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+  ResponsiveDialog as Dialog,
+  ResponsiveDialogContent as DialogContent,
+  ResponsiveDialogHeader as DialogHeader,
+  ResponsiveDialogTitle as DialogTitle,
+  ResponsiveDialogDescription as DialogDescription,
+  ResponsiveDialogFooter as DialogFooter,
+  ResponsiveDialogClose as DialogClose,
+} from "@/components/ui/responsive-dialog";
+import { HomeopathicMedicinePicker } from "./homeopathic-medicine-picker";
 
 const visitNoteFormSchema = z.object({
   title: z.string().min(1, "Title is required").max(500),
@@ -76,6 +78,8 @@ export function VisitNoteEditor({
     register,
     handleSubmit,
     reset,
+    setValue,
+    getValues,
     formState: { errors },
   } = useForm<VisitNoteFormValues>({
     resolver: zodResolver(visitNoteFormSchema),
@@ -88,6 +92,17 @@ export function VisitNoteEditor({
       diagnoses: "",
     },
   });
+
+  const [homeopathicPickerOpen, setHomeopathicPickerOpen] = useState(false);
+
+  function insertHomeopathicLines(lines: string[]) {
+    const current = getValues("plan") ?? "";
+    const insertion = lines.join("\n");
+    const next = current.trim()
+      ? `${current.replace(/\s+$/, "")}\n${insertion}`
+      : insertion;
+    setValue("plan", next, { shouldDirty: true });
+  }
 
   const createMutation = useMutation({
     mutationFn: (data: VisitNoteFormValues) => {
@@ -251,12 +266,24 @@ export function VisitNoteEditor({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="plan">
-                Plan{" "}
-                <span className="font-normal text-muted-foreground">
-                  — Treatment and follow-up
-                </span>
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="plan">
+                  Plan{" "}
+                  <span className="font-normal text-muted-foreground">
+                    — Treatment and follow-up
+                  </span>
+                </Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setHomeopathicPickerOpen(true)}
+                  className="h-7 px-2 text-xs"
+                  title="Insert homeopathic medicine"
+                >
+                  <Pill className="h-3.5 w-3.5" />H
+                </Button>
+              </div>
               <Textarea
                 id="plan"
                 placeholder="Medications, procedures, referrals, follow-up schedule..."
@@ -391,6 +418,12 @@ export function VisitNoteEditor({
             </Button>
           </DialogFooter>
         </form>
+
+        <HomeopathicMedicinePicker
+          open={homeopathicPickerOpen}
+          onOpenChange={setHomeopathicPickerOpen}
+          onInsert={insertHomeopathicLines}
+        />
       </DialogContent>
     </Dialog>
   );

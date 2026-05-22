@@ -32,10 +32,10 @@ export const documentRouter = router({
       if (category) {
         conditions.push(eq(documents.category, category));
       }
-      // Exclude uploading docs that are stale (not confirmed within an hour)
-      conditions.push(
-        sql`(${documents.status} != 'uploading' OR ${documents.createdAt} > now() - interval '1 hour')`,
-      );
+      // Only return active documents — archive was replaced with hard
+      // delete in Manoj msg 1077, but any pre-existing archived rows
+      // should also be hidden so the list stays clean.
+      conditions.push(eq(documents.status, "active"));
 
       const where = and(...conditions);
 
@@ -137,7 +137,15 @@ export const documentRouter = router({
     }),
 
   getDownloadUrl: protectedProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        // "inline" → browser renders (View); "attachment" → forces save
+        // (Download). Default "attachment" preserves the existing behaviour
+        // for any other call sites that haven't been updated yet.
+        disposition: z.enum(["attachment", "inline"]).default("attachment"),
+      }),
+    )
     .query(async ({ ctx, input }) => {
       const result = await ctx.db
         .select()
@@ -154,7 +162,11 @@ export const documentRouter = router({
       const doc = result[0];
       if (!doc) return null;
 
-      const url = await createPresignedDownloadUrl(doc.s3Key, doc.name);
+      const url = await createPresignedDownloadUrl(
+        doc.s3Key,
+        doc.name,
+        input.disposition,
+      );
 
       logAudit(ctx, {
         action: "read",
@@ -171,29 +183,6 @@ export const documentRouter = router({
       const [doc] = await ctx.db
         .update(documents)
         .set(input.data)
-        .where(
-          and(
-            eq(documents.id, input.id),
-            eq(documents.uploadedBy, ctx.session.userId),
-          ),
-        )
-        .returning();
-
-      logAudit(ctx, {
-        action: "update",
-        resource: "document",
-        resourceId: input.id,
-      });
-
-      return doc;
-    }),
-
-  archive: protectedProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      const [doc] = await ctx.db
-        .update(documents)
-        .set({ status: "archived" })
         .where(
           and(
             eq(documents.id, input.id),

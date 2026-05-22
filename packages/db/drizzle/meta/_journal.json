@@ -71,6 +71,69 @@
       "when": 1778803400000,
       "tag": "0009_doctor_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778803600000,
+      "tag": "0010_patient_middle_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778803800000,
+      "tag": "0011_daily_register_paid_amount",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1778804000000,
+      "tag": "0012_purchase_list",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1778839200000,
+      "tag": "0013_audit_log_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1778850000000,
+      "tag": "0014_homeopathic_medicines",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1778925000000,
+      "tag": "0015_patient_allergy_condition_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1779580800000,
+      "tag": "0016_patient_visits_spo2",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1779580800001,
+      "tag": "0017_patient_marked",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1779580800002,
+      "tag": "0018_patients_responsible_party",
+      "breakpoints": true
     }
   ]
 }

@@ -101,8 +101,16 @@ export default function OnboardingPage() {
       }
       return trpcClient.doctorProfile.upsert.mutate(validated.data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [["doctorProfile"]] });
+    onSuccess: async (data) => {
+      // Seed the cache so the Providers Shell doesn't read a stale `null`
+      // and bounce us straight back to /onboarding while a refetch is in
+      // flight. Then await invalidation so the next read is authoritative.
+      if (data) {
+        queryClient.setQueryData(trpc.doctorProfile.me.queryKey(), data);
+      }
+      await queryClient.invalidateQueries({
+        queryKey: [["doctorProfile"]],
+      });
       router.replace("/");
     },
     onError: (e) => {

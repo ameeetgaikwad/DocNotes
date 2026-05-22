@@ -17,6 +17,7 @@ export default tseslint.config(
       "apps/mobile/babel.config.js",
       "apps/web/.next/**",
       "apps/web/next-env.d.ts",
+      "apps/web/public/**",
     ],
   },
   js.configs.recommended,

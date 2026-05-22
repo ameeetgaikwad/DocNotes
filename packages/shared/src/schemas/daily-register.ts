@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { initialVitalsSchema } from "./patient.js";
 
 export const paymentModeSchema = z.enum(["cash", "digital"]);
 export type PaymentMode = z.infer<typeof paymentModeSchema>;
@@ -35,6 +36,7 @@ export const dailyRegisterEntrySchema = z.object({
   patientId: z.string().uuid(),
   serviceType: z.string().nullable(),
   feeAmount: z.string(),
+  paidAmount: z.string(),
   paymentMode: paymentModeSchema,
   paymentStatus: paymentStatusSchema,
   feeReceivedAt: z.string().nullable(),
@@ -56,6 +58,10 @@ export const createDailyRegisterEntrySchema = z.object({
   feeReceivedAt: isoDate.nullable().optional(),
   diagnosis: z.string().max(500).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
+  // Optional baseline vitals captured at the same time as the register
+  // entry (unified register-entry + new-patient flow, Manoj msg 917).
+  // Writes to today's patient_visits row after the entry is created.
+  initialVitals: initialVitalsSchema.optional(),
 });
 
 export type CreateDailyRegisterEntry = z.infer<
@@ -97,3 +103,11 @@ export const dailyRegisterSummaryQuerySchema = z
 export type DailyRegisterSummaryQuery = z.infer<
   typeof dailyRegisterSummaryQuerySchema
 >;
+
+export const recordPaymentSchema = z.object({
+  id: z.string().uuid(),
+  paidAmount: z.number().nonnegative().max(1_000_000),
+  feeReceivedAt: isoDate.nullable().optional(),
+});
+
+export type RecordPayment = z.infer<typeof recordPaymentSchema>;

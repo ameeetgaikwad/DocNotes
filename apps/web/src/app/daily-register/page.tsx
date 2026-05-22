@@ -3,11 +3,18 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Loader2, AlertCircle, BookOpen, Trash2 } from "lucide-react";
+import {
+  Plus,
+  Loader2,
+  AlertCircle,
+  BookOpen,
+  Trash2,
+  Pencil,
+} from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { todayLocalIsoDate } from "@/lib/format";
+import { todayLocalIsoDate, formatPatientName } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { DateInput } from "@/components/ui/date-input";
+import { CalendarInput } from "@/components/ui/calendar-input";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -19,6 +26,10 @@ import {
 } from "@/components/ui/table";
 import { NewDailyRegisterEntryDialog } from "@/components/daily-register/new-entry-dialog";
 import { DeleteEntryButton } from "@/components/daily-register/delete-entry-button";
+import {
+  EditDailyRegisterEntryDialog,
+  type RegisterEntryForEdit,
+} from "@/components/daily-register/edit-entry-dialog";
 
 function formatINR(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
@@ -31,6 +42,9 @@ function formatINR(amount: number): string {
 export default function DailyRegisterPage() {
   const [visitDate, setVisitDate] = useState(todayLocalIsoDate());
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<RegisterEntryForEdit | null>(
+    null,
+  );
 
   const { data, isLoading, error } = useQuery(
     trpc.dailyRegister.list.queryOptions({ visitDate }),
@@ -42,7 +56,9 @@ export default function DailyRegisterPage() {
     <div className="p-4 sm:p-6 md:p-8">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between md:mb-8">
         <div>
-          <h1 className="text-2xl font-semibold md:text-3xl">Daily Register</h1>
+          <h1 className="text-2xl font-semibold md:text-3xl">
+            Daily Case Register
+          </h1>
           <p className="text-muted-foreground md:text-base">
             Daily case register (Form 25) — patient visits and fees received
           </p>
@@ -64,12 +80,12 @@ export default function DailyRegisterPage() {
           >
             Date
           </label>
-          <DateInput
+          <CalendarInput
             id="visit-date"
             value={visitDate}
             onChange={(v) => v && setVisitDate(v)}
             max={todayLocalIsoDate()}
-            className="w-40 md:h-12 md:text-base"
+            className="w-44 md:h-12 md:text-base"
           />
         </div>
         {!isToday && (
@@ -127,7 +143,116 @@ export default function DailyRegisterPage() {
 
       {data && data.items.length > 0 && (
         <>
-          <div className="overflow-x-auto rounded-xl border bg-card">
+          {(() => {
+            const unrecordedCount = data.items.filter(
+              (e) =>
+                e.paymentStatus !== "nil" && Number(e.feeAmount ?? 0) === 0,
+            ).length;
+            if (unrecordedCount === 0) return null;
+            return (
+              <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700/50 dark:bg-amber-950/30">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <p className="text-amber-900 dark:text-amber-200">
+                  {unrecordedCount}{" "}
+                  {unrecordedCount === 1 ? "entry" : "entries"} on this date{" "}
+                  {unrecordedCount === 1 ? "doesn't have" : "don't have"} fees
+                  recorded yet — tap the row to fill them in once settled.
+                </p>
+              </div>
+            );
+          })()}
+
+          {/* Mobile: card per entry. Desktop (≥md): table. */}
+          <ul className="space-y-2 md:hidden">
+            {data.items.map((entry, idx) => {
+              const statusLabel =
+                entry.paymentStatus === "paid"
+                  ? "Paid"
+                  : entry.paymentStatus === "due"
+                    ? "Due"
+                    : "Nil";
+              const feesUnrecorded =
+                entry.paymentStatus !== "nil" &&
+                Number(entry.feeAmount ?? 0) === 0;
+              const meta = [
+                entry.serviceType || null,
+                entry.paymentStatus !== "nil"
+                  ? entry.paymentMode === "cash"
+                    ? "Cash"
+                    : "Digital / UPI"
+                  : null,
+                entry.diagnosis || null,
+              ].filter((s): s is string => Boolean(s));
+              return (
+                <li key={entry.id} className="rounded-xl border bg-card p-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditingEntry(entry)}
+                    className="flex w-full items-start justify-between gap-3 text-left"
+                    aria-label="Edit entry"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          #{idx + 1}
+                        </span>
+                        <span className="truncate font-medium text-primary">
+                          {formatPatientName(entry.patient)}
+                        </span>
+                      </div>
+                      {meta.length > 0 && (
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                          {meta.join(" · ")}
+                        </p>
+                      )}
+                      {entry.notes && (
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                          {entry.notes}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <span className="font-mono text-sm">
+                        {entry.paymentStatus === "nil"
+                          ? "—"
+                          : formatINR(Number(entry.feeAmount))}
+                      </span>
+                      <Badge
+                        variant={
+                          entry.paymentStatus === "paid"
+                            ? "default"
+                            : entry.paymentStatus === "due"
+                              ? "outline"
+                              : "secondary"
+                        }
+                      >
+                        {statusLabel}
+                      </Badge>
+                      {feesUnrecorded && (
+                        <Badge variant="warning" className="text-[10px]">
+                          Fees not recorded
+                        </Badge>
+                      )}
+                    </div>
+                  </button>
+                  <div className="mt-2 flex items-center justify-end gap-2 border-t pt-2 text-xs">
+                    <Link
+                      href={`/patients/${entry.patient.id}`}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      View patient
+                    </Link>
+                    <span className="text-muted-foreground/40">·</span>
+                    <DeleteEntryButton entryId={entry.id} visitDate={visitDate}>
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </DeleteEntryButton>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="hidden overflow-x-auto rounded-xl border bg-card md:block">
             <Table className="md:text-base">
               <TableHeader>
                 <TableRow>
@@ -159,7 +284,7 @@ export default function DailyRegisterPage() {
                         href={`/patients/${entry.patient.id}`}
                         className="text-primary hover:underline"
                       >
-                        {entry.patient.firstName} {entry.patient.lastName}
+                        {formatPatientName(entry.patient)}
                       </Link>
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground sm:table-cell md:py-4">
@@ -171,21 +296,29 @@ export default function DailyRegisterPage() {
                         : formatINR(Number(entry.feeAmount))}
                     </TableCell>
                     <TableCell className="md:py-4">
-                      <Badge
-                        variant={
-                          entry.paymentStatus === "paid"
-                            ? "default"
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge
+                          variant={
+                            entry.paymentStatus === "paid"
+                              ? "default"
+                              : entry.paymentStatus === "due"
+                                ? "outline"
+                                : "secondary"
+                          }
+                        >
+                          {entry.paymentStatus === "paid"
+                            ? "Paid"
                             : entry.paymentStatus === "due"
-                              ? "outline"
-                              : "secondary"
-                        }
-                      >
-                        {entry.paymentStatus === "paid"
-                          ? "Paid"
-                          : entry.paymentStatus === "due"
-                            ? "Due"
-                            : "Nil"}
-                      </Badge>
+                              ? "Due"
+                              : "Nil"}
+                        </Badge>
+                        {entry.paymentStatus !== "nil" &&
+                          Number(entry.feeAmount ?? 0) === 0 && (
+                            <Badge variant="warning" className="text-[10px]">
+                              Fees not recorded
+                            </Badge>
+                          )}
+                      </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell md:py-4">
                       {entry.paymentStatus === "nil" ? (
@@ -211,12 +344,22 @@ export default function DailyRegisterPage() {
                       {entry.notes || "—"}
                     </TableCell>
                     <TableCell className="md:py-4">
-                      <DeleteEntryButton
-                        entryId={entry.id}
-                        visitDate={visitDate}
-                      >
-                        <Trash2 className="h-4 w-4 md:h-5 md:w-5" />
-                      </DeleteEntryButton>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingEntry(entry)}
+                          aria-label="Edit entry"
+                          className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          <Pencil className="h-4 w-4 md:h-5 md:w-5" />
+                        </button>
+                        <DeleteEntryButton
+                          entryId={entry.id}
+                          visitDate={visitDate}
+                        >
+                          <Trash2 className="h-4 w-4 md:h-5 md:w-5" />
+                        </DeleteEntryButton>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -257,6 +400,12 @@ export default function DailyRegisterPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         visitDate={visitDate}
+      />
+
+      <EditDailyRegisterEntryDialog
+        open={editingEntry !== null}
+        onOpenChange={(o) => !o && setEditingEntry(null)}
+        entry={editingEntry}
       />
     </div>
   );

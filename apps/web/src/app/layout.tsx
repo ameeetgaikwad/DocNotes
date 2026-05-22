@@ -2,15 +2,35 @@ import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import "../styles.css";
 import { Providers } from "./providers";
+import { PWARegister } from "@/components/PWARegister";
 
 export const metadata: Metadata = {
   title: "DocNotes",
   description: "Medical records for general practitioners",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "DocNotes",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0F766E",
 };
 
 export default function RootLayout({
@@ -40,6 +60,7 @@ export default function RootLayout({
           />
         </head>
         <body>
+          <PWARegister />
           <Providers>{children}</Providers>
         </body>
       </html>

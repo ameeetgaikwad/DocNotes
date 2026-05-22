@@ -9,3 +9,6 @@ export * from "./export.js";
 export * from "./daily-register.js";
 export * from "./patient-visit.js";
 export * from "./doctor-profile.js";
+export * from "./medicine-dealer.js";
+export * from "./purchase-item.js";
+export * from "./homeopathic-medicine.js";

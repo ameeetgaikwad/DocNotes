@@ -25,6 +25,7 @@ export type PartialDob = z.infer<typeof partialDobSchema>;
 export const patientSchema = z.object({
   id: z.string().uuid(),
   firstName: z.string().min(1).max(255),
+  middleName: z.string().max(255).nullable(),
   lastName: z.string().min(1).max(255),
   dateOfBirth: z.coerce.date().nullable(),
   dobDay: z.number().int().nullable(),
@@ -33,16 +34,19 @@ export const patientSchema = z.object({
   gender: Gender.nullable(),
   email: z.string().email().nullable(),
   phone: z.string().max(20).nullable(),
-  address: z.string().max(500).nullable(),
+  address: z.string().max(75).nullable(),
   emergencyContactName: z.string().max(255).nullable(),
   emergencyContactPhone: z.string().max(20).nullable(),
   bloodType: z
     .enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"])
     .nullable(),
   allergies: z.array(allergySchema),
+  allergyNotes: z.string().nullable(),
   activeConditions: z.array(z.string()),
+  conditionNotes: z.string().nullable(),
   dietNotes: z.string().nullable(),
   notes: z.string().nullable(),
+  responsiblePartyName: z.string().max(255).nullable(),
   isActive: z.boolean(),
   createdBy: z.string().uuid(),
   createdAt: z.coerce.date(),
@@ -51,11 +55,56 @@ export const patientSchema = z.object({
 
 export type Patient = z.infer<typeof patientSchema>;
 
+export const duplicateOverrideSchema = z.object({
+  reason: z.string().min(1).max(200),
+  candidateIds: z.array(z.string().uuid()).min(1).max(20),
+});
+
+export type DuplicateOverride = z.infer<typeof duplicateOverrideSchema>;
+
+// Receptionist-captured baseline vitals attached to today's visit row.
+// Shared between createPatientSchema (registering a new patient) and
+// createDailyRegisterEntrySchema (logging an entry for an existing
+// patient) so both flows write to the same patient_visits columns.
+export const initialVitalsSchema = z.object({
+  // Visit date the vitals belong to (ISO YYYY-MM-DD). Optional so
+  // existing callers stay working; when present, the server attaches
+  // the vitals to that date's patient_visits row instead of the
+  // server's "today". Required for back-dated register entries and
+  // for UTC-hosted deployments where the server's calendar day can
+  // disagree with the user's local one near midnight.
+  visitDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD")
+    .optional(),
+  weightKg: z
+    .union([z.string(), z.number()])
+    .transform((v) => (typeof v === "number" ? String(v) : v))
+    .pipe(z.string().regex(/^\d+(\.\d+)?$/, "must be numeric"))
+    .nullable()
+    .optional(),
+  bpSystolic: z.number().int().min(40).max(300).nullable().optional(),
+  bpDiastolic: z.number().int().min(20).max(200).nullable().optional(),
+  spO2Percent: z.number().int().min(50).max(100).nullable().optional(),
+  temperatureCelsius: z
+    .union([z.string(), z.number()])
+    .transform((v) => (typeof v === "number" ? String(v) : v))
+    .pipe(z.string().regex(/^\d+(\.\d+)?$/, "must be numeric"))
+    .nullable()
+    .optional(),
+});
+
+export type InitialVitals = z.infer<typeof initialVitalsSchema>;
+
 export const createPatientSchema = z.object({
   firstName: z.string().min(1).max(255),
-  lastName: z.string().min(1).max(255),
-  dateOfBirth: z.coerce.date(),
-  gender: Gender,
+  middleName: z.string().max(255).nullable().optional(),
+  lastName: z.string().max(255).nullable().optional(),
+  dateOfBirth: z.coerce.date().nullable().optional(),
+  dobDay: dobDaySchema.nullable().optional(),
+  dobMonth: dobMonthSchema.nullable().optional(),
+  dobYear: dobYearSchema.nullable().optional(),
+  gender: Gender.nullable().optional(),
   email: z.string().email().nullable().optional(),
   phone: z.string().max(20).nullable().optional(),
   address: z.string().max(500).nullable().optional(),
@@ -66,14 +115,29 @@ export const createPatientSchema = z.object({
     .nullable()
     .optional(),
   allergies: z.array(allergySchema).optional(),
+  allergyNotes: z.string().max(5000).nullable().optional(),
   activeConditions: z.array(z.string()).optional(),
+  conditionNotes: z.string().max(5000).nullable().optional(),
   dietNotes: z.string().max(5000).nullable().optional(),
   notes: z.string().nullable().optional(),
+  responsiblePartyName: z.string().max(255).nullable().optional(),
+  duplicateOverride: duplicateOverrideSchema.optional(),
+  // Optional initial vitals captured at registration (e.g., by the
+  // receptionist). When any are set, the patient.create handler also
+  // upserts a patient_visits row for today so the values flow into
+  // History + the doctor's Daily Register view for the same day.
+  initialVitals: initialVitalsSchema.optional(),
 });
 
 export type CreatePatient = z.infer<typeof createPatientSchema>;
 
-export const updatePatientSchema = createPatientSchema.partial();
+// initialVitals only makes sense at creation time (it spawns the
+// patient's first visit row). Strip it from the update path so the
+// patient.update handler can spread input.data into the patients
+// table without trying to write a column that doesn't exist.
+export const updatePatientSchema = createPatientSchema
+  .omit({ initialVitals: true, duplicateOverride: true })
+  .partial();
 
 export type UpdatePatient = z.infer<typeof updatePatientSchema>;
 
@@ -87,6 +151,7 @@ export type PatientSearch = z.infer<typeof patientSearchSchema>;
 
 export const quickCreatePatientSchema = z.object({
   firstName: z.string().min(1).max(255),
+  middleName: z.string().max(255).optional().default(""),
   lastName: z.string().max(255).optional().default(""),
   dobDay: dobDaySchema.nullable().optional(),
   dobMonth: dobMonthSchema.nullable().optional(),

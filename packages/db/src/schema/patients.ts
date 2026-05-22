@@ -17,6 +17,7 @@ export const patients = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     firstName: varchar("first_name", { length: 255 }).notNull(),
+    middleName: varchar("middle_name", { length: 255 }),
     lastName: varchar("last_name", { length: 255 }).notNull(),
     dateOfBirth: date("date_of_birth"),
     dobDay: smallint("dob_day"),
@@ -30,10 +31,14 @@ export const patients = pgTable(
     emergencyContactPhone: varchar("emergency_contact_phone", { length: 20 }),
     bloodType: varchar("blood_type", { length: 5 }),
     allergies: jsonb("allergies").notNull().default([]),
+    allergyNotes: text("allergy_notes"),
     activeConditions: jsonb("active_conditions").notNull().default([]),
+    conditionNotes: text("condition_notes"),
     dietNotes: text("diet_notes"),
     notes: text("notes"),
     isActive: boolean("is_active").notNull().default(true),
+    marked: boolean("marked").notNull().default(false),
+    responsiblePartyName: varchar("responsible_party_name", { length: 255 }),
     createdBy: text("created_by")
       .notNull()
       .references(() => users.id),

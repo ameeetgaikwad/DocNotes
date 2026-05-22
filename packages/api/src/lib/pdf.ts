@@ -1,7 +1,10 @@
-import ReactPDF from "@react-pdf/renderer";
+import ReactPDF, { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 
-const { StyleSheet, renderToBuffer } = ReactPDF;
+// renderToBuffer is a named export on @react-pdf/renderer@4.3.2 — the
+// default-export object only carries renderToStream/renderToFile/etc.
+// We import it directly above so this destructuring works regardless.
+const { StyleSheet } = ReactPDF;
 
 // Cast to any to avoid React 18/19 type mismatch with @react-pdf/renderer
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -170,9 +173,41 @@ interface RecordData {
   diagnoses?: string[];
 }
 
+interface VisitData {
+  visitDate: string;
+  bpSystolic: number | null;
+  bpDiastolic: number | null;
+  heartRate: number | null;
+  bslFasting: string | null;
+  bslPostprandial: string | null;
+  bslRandom: string | null;
+  temperatureCelsius: string | null;
+  weightKg: string | null;
+  heightCm: string | null;
+  spO2Percent: number | null;
+  clinicalNotes: string | null;
+}
+
+function formatVisitVitals(v: VisitData): string {
+  const parts: string[] = [];
+  if (v.bpSystolic != null && v.bpDiastolic != null) {
+    parts.push(`BP ${v.bpSystolic}/${v.bpDiastolic}`);
+  }
+  if (v.heartRate != null) parts.push(`HR ${v.heartRate}`);
+  if (v.spO2Percent != null) parts.push(`SpO2 ${v.spO2Percent}%`);
+  if (v.bslFasting) parts.push(`BSL-F ${v.bslFasting}`);
+  if (v.bslPostprandial) parts.push(`PP ${v.bslPostprandial}`);
+  if (v.bslRandom) parts.push(`R ${v.bslRandom}`);
+  if (v.temperatureCelsius) parts.push(`Temp ${v.temperatureCelsius}°C`);
+  if (v.weightKg) parts.push(`Wt ${v.weightKg}kg`);
+  if (v.heightCm) parts.push(`Ht ${v.heightCm}cm`);
+  return parts.join(" · ");
+}
+
 export async function renderPatientSummaryPdf(
   patient: PatientData,
   records: RecordData[],
+  visits: VisitData[] = [],
 ): Promise<Buffer> {
   const doc = e(
     Document,
@@ -299,7 +334,41 @@ export async function renderPatientSummaryPdf(
             ),
           )
         : null,
-      // Recent Records
+      // Visits (new patient_visits timeline)
+      visits.length > 0
+        ? e(
+            View,
+            { style: styles.section },
+            e(
+              Text,
+              { style: styles.sectionTitle },
+              `Visits (${visits.length})`,
+            ),
+            ...visits.map((v) => {
+              const vitalsLine = formatVisitVitals(v);
+              return e(
+                View,
+                { key: v.visitDate, style: { marginBottom: 10 } },
+                e(
+                  Text,
+                  { style: { fontFamily: "Helvetica-Bold" } },
+                  formatDateDDMMYYYY(v.visitDate),
+                ),
+                vitalsLine
+                  ? e(
+                      Text,
+                      { style: { color: "#64748b", fontSize: 10 } },
+                      vitalsLine,
+                    )
+                  : null,
+                v.clinicalNotes
+                  ? e(Text, { style: { fontSize: 10 } }, v.clinicalNotes)
+                  : null,
+              );
+            }),
+          )
+        : null,
+      // Older notes (legacy medical_records)
       records.length > 0
         ? e(
             View,
@@ -307,7 +376,7 @@ export async function renderPatientSummaryPdf(
             e(
               Text,
               { style: styles.sectionTitle },
-              `Medical Records (${records.length})`,
+              `Older Notes (${records.length})`,
             ),
             ...records.map((rec) =>
               e(
@@ -519,6 +588,451 @@ export async function renderMedicalRecordPdf(
         Text,
         { style: styles.footer },
         `DocNotes — Confidential Medical Record — ${formatDateDDMMYYYY(new Date())}`,
+      ),
+    ),
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return renderToBuffer(doc as any);
+}
+
+// Prescription rendered to roughly match Manoj's existing hand-printed
+// slip (msg 910 photo): doctor block top-left, clinic line, date
+// right-aligned, body for clinical notes, signature line. Devanagari
+// letterhead block is deliberately deferred — @react-pdf's default
+// Helvetica has no Devanagari glyphs, so adding it requires font
+// registration and per-doctor Marathi input fields (follow-up).
+interface DoctorProfileData {
+  fullName: string;
+  qualification: string;
+  specialization?: string | null;
+  registrationNumber: string;
+  mobileNumber: string;
+  email?: string | null;
+  clinicName: string;
+  taluka: string;
+  district: string;
+  state: string;
+}
+
+interface PrescriptionVisitData {
+  visitDate: string;
+  bpSystolic: number | null;
+  bpDiastolic: number | null;
+  heartRate: number | null;
+  weightKg: string | null;
+  spO2Percent: number | null;
+  clinicalNotes: string | null;
+}
+
+interface PrescriptionPatientData {
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  dateOfBirth: Date | string | null;
+  dobYear: number | null;
+  gender: string | null;
+  phone: string | null;
+}
+
+const rxStyles = StyleSheet.create({
+  page: {
+    paddingHorizontal: 30,
+    paddingVertical: 28,
+    fontSize: 11,
+    fontFamily: "Helvetica",
+    lineHeight: 1.35,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  doctorBlock: { flexDirection: "column" },
+  doctorName: {
+    fontSize: 16,
+    fontFamily: "Helvetica-Bold",
+    color: "#7f1d1d",
+  },
+  doctorLine: { fontSize: 10, color: "#7f1d1d" },
+  doctorRightLine: { fontSize: 10, color: "#7f1d1d", textAlign: "right" },
+  hrThick: {
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#7f1d1d",
+    marginTop: 6,
+  },
+  clinicLine: {
+    fontSize: 10,
+    color: "#7f1d1d",
+    textAlign: "center",
+    marginTop: 4,
+  },
+  hrThin: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#7f1d1d",
+    marginTop: 4,
+  },
+  patientRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 12,
+    fontSize: 11,
+  },
+  bodyHeading: {
+    fontSize: 13,
+    fontFamily: "Helvetica-Bold",
+    marginTop: 14,
+    color: "#1e293b",
+  },
+  vitalsLine: { fontSize: 9, color: "#64748b", marginTop: 2 },
+  rxBody: { fontSize: 12, marginTop: 8, color: "#0f172a" },
+  signatureLine: {
+    marginTop: 40,
+    alignSelf: "flex-end",
+    borderTopWidth: 0.5,
+    borderTopColor: "#1e293b",
+    paddingTop: 4,
+    width: 160,
+    textAlign: "center",
+    fontSize: 9,
+    color: "#475569",
+  },
+});
+
+function calcAgeFromYear(
+  year: number | null,
+  dob: Date | string | null,
+): number | null {
+  if (dob) return calculateAge(dob);
+  if (year != null) return new Date().getFullYear() - year;
+  return null;
+}
+
+function prescriptionVitalsLine(v: PrescriptionVisitData): string {
+  const parts: string[] = [];
+  if (v.bpSystolic != null && v.bpDiastolic != null) {
+    parts.push(`BP ${v.bpSystolic}/${v.bpDiastolic}`);
+  }
+  if (v.heartRate != null) parts.push(`HR ${v.heartRate}`);
+  if (v.spO2Percent != null) parts.push(`SpO2 ${v.spO2Percent}%`);
+  if (v.weightKg) parts.push(`Wt ${v.weightKg}kg`);
+  return parts.join(" · ");
+}
+
+export async function renderPrescriptionPdf(
+  patient: PrescriptionPatientData,
+  doctor: DoctorProfileData,
+  visit: PrescriptionVisitData,
+): Promise<Buffer> {
+  const patientName = [patient.firstName, patient.middleName, patient.lastName]
+    .filter(Boolean)
+    .join(" ");
+  const age = calcAgeFromYear(patient.dobYear, patient.dateOfBirth);
+  const ageSex = [
+    age != null ? `${age} y` : null,
+    patient.gender ? patient.gender[0]!.toUpperCase() : null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
+  const clinicLine = [
+    doctor.clinicName,
+    doctor.taluka,
+    doctor.district,
+    doctor.state,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const vitalsLine = prescriptionVitalsLine(visit);
+
+  const doc = e(
+    Document,
+    null,
+    e(
+      Page,
+      { size: "A5", style: rxStyles.page },
+      e(
+        View,
+        { style: rxStyles.headerRow },
+        e(
+          View,
+          { style: rxStyles.doctorBlock },
+          e(Text, { style: rxStyles.doctorName }, `Dr. ${doctor.fullName}`),
+          e(Text, { style: rxStyles.doctorLine }, doctor.qualification),
+          e(
+            Text,
+            { style: rxStyles.doctorLine },
+            `Reg. No. ${doctor.registrationNumber}`,
+          ),
+          e(
+            Text,
+            { style: rxStyles.doctorLine },
+            `Mob.: ${doctor.mobileNumber}`,
+          ),
+        ),
+        e(
+          View,
+          null,
+          e(
+            Text,
+            { style: rxStyles.doctorRightLine },
+            doctor.specialization ?? "",
+          ),
+          e(
+            Text,
+            { style: rxStyles.doctorRightLine },
+            `Date: ${formatDateDDMMYYYY(visit.visitDate)}`,
+          ),
+        ),
+      ),
+      e(View, { style: rxStyles.hrThick }),
+      clinicLine ? e(Text, { style: rxStyles.clinicLine }, clinicLine) : null,
+      e(View, { style: rxStyles.hrThin }),
+      e(
+        View,
+        { style: rxStyles.patientRow },
+        e(Text, null, `Patient: ${patientName}${ageSex ? ` (${ageSex})` : ""}`),
+        patient.phone ? e(Text, null, `Mob: ${patient.phone}`) : null,
+      ),
+      e(Text, { style: rxStyles.bodyHeading }, "Rx"),
+      vitalsLine ? e(Text, { style: rxStyles.vitalsLine }, vitalsLine) : null,
+      visit.clinicalNotes
+        ? e(Text, { style: rxStyles.rxBody }, visit.clinicalNotes)
+        : e(Text, { style: rxStyles.rxBody }, "—"),
+      e(Text, { style: rxStyles.signatureLine }, `Dr. ${doctor.fullName}`),
+    ),
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return renderToBuffer(doc as any);
+}
+
+// ---------- Daily Case Register export (Manoj msg 1105) ----------
+
+const dcrStyles = StyleSheet.create({
+  page: {
+    paddingTop: 32,
+    paddingBottom: 40,
+    paddingHorizontal: 36,
+    fontSize: 10,
+    fontFamily: "Helvetica",
+    lineHeight: 1.35,
+  },
+  title: {
+    fontSize: 16,
+    fontFamily: "Helvetica-Bold",
+    color: "#0f172a",
+    textAlign: "center",
+    marginBottom: 2,
+  },
+  subtitle: {
+    fontSize: 10,
+    color: "#475569",
+    textAlign: "center",
+    marginBottom: 14,
+  },
+  dayHeader: {
+    fontSize: 11,
+    fontFamily: "Helvetica-Bold",
+    color: "#0f172a",
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  row: {
+    flexDirection: "row",
+    marginBottom: 2,
+  },
+  serial: {
+    width: 22,
+    textAlign: "right",
+    paddingRight: 4,
+    color: "#475569",
+  },
+  body: {
+    flex: 1,
+    color: "#0f172a",
+  },
+  footer: {
+    position: "absolute",
+    bottom: 18,
+    left: 36,
+    right: 36,
+    fontSize: 8,
+    color: "#94a3b8",
+    textAlign: "center",
+  },
+  totalsBlock: {
+    marginTop: 14,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: "#cbd5e1",
+  },
+  totalRow: {
+    flexDirection: "row",
+    fontSize: 10,
+  },
+  totalLabel: {
+    width: 140,
+    fontFamily: "Helvetica-Bold",
+    color: "#475569",
+  },
+  totalValue: {
+    flex: 1,
+    color: "#0f172a",
+  },
+});
+
+export interface DailyCaseRegisterEntry {
+  visitDate: string; // YYYY-MM-DD
+  patientName: string;
+  serviceType: string | null;
+  feeAmount: string | number | null;
+  paymentMode: string | null;
+  paymentStatus: string | null;
+  feeReceivedAt: string | null;
+}
+
+function titleCase(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
+function formatPaymentMode(mode: string | null, status: string | null): string {
+  if (status === "nil") return "—";
+  if (mode === "cash") return "Cash";
+  if (mode === "digital") return "Digital";
+  return mode ? titleCase(mode) : "—";
+}
+
+function formatFee(
+  amount: string | number | null,
+  status: string | null,
+): string {
+  if (status === "nil") return "—";
+  const n = amount == null ? 0 : Number(amount);
+  if (!Number.isFinite(n)) return "—";
+  return `₹${n.toFixed(0)}`;
+}
+
+function formatService(s: string | null): string {
+  return s && s.trim() ? s.trim() : "—";
+}
+
+export async function renderDailyRegisterExportPdf(
+  startDate: string,
+  endDate: string,
+  entries: ReadonlyArray<DailyCaseRegisterEntry>,
+  doctor: {
+    fullName: string | null;
+    clinicName: string | null;
+  } | null,
+): Promise<Buffer> {
+  // entries are pre-sorted by visit_date ascending then created_at;
+  // group locally so the renderer just walks the list.
+  const byDate = new Map<string, DailyCaseRegisterEntry[]>();
+  for (const en of entries) {
+    const list = byDate.get(en.visitDate) ?? [];
+    list.push(en);
+    byDate.set(en.visitDate, list);
+  }
+  const dateKeys = Array.from(byDate.keys()).sort();
+
+  // Continuous serial numbering across days (Manoj's sample format
+  // increments across the date boundary: day 1 → 1,2,3; day 2 → 4,5).
+  let serial = 0;
+  const totalFees = entries.reduce(
+    (acc, en) =>
+      en.paymentStatus === "nil" ? acc : acc + (Number(en.feeAmount ?? 0) || 0),
+    0,
+  );
+  const countNonNil = entries.filter((e) => e.paymentStatus !== "nil").length;
+
+  const doctorLine = doctor
+    ? [doctor.fullName ? `Dr. ${doctor.fullName}` : null, doctor.clinicName]
+        .filter(Boolean)
+        .join(" — ")
+    : "";
+
+  const doc = e(
+    Document,
+    null,
+    e(
+      Page,
+      { size: "A4", style: dcrStyles.page },
+      e(Text, { style: dcrStyles.title }, "Daily Case Register"),
+      e(
+        Text,
+        { style: dcrStyles.subtitle },
+        `Period: ${formatDateDDMMYYYY(startDate)} to ${formatDateDDMMYYYY(endDate)}${
+          doctorLine ? `   ·   ${doctorLine}` : ""
+        }`,
+      ),
+
+      entries.length === 0
+        ? e(
+            Text,
+            {
+              style: { textAlign: "center", color: "#64748b", marginTop: 24 },
+            },
+            "No entries in this period.",
+          )
+        : dateKeys.flatMap((date) => {
+            const rows = byDate.get(date) ?? [];
+            return [
+              e(
+                Text,
+                { key: `h-${date}`, style: dcrStyles.dayHeader },
+                formatDateDDMMYYYY(date),
+              ),
+              ...rows.map((en) => {
+                serial += 1;
+                const parts = [
+                  en.patientName,
+                  formatService(en.serviceType),
+                  formatFee(en.feeAmount, en.paymentStatus),
+                  formatPaymentMode(en.paymentMode, en.paymentStatus),
+                  en.feeReceivedAt ? formatDateDDMMYYYY(en.feeReceivedAt) : "—",
+                ];
+                return e(
+                  View,
+                  { key: `r-${date}-${serial}`, style: dcrStyles.row },
+                  e(Text, { style: dcrStyles.serial }, `${serial}.`),
+                  e(Text, { style: dcrStyles.body }, parts.join(" – ")),
+                );
+              }),
+            ];
+          }),
+
+      entries.length > 0
+        ? e(
+            View,
+            { style: dcrStyles.totalsBlock },
+            e(
+              View,
+              { style: dcrStyles.totalRow },
+              e(Text, { style: dcrStyles.totalLabel }, "Total entries:"),
+              e(Text, { style: dcrStyles.totalValue }, String(entries.length)),
+            ),
+            e(
+              View,
+              { style: dcrStyles.totalRow },
+              e(Text, { style: dcrStyles.totalLabel }, "Fees recorded:"),
+              e(
+                Text,
+                { style: dcrStyles.totalValue },
+                `₹${totalFees.toFixed(0)}  (over ${countNonNil} chargeable ${
+                  countNonNil === 1 ? "entry" : "entries"
+                })`,
+              ),
+            ),
+          )
+        : null,
+
+      e(
+        Text,
+        { style: dcrStyles.footer, fixed: true },
+        `Generated ${formatDateDDMMYYYY(new Date())}`,
       ),
     ),
   );

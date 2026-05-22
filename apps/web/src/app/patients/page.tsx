@@ -14,7 +14,12 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useDebounce } from "@/hooks/use-debounce";
-import { formatDate, calculateAge, formatGender } from "@/lib/format";
+import {
+  formatGender,
+  formatPatientName,
+  formatPatientAgeDob,
+  todayLocalIsoDate,
+} from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -26,12 +31,24 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { NewPatientDialog } from "@/components/patients/new-patient-dialog";
+import { NewDailyRegisterEntryDialog } from "@/components/daily-register/new-entry-dialog";
+import { PatientActionsSheet } from "@/components/patients/patient-actions-sheet";
+
+type PatientRow = {
+  id: string;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  marked: boolean;
+};
 
 export default function PatientsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [actionsForPatient, setActionsForPatient] = useState<PatientRow | null>(
+    null,
+  );
   const limit = 20;
 
   const debouncedSearch = useDebounce(search, 300);
@@ -53,7 +70,10 @@ export default function PatientsPage() {
           <h1 className="text-2xl font-semibold">Patients</h1>
           <p className="text-muted-foreground">Manage your patient records</p>
         </div>
-        <Button onClick={() => setDialogOpen(true)} className="self-start">
+        <Button
+          onClick={() => setDialogOpen(true)}
+          className="hidden self-start sm:inline-flex"
+        >
           <Plus className="h-4 w-4" />
           New Patient
         </Button>
@@ -119,7 +139,64 @@ export default function PatientsPage() {
 
       {data && data.items.length > 0 && (
         <>
-          <div className="overflow-x-auto rounded-xl border bg-card">
+          {/* Mobile: card per patient with two distinct tap targets
+              (Manoj msg 983). Tapping the name+meta area opens the
+              actions sheet (Review / Delete / Mark); tapping the
+              right-side chevron opens the patient on Summary. Desktop
+              (≥md) keeps the single-link table below. */}
+          <ul className="space-y-2 md:hidden">
+            {data.items.map((patient) => {
+              const conditions = patient.activeConditions as string[];
+              return (
+                <li
+                  key={patient.id}
+                  className="flex items-stretch overflow-hidden rounded-xl border bg-card"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setActionsForPatient(patient)}
+                    className="flex min-w-0 flex-1 flex-col items-stretch px-3 py-3 text-left active:bg-muted/40"
+                  >
+                    <p
+                      className={
+                        patient.marked
+                          ? "truncate font-medium text-destructive"
+                          : "truncate font-medium"
+                      }
+                    >
+                      {formatPatientName(patient)}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      <PatientMobileMeta patient={patient} />
+                    </p>
+                    {conditions.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {conditions.slice(0, 3).map((c) => (
+                          <Badge key={c} variant="secondary">
+                            {c}
+                          </Badge>
+                        ))}
+                        {conditions.length > 3 && (
+                          <Badge variant="outline">
+                            +{conditions.length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                  <Link
+                    href={`/patients/${patient.id}`}
+                    aria-label={`Open summary for ${formatPatientName(patient)}`}
+                    className="flex w-12 shrink-0 items-center justify-center border-l border-border text-muted-foreground active:bg-muted/40"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="hidden overflow-x-auto rounded-xl border bg-card md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -138,24 +215,17 @@ export default function PatientsPage() {
                     <TableCell>
                       <Link
                         href={`/patients/${patient.id}`}
-                        className="font-medium text-primary hover:underline"
+                        className={
+                          patient.marked
+                            ? "font-medium text-destructive hover:underline"
+                            : "font-medium text-primary hover:underline"
+                        }
                       >
-                        {patient.firstName} {patient.lastName}
+                        {formatPatientName(patient)}
                       </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {patient.dateOfBirth ? (
-                        <>
-                          <span className="font-medium text-foreground">
-                            {calculateAge(patient.dateOfBirth)} yrs
-                          </span>{" "}
-                          <span className="hidden sm:inline">
-                            &middot; {formatDate(patient.dateOfBirth)}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
+                      <PatientAgeDobCell patient={patient} />
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground sm:table-cell">
                       {formatGender(patient.gender)}
@@ -226,7 +296,97 @@ export default function PatientsPage() {
         </>
       )}
 
-      <NewPatientDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <NewDailyRegisterEntryDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        visitDate={todayLocalIsoDate()}
+      />
+
+      <PatientActionsSheet
+        open={actionsForPatient !== null}
+        onOpenChange={(next) => {
+          if (!next) setActionsForPatient(null);
+        }}
+        patient={
+          actionsForPatient ?? {
+            id: "",
+            firstName: "",
+            middleName: null,
+            lastName: "",
+            marked: false,
+          }
+        }
+      />
+
+      <button
+        type="button"
+        onClick={() => setDialogOpen(true)}
+        aria-label="New Patient"
+        className="fixed right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 sm:hidden"
+        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 5rem)" }}
+      >
+        <Plus className="h-6 w-6" />
+      </button>
     </div>
+  );
+}
+
+function shortGender(gender: string | null): string | null {
+  if (!gender) return null;
+  const lower = gender.toLowerCase();
+  if (lower.startsWith("m")) return "M";
+  if (lower.startsWith("f")) return "F";
+  // Fall back to the first letter uppercase for "other", "unknown", etc.
+  return gender[0]?.toUpperCase() ?? null;
+}
+
+function PatientMobileMeta({
+  patient,
+}: {
+  patient: {
+    dateOfBirth: string | Date | null;
+    dobDay: number | null;
+    dobMonth: number | null;
+    dobYear: number | null;
+    gender: string | null;
+    latestDiagnosis?: string | null;
+  };
+}) {
+  const { age } = formatPatientAgeDob(patient);
+  const parts = [
+    age != null ? `${age} yrs` : null,
+    shortGender(patient.gender),
+    patient.latestDiagnosis?.trim() || null,
+  ].filter((s): s is string => Boolean(s));
+  if (parts.length === 0) return <span>—</span>;
+  return <>{parts.join(" · ")}</>;
+}
+
+function PatientAgeDobCell({
+  patient,
+}: {
+  patient: {
+    dateOfBirth: string | Date | null;
+    dobDay: number | null;
+    dobMonth: number | null;
+    dobYear: number | null;
+  };
+}) {
+  const { age, display } = formatPatientAgeDob(patient);
+  if (age == null && !display) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+  return (
+    <>
+      {age != null && (
+        <span className="font-medium text-foreground">{age} yrs</span>
+      )}
+      {display && (
+        <span className="hidden sm:inline">
+          {age != null ? " · " : ""}
+          {display}
+        </span>
+      )}
+    </>
   );
 }

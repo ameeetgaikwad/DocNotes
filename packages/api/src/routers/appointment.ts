@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { eq, and, gte, lte, desc, asc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { appointments, patients } from "@docnotes/db";
 import {
@@ -23,15 +23,60 @@ export const appointmentRouter = router({
       if (from) conditions.push(gte(appointments.scheduledAt, from));
       if (to) conditions.push(lte(appointments.scheduledAt, to));
 
-      const items = await ctx.db
-        .select()
+      const rows = await ctx.db
+        .select({
+          appointment: appointments,
+          patient: {
+            firstName: patients.firstName,
+            middleName: patients.middleName,
+            lastName: patients.lastName,
+          },
+        })
         .from(appointments)
+        .innerJoin(patients, eq(patients.id, appointments.patientId))
         .where(and(...conditions))
         .orderBy(desc(appointments.scheduledAt))
         .limit(limit)
         .offset(offset);
 
+      const items = rows.map((r) => ({ ...r.appointment, patient: r.patient }));
       return { items, page, limit };
+    }),
+
+  upcomingForReminders: protectedProcedure
+    .input(
+      z.object({
+        daysAhead: z.number().int().min(0).max(60).default(7),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const now = new Date();
+      const end = new Date(now);
+      end.setUTCDate(end.getUTCDate() + input.daysAhead);
+      const rows = await ctx.db
+        .select({
+          appointmentId: appointments.id,
+          scheduledAt: appointments.scheduledAt,
+          type: appointments.type,
+          reason: appointments.reason,
+          patientId: patients.id,
+          firstName: patients.firstName,
+          middleName: patients.middleName,
+          lastName: patients.lastName,
+          phone: patients.phone,
+        })
+        .from(appointments)
+        .innerJoin(patients, eq(patients.id, appointments.patientId))
+        .where(
+          and(
+            eq(appointments.providerId, ctx.session.userId),
+            eq(appointments.status, "scheduled"),
+            gte(appointments.scheduledAt, now),
+            lte(appointments.scheduledAt, end),
+          ),
+        )
+        .orderBy(asc(appointments.scheduledAt));
+      return rows;
     }),
 
   getById: protectedProcedure

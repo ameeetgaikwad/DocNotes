@@ -3,11 +3,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Upload, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { trpcClient } from "@/lib/trpc";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  ResponsiveDialog as Dialog,
+  ResponsiveDialogContent as DialogContent,
+  ResponsiveDialogHeader as DialogHeader,
+  ResponsiveDialogTitle as DialogTitle,
+} from "@/components/ui/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -180,16 +180,18 @@ export function UploadDocumentDialog({
             </Button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div>
               <Label>File</Label>
               <div
-                className="mt-1 flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 hover:border-primary/50"
+                className="mt-1 flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed px-3 py-2 hover:border-primary/50"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <Upload className="h-8 w-8 text-muted-foreground" />
+                <Upload className="h-5 w-5 shrink-0 text-muted-foreground" />
                 {file ? (
-                  <p className="text-sm font-medium">{file.name}</p>
+                  <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {file.name}
+                  </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     Click to select a file (max 10MB)
@@ -231,13 +233,12 @@ export function UploadDocumentDialog({
             </div>
 
             <div>
-              <Label htmlFor="doc-notes">Notes (optional)</Label>
+              <Label htmlFor="doc-notes">Notes</Label>
               <Textarea
                 id="doc-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Additional notes about this document"
-                rows={2}
+                rows={1}
               />
             </div>
 
