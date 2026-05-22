@@ -119,6 +119,11 @@ export const dailyRegisterRouter = router({
             eq(dailyRegisterEntries.providerId, ctx.session.userId),
             eq(dailyRegisterEntries.patientId, input.patientId),
             eq(dailyRegisterEntries.paymentStatus, "due"),
+            // Skip "fees not recorded yet" placeholders (status=due,
+            // amount=0) — they're not actual outstanding balances and
+            // would otherwise render as ₹0 rows on the Pending Dues
+            // tab and suppress the empty state (Amit review msg 1225 P2).
+            sql`${dailyRegisterEntries.feeAmount} > ${dailyRegisterEntries.paidAmount}`,
           ),
         )
         .orderBy(asc(dailyRegisterEntries.visitDate));
@@ -570,6 +575,7 @@ export const dailyRegisterRouter = router({
                 isNull(patientVisits.bpSystolic),
                 isNull(patientVisits.bpDiastolic),
                 isNull(patientVisits.heartRate),
+                isNull(patientVisits.spO2Percent),
                 isNull(patientVisits.bslFasting),
                 isNull(patientVisits.bslPostprandial),
                 isNull(patientVisits.bslRandom),

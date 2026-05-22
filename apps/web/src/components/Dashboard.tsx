@@ -563,7 +563,7 @@ function ConsolidatedRow({
             <li key={p.patientId} className="px-4 py-2 pl-12 sm:px-6 sm:pl-16">
               <div className="flex items-center gap-2">
                 <Link
-                  href={`/patients/${p.patientId}#pending-dues`}
+                  href={`/patients/${p.patientId}?tab=pending-dues`}
                   className="flex-1 truncate text-sm font-medium text-primary hover:underline"
                 >
                   {formatPatientName(p)}
@@ -644,7 +644,7 @@ function SummaryRow({
         )}
         <div className="min-w-0 flex-1">
           <Link
-            href={`/patients/${agg.patientId}#pending-dues`}
+            href={`/patients/${agg.patientId}?tab=pending-dues`}
             className="block truncate text-sm font-medium text-primary hover:underline md:text-base"
           >
             {formatPatientName(agg)}

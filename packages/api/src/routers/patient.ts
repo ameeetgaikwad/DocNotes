@@ -332,6 +332,13 @@ export const patientRouter = router({
           .toISOString()
           .split("T")[0];
       }
+      // patients.last_name is NOT NULL. The create path coerces null→""
+      // (line 143) — mirror that here so a single-token name edit doesn't
+      // crash with a constraint violation when the shared updatePatientSchema
+      // allows lastName: null (Amit review msg 1225 P1).
+      if ("lastName" in updateData && updateData.lastName == null) {
+        updateData.lastName = "";
+      }
 
       const [patient] = await ctx.db
         .update(patients)
