@@ -62,7 +62,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (profileQuery.data) {
-      router.replace("/");
+      router.replace("/dashboard");
     }
   }, [profileQuery.data, router]);
 
@@ -111,7 +111,7 @@ export default function OnboardingPage() {
       await queryClient.invalidateQueries({
         queryKey: [["doctorProfile"]],
       });
-      router.replace("/");
+      router.replace("/dashboard");
     },
     onError: (e) => {
       setServerError(e.message);

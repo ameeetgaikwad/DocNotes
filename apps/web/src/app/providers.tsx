@@ -65,7 +65,13 @@ function Shell({ children }: { children: React.ReactNode }) {
 
   const profileQuery = useQuery({
     ...trpc.doctorProfile.me.queryOptions(),
-    enabled: !!(isLoaded && isSignedIn && !isAuthPage && !isPublicPage),
+    enabled: !!(
+      isLoaded &&
+      isSignedIn &&
+      !isAuthPage &&
+      !isPublicPage &&
+      !isHomePage
+    ),
   });
 
   useEffect(() => {
@@ -78,11 +84,18 @@ function Shell({ children }: { children: React.ReactNode }) {
       router.replace("/auth/login");
       return;
     }
+    // Signed-in user landed on the public landing route — bounce them to
+    // the dashboard. Background redirect; Landing keeps rendering in the
+    // meantime so there's no spinner flash.
+    if (isHomePage) {
+      router.replace("/dashboard");
+      return;
+    }
     if (profileQuery.isLoading) return;
     if (profileQuery.data === null && !isOnboardingPage) {
       router.replace("/onboarding");
     } else if (profileQuery.data && isOnboardingPage) {
-      router.replace("/");
+      router.replace("/dashboard");
     }
   }, [
     isLoaded,
@@ -96,7 +109,13 @@ function Shell({ children }: { children: React.ReactNode }) {
     router,
   ]);
 
-  if (!isLoaded && !isPublicPage) {
+  // Marketing surfaces (landing + legal pages + auth + share) render their
+  // own content immediately, with no spinner gating on Clerk init. Anything
+  // else (dashboard + tools) waits for auth resolution before deciding what
+  // to render.
+  const isMarketingSurface = isAuthPage || isPublicPage || isHomePage;
+
+  if (!isLoaded && !isMarketingSurface) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -108,10 +127,14 @@ function Shell({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  if (isHomePage) {
+    // Both signed-out (final state, render Landing) and signed-in
+    // (transient, redirect to /dashboard in flight) get Landing here. No
+    // spinner for either.
+    return <>{children}</>;
+  }
+
   if (!isSignedIn) {
-    if (isHomePage) {
-      return <>{children}</>;
-    }
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />

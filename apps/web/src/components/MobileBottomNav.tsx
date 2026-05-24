@@ -28,7 +28,7 @@ type NavItem = {
 };
 
 const TABS: NavItem[] = [
-  { to: "/", label: "Home", icon: LayoutDashboard },
+  { to: "/dashboard", label: "Home", icon: LayoutDashboard },
   { to: "/patients", label: "Patients", icon: Users },
   { to: "/daily-register", label: "Register", icon: DailyCaseRegisterIcon },
   { to: "/schedule", label: "Schedule", icon: Calendar },
@@ -54,7 +54,7 @@ const MORE_ITEMS: NavItem[] = [
 const MORE_PATHS = MORE_ITEMS.map((i) => i.to);
 
 function isActivePath(currentPath: string, to: string): boolean {
-  if (to === "/") return currentPath === "/";
+  if (to === "/dashboard") return currentPath === "/dashboard";
   return currentPath === to || currentPath.startsWith(`${to}/`);
 }
 
