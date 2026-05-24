@@ -103,7 +103,7 @@ export function Landing() {
                 href="/auth/register"
                 className="inline-flex items-center gap-1.5 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
               >
-                Get started — it&rsquo;s free to try
+                Get started — start your trial
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
@@ -167,7 +167,7 @@ export function Landing() {
                 href="/auth/register"
                 className="inline-flex items-center gap-1.5 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
               >
-                Start your free trial
+                Start your trial
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
