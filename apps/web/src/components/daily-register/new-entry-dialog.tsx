@@ -91,7 +91,10 @@ export function NewDailyRegisterEntryDialog({
   const [dobDay, setDobDay] = useState("");
   const [dobMonth, setDobMonth] = useState("");
   const [dobYear, setDobYear] = useState("");
-  const [serviceType, setServiceType] = useState("");
+  // Default to Consultation so doctors can save a typical visit with just
+  // a patient name, no extra clicks (Manoj msg 1314). The dropdown is still
+  // free to be changed for non-consultation services.
+  const [serviceType, setServiceType] = useState<string>("Consultation");
   const [feeAmount, setFeeAmount] = useState("");
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("paid");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("cash");
@@ -625,7 +628,6 @@ export function NewDailyRegisterEntryDialog({
               onChange={(e) => setServiceType(e.target.value)}
               className="md:h-12 md:text-base"
             >
-              <option value="">— Select service —</option>
               {SERVICE_TYPES.map((s) => (
                 <option key={s} value={s}>
                   {s}
