@@ -49,9 +49,13 @@ export const MedicineAutocompleteTextarea = forwardRef<
 
   const wordStart = findCurrentWordStart(value, caret);
   const currentWord = value.slice(wordStart, caret);
+  // Skip the suggestion popup when the user is typing a number (dosage,
+  // tablet count, days, etc.) — medicine names don't start with digits,
+  // so this avoids noise while writing prescriptions (Manoj msg 1321).
+  const isNumericWord = /^\d/.test(currentWord);
 
   const matches =
-    open && currentWord.length >= 2
+    open && currentWord.length >= 2 && !isNumericWord
       ? hints
           .filter((h) => {
             const p = h.phrase.toLowerCase();
