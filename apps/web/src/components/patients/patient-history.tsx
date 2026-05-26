@@ -698,7 +698,7 @@ function VisitCard({
             </p>
             <p className="mt-0.5 text-xs text-emerald-800 dark:text-emerald-300">
               Picked up &ldquo;{followUpToast.text}&rdquo; from your notes. Tap
-              Done to dismiss, or Undo if this wasn&apos;t meant as a follow-up.
+              Done to confirm or Undo if this wasn&apos;t meant as a follow-up.
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
