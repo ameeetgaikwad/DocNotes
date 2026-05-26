@@ -149,7 +149,14 @@ export function NewDailyRegisterEntryDialog({
       setDobDay("");
       setDobMonth("");
       setDobYear("");
-      setServiceType("");
+      // Reset to the default so the next open shows Consultation as a
+      // SELECTED value, not just a visual default (Manoj msg 1320 #1).
+      // Resetting to "" left the <select> displaying "Consultation" (the
+      // first option) while state was "", so canSubmit's serviceType !== ""
+      // check failed silently — and reselecting "Consultation" from the
+      // dropdown didn't fix it because onChange doesn't fire when the
+      // DOM value already matches the picked option.
+      setServiceType("Consultation");
       setFeeAmount("");
       setPaymentStatus("paid");
       setPaymentMode("cash");
@@ -640,7 +647,7 @@ export function NewDailyRegisterEntryDialog({
             <Label htmlFor="fee" className="md:text-base">
               Fees Received (₹)
             </Label>
-            <div className="flex flex-wrap items-stretch gap-2 md:gap-3">
+            <div className="flex items-center gap-2">
               <Input
                 id="fee"
                 type="number"
@@ -651,9 +658,9 @@ export function NewDailyRegisterEntryDialog({
                 value={paymentStatus === "nil" ? "" : feeAmount}
                 onChange={(e) => setFeeAmount(e.target.value)}
                 disabled={paymentStatus === "nil"}
-                className="min-w-[8rem] flex-1 md:h-12 md:text-base"
+                className="h-10 min-w-0 flex-1 md:h-11 md:text-base"
               />
-              <div className="flex gap-1 rounded-md border p-1 md:gap-2 md:p-1.5">
+              <div className="flex flex-none gap-0.5 rounded-md border p-0.5">
                 {(
                   [
                     { key: "paid", label: "Paid", Icon: Check },
@@ -665,14 +672,14 @@ export function NewDailyRegisterEntryDialog({
                     key={key}
                     type="button"
                     onClick={() => setPaymentStatus(key)}
-                    className={`flex flex-col items-center rounded-sm px-3 py-1.5 text-xs transition md:min-w-[4rem] md:px-4 md:py-2 md:text-sm ${
+                    className={`flex items-center gap-1 rounded-sm px-2 py-1.5 text-xs font-medium transition md:px-2.5 md:py-2 md:text-sm ${
                       paymentStatus === key
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:bg-accent"
                     }`}
                   >
-                    <Icon className="h-4 w-4 md:h-5 md:w-5" />
-                    <span className="mt-0.5">{label}</span>
+                    <Icon className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                    {label}
                   </button>
                 ))}
               </div>

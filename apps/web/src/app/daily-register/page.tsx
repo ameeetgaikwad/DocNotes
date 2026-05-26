@@ -240,7 +240,7 @@ export default function DailyRegisterPage() {
                       href={`/patients/${entry.patient.id}`}
                       className="text-muted-foreground hover:text-foreground"
                     >
-                      View patient
+                      View Patient Card
                     </Link>
                     <span className="text-muted-foreground/40">·</span>
                     <DeleteEntryButton entryId={entry.id} visitDate={visitDate}>
