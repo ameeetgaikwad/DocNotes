@@ -30,6 +30,7 @@ interface Item {
   text: string;
   isDone: boolean;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 interface Dealer {
@@ -65,17 +66,19 @@ export default function PurchaseListPage() {
 
   // Tick/untick was waiting on the server roundtrip + a full list
   // refetch before flipping in the UI (~600ms felt-time). Optimistic
-  // update flips the checkbox instantly; we reconcile if the server
-  // disagrees.
+  // update flips the checkbox instantly; we also bump updatedAt locally
+  // so the client-side sort moves the item to the right spot in its new
+  // group (Manoj msg 1326). We reconcile if the server disagrees.
   const updateItem = useMutation({
     mutationFn: (input: { id: string; text?: string; isDone?: boolean }) =>
       trpcClient.purchaseItem.update.mutate(input),
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: listOptions.queryKey });
       const prev = queryClient.getQueryData(listOptions.queryKey);
+      const now = new Date();
       queryClient.setQueryData(listOptions.queryKey, (old) =>
         (old ?? []).map((it) =>
-          it.id === input.id ? { ...it, ...input } : it,
+          it.id === input.id ? { ...it, ...input, updatedAt: now } : it,
         ),
       );
       return { prev };
@@ -108,11 +111,37 @@ export default function PurchaseListPage() {
       queryClient.invalidateQueries({ queryKey: [["purchaseItem"]] }),
   });
 
-  const items = (itemsQuery.data ?? []) as Item[];
+  const items = useMemo<Item[]>(
+    () => (itemsQuery.data ?? []) as Item[],
+    [itemsQuery.data],
+  );
   const dealers = (dealersQuery.data ?? []) as Dealer[];
 
-  const pending = items.filter((i) => !i.isDone);
-  const done = items.filter((i) => i.isDone);
+  // Manoj msg 1326: single "To buy" list. Ticked items (selected for
+  // sending) grouped at top, ordered by when they were ticked — so a
+  // newly-ticked row lands at the BOTTOM of the ticked group. Unticked
+  // items grouped below, ordered by when they were last un-ticked, so a
+  // newly-unticked row lands at the TOP of the unticked group. We rely
+  // on `updatedAt` (auto-bumped on row update via $onUpdate, and bumped
+  // optimistically on the client during a toggle).
+  const sortedItems = useMemo(() => {
+    const ticked = items
+      .filter((i) => i.isDone)
+      .sort(
+        (a, b) =>
+          new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime(),
+      );
+    const unticked = items
+      .filter((i) => !i.isDone)
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      );
+    return [...ticked, ...unticked];
+  }, [items]);
+
+  const tickedItems = useMemo(() => items.filter((i) => i.isDone), [items]);
+  const canSend = tickedItems.length > 0;
 
   return (
     <div className="p-4 sm:p-6 md:p-8">
@@ -121,13 +150,10 @@ export default function PurchaseListPage() {
           <h1 className="text-2xl font-semibold md:text-3xl">
             Purchase List of Medicine
           </h1>
-          <p className="text-muted-foreground md:text-base">
-            Medicines to buy — send the list to a dealer over WhatsApp.
-          </p>
         </div>
         <Button
           onClick={() => setSendOpen(true)}
-          disabled={pending.length === 0}
+          disabled={!canSend}
           className="self-start md:h-12 md:px-6 md:text-base"
         >
           <MessageCircle className="h-4 w-4 md:h-5 md:w-5" />
@@ -171,37 +197,15 @@ export default function PurchaseListPage() {
         </div>
       )}
 
-      {pending.length > 0 && (
-        <div className="mb-6 rounded-xl border bg-card">
-          <div className="border-b px-4 py-3 sm:px-6 sm:py-4">
-            <h2 className="text-base font-semibold md:text-lg">
-              To buy ({pending.length})
-            </h2>
-          </div>
-          <ul className="divide-y">
-            {pending.map((item) => (
-              <ItemRow
-                key={item.id}
-                item={item}
-                onToggle={() =>
-                  updateItem.mutate({ id: item.id, isDone: !item.isDone })
-                }
-                onDelete={() => deleteItem.mutate(item.id)}
-              />
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {done.length > 0 && (
+      {items.length > 0 && (
         <div className="rounded-xl border bg-card">
           <div className="border-b px-4 py-3 sm:px-6 sm:py-4">
-            <h2 className="text-base font-semibold text-muted-foreground md:text-lg">
-              Done ({done.length})
+            <h2 className="text-base font-semibold md:text-lg">
+              To buy ({items.length})
             </h2>
           </div>
           <ul className="divide-y">
-            {done.map((item) => (
+            {sortedItems.map((item) => (
               <ItemRow
                 key={item.id}
                 item={item}
@@ -212,6 +216,16 @@ export default function PurchaseListPage() {
               />
             ))}
           </ul>
+          <div className="border-t px-4 py-3 sm:px-6 sm:py-4">
+            <Button
+              onClick={() => setSendOpen(true)}
+              disabled={!canSend}
+              className="w-full sm:w-auto md:h-12 md:px-6 md:text-base"
+            >
+              <MessageCircle className="h-4 w-4 md:h-5 md:w-5" />
+              Send to dealer
+            </Button>
+          </div>
         </div>
       )}
 
@@ -219,7 +233,7 @@ export default function PurchaseListPage() {
         open={sendOpen}
         onOpenChange={setSendOpen}
         dealers={dealers}
-        items={pending}
+        items={tickedItems}
       />
     </div>
   );
@@ -241,18 +255,10 @@ function ItemRow({
         checked={item.isDone}
         onChange={onToggle}
         className="mt-1 h-4 w-4 cursor-pointer accent-primary"
-        aria-label={`Mark "${item.text}" as ${item.isDone ? "not done" : "done"}`}
+        aria-label={`${item.isDone ? "Unselect" : "Select"} "${item.text}"`}
       />
       <div className="min-w-0 flex-1">
-        <p
-          className={
-            item.isDone
-              ? "text-sm text-muted-foreground line-through md:text-base"
-              : "text-sm md:text-base"
-          }
-        >
-          {item.text}
-        </p>
+        <p className="text-sm md:text-base">{item.text}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {formatDate(item.createdAt)}
         </p>
