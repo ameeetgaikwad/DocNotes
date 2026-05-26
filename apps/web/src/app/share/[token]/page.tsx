@@ -68,7 +68,7 @@ export default function SharePage({
             <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
               <FileText className="h-6 w-6 text-primary" />
             </div>
-            <h1 className="text-xl font-semibold">DocNotes</h1>
+            <h1 className="text-xl font-semibold">ClinikNote</h1>
             <p className="text-sm text-muted-foreground">
               Shared Medical Records
             </p>
@@ -203,7 +203,7 @@ export default function SharePage({
         </div>
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          Shared securely via DocNotes. This link may expire or have limited
+          Shared securely via ClinikNote. This link may expire or have limited
           access.
         </p>
       </div>

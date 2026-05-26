@@ -5,13 +5,14 @@ import { Providers } from "./providers";
 import { PWARegister } from "@/components/PWARegister";
 
 export const metadata: Metadata = {
-  title: "DocNotes",
-  description: "Medical records for general practitioners",
+  title: "ClinikNote",
+  description:
+    "Simple and smart digital register for doctors — daily practice records, patient history, and easy IT compliance.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "DocNotes",
+    title: "ClinikNote",
   },
   icons: {
     icon: [
