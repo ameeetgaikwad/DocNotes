@@ -698,19 +698,28 @@ function VisitCard({
             </p>
             <p className="mt-0.5 text-xs text-emerald-800 dark:text-emerald-300">
               Picked up &ldquo;{followUpToast.text}&rdquo; from your notes. Tap
-              Undo if this wasn&apos;t meant as a follow-up.
+              Done to dismiss, or Undo if this wasn&apos;t meant as a follow-up.
             </p>
           </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => undoFollowUp.mutate(followUpToast.appointmentId)}
-            disabled={undoFollowUp.isPending}
-            className="shrink-0"
-          >
-            {undoFollowUp.isPending ? "Undoing…" : "Undo"}
-          </Button>
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => undoFollowUp.mutate(followUpToast.appointmentId)}
+              disabled={undoFollowUp.isPending}
+            >
+              {undoFollowUp.isPending ? "Undoing…" : "Undo"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setFollowUpToast(null)}
+              disabled={undoFollowUp.isPending}
+            >
+              Done
+            </Button>
+          </div>
         </div>
       )}
 
