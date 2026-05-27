@@ -45,7 +45,7 @@ export default function RootLayout({
       signUpUrl="/auth/register"
       signInFallbackRedirectUrl="/dashboard"
       signUpFallbackRedirectUrl="/dashboard"
-      afterSignOutUrl="/auth/login"
+      afterSignOutUrl="/"
     >
       <html lang="en-IN">
         <head>
