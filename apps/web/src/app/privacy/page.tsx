@@ -67,7 +67,13 @@ export default function PrivacyPage() {
       <h2>Contact Us</h2>
       <p>
         For any questions regarding privacy, please reach out to us at:{" "}
-        <em>[contact email pending]</em>.
+        <a
+          href="mailto:support@cliniknote.app"
+          className="text-primary hover:underline"
+        >
+          support@cliniknote.app
+        </a>
+        .
       </p>
     </LegalLayout>
   );
