@@ -451,4 +451,106 @@ export const patientRouter = router({
 
       return patient;
     }),
+
+  // Recently-deleted (archived) patients for the /patients/archived view.
+  // Sorted by updatedAt DESC so the most recently archived patient is on
+  // top (Manoj msg 1337). Each row also carries the most recent
+  // register-entry date and total register count, so the UI can explain
+  // *why* Permanent Delete will be blocked when clinical history exists
+  // (Manoj msg 1340 #2).
+  listArchived: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db
+      .select({
+        ...getTableColumns(patients),
+        lastVisitDate: sql<
+          string | null
+        >`(SELECT MAX(${dailyRegisterEntries.visitDate}) FROM ${dailyRegisterEntries} WHERE ${dailyRegisterEntries.patientId} = ${patients.id})`,
+        registerEntryCount: sql<number>`(SELECT COUNT(*)::int FROM ${dailyRegisterEntries} WHERE ${dailyRegisterEntries.patientId} = ${patients.id})`,
+      })
+      .from(patients)
+      .where(
+        and(
+          eq(patients.isActive, false),
+          eq(patients.createdBy, ctx.session.userId),
+        ),
+      )
+      .orderBy(desc(patients.updatedAt));
+    return rows;
+  }),
+
+  restore: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const [patient] = await ctx.db
+        .update(patients)
+        .set({ isActive: true })
+        .where(
+          and(
+            eq(patients.id, input.id),
+            eq(patients.createdBy, ctx.session.userId),
+          ),
+        )
+        .returning();
+
+      logAudit(ctx, {
+        action: "restore",
+        resource: "patient",
+        resourceId: input.id,
+      });
+
+      return patient ?? null;
+    }),
+
+  // Hard delete. Bypasses soft-delete and removes the patient row. This is
+  // ONLY safe when the patient has no related records (register entries,
+  // visits, prescriptions, appointments, documents, medical records). The
+  // FKs are set without ON DELETE CASCADE, so Postgres rejects the delete
+  // with a 23503 foreign_key_violation when any related row exists — we
+  // catch that and surface a clear message asking the doctor to restore
+  // the patient instead. Use case: cleaning up test/typo patient rows
+  // that were created and immediately archived with no clinical activity.
+  permanentDelete: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const [deleted] = await ctx.db
+          .delete(patients)
+          .where(
+            and(
+              eq(patients.id, input.id),
+              eq(patients.createdBy, ctx.session.userId),
+              // Defence in depth — only archived patients can be hard-
+              // deleted. The UI also only exposes this on /patients/archived.
+              eq(patients.isActive, false),
+            ),
+          )
+          .returning();
+
+        if (!deleted) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Patient not found or already permanently deleted.",
+          });
+        }
+
+        logAudit(ctx, {
+          action: "permanent_delete",
+          resource: "patient",
+          resourceId: input.id,
+        });
+
+        return { id: input.id };
+      } catch (err) {
+        if (err instanceof TRPCError) throw err;
+        const pgCode = (err as { code?: string } | undefined)?.code;
+        if (pgCode === "23503") {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message:
+              "This patient has clinical records and cannot be permanently deleted due to medical and Income Tax retention requirements.",
+          });
+        }
+        throw err;
+      }
+    }),
 });

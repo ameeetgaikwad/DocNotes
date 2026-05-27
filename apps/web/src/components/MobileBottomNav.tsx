@@ -17,6 +17,7 @@ import {
   ShoppingCart,
   BellRing,
   Pill,
+  Archive,
 } from "lucide-react";
 import { DailyCaseRegisterIcon } from "@/components/icons/daily-case-register";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,7 @@ const MORE_ITEMS: NavItem[] = [
   { to: "/reminders", label: "Reminders", icon: BellRing },
   { to: "/reports", label: "Reports", icon: FileText },
   { to: "/tasks", label: "Tasks", icon: ClipboardList },
+  { to: "/patients/archived", label: "Recently Deleted", icon: Archive },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
