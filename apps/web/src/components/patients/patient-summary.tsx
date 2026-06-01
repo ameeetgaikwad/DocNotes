@@ -54,12 +54,16 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
     staleTime: 30_000,
   });
   // Patient-list query so the RP dropdown can suggest existing patients
-  // by name (Manoj msg 1398 #2 — the family head / payer is often
-  // another registered patient and typing should pull them up). 500
-  // covers any realistic single-doctor clinic; if a clinic outgrows
-  // that we can switch to a debounced server-side search.
+  // by name (Manoj msg 1398 #2). Limit clamped to the patientSearchSchema
+  // max of 100 — Amit msg 1404 caught the prior limit:500 returning a
+  // tRPC validation error which left the suggestions silently empty.
+  // The previously-used RP labels (rpNamesQuery, no limit) cover the
+  // common-case payers; the 100 most-recent patients here cover the
+  // long tail. A clinic with >100 patients can still type the full
+  // name to save it as a free-text RP label; that label then flows
+  // into future suggestions via rpNamesQuery.
   const allPatientsQuery = useQuery({
-    ...trpc.patient.list.queryOptions({ page: 1, limit: 500 }),
+    ...trpc.patient.list.queryOptions({ page: 1, limit: 100 }),
     staleTime: 60_000,
   });
   const rpSuggestions = useMemo(() => {
