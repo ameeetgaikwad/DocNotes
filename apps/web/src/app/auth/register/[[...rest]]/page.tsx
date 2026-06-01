@@ -8,13 +8,19 @@ import { SignUp } from "@clerk/nextjs";
 export default function RegisterPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <SignUp
-        path="/auth/register"
-        routing="path"
-        signInUrl="/auth/login"
-        forceRedirectUrl="/dashboard"
-        fallbackRedirectUrl="/dashboard"
-      />
+      <div className="w-full max-w-md space-y-4">
+        <p className="rounded-md border border-primary/30 bg-primary/5 px-4 py-2 text-center text-xs text-primary md:text-sm">
+          This app is exclusively for General Practitioners (Doctors) practicing
+          in India.
+        </p>
+        <SignUp
+          path="/auth/register"
+          routing="path"
+          signInUrl="/auth/login"
+          forceRedirectUrl="/dashboard"
+          fallbackRedirectUrl="/dashboard"
+        />
+      </div>
     </div>
   );
 }

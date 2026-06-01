@@ -12,6 +12,49 @@ import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+
+// 28 states + 8 union territories of India. Used by the State dropdown
+// on doctor onboarding (Manoj msg 1403). Sorted alphabetically; UTs
+// flagged with "(UT)" so doctors can distinguish them at a glance.
+const INDIAN_STATES_AND_UTS = [
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+  "Andaman and Nicobar Islands (UT)",
+  "Chandigarh (UT)",
+  "Dadra and Nagar Haveli and Daman and Diu (UT)",
+  "Delhi (UT)",
+  "Jammu and Kashmir (UT)",
+  "Ladakh (UT)",
+  "Lakshadweep (UT)",
+  "Puducherry (UT)",
+];
 
 type FormState = {
   fullName: string;
@@ -245,12 +288,12 @@ export default function OnboardingPage() {
 
           <div className="space-y-2">
             <Label className="md:text-base">Address *</Label>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <Input
                 value={form.taluka}
                 onChange={(e) => set("taluka", e.target.value)}
-                placeholder="Taluka"
-                aria-label="Taluka"
+                placeholder="Taluka / Tehsil"
+                aria-label="Taluka / Tehsil"
               />
               <Input
                 value={form.district}
@@ -258,11 +301,23 @@ export default function OnboardingPage() {
                 placeholder="District"
                 aria-label="District"
               />
-              <Input
+              <Select
                 value={form.state}
                 onChange={(e) => set("state", e.target.value)}
-                placeholder="State"
-                aria-label="State"
+                aria-label="State / Union Territory"
+              >
+                <option value="">— State / Union Territory —</option>
+                {INDIAN_STATES_AND_UTS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                value="India"
+                disabled
+                aria-label="Country"
+                title="ClinikNote is built exclusively for doctors practicing in India"
               />
             </div>
             {(errors.taluka || errors.district || errors.state) && (
