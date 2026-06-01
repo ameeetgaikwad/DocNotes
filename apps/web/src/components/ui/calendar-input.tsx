@@ -60,6 +60,24 @@ export function CalendarInput({
   const selected = useMemo(() => dateFromIso(value), [value]);
   const fromDate = useMemo(() => dateFromIso(min ?? ""), [min]);
   const toDate = useMemo(() => dateFromIso(max ?? ""), [max]);
+  // Navigation bounds for the calendar UI — broader than the explicit
+  // min/max selection bounds so the captionLayout="dropdown" picker
+  // gives the doctor a useful range. Without these the dropdown shows
+  // only the current year by default. Selection is still gated by the
+  // `disabled` callback below, so being able to NAVIGATE further back
+  // doesn't let you PICK a date outside an explicit min/max.
+  const navStartMonth = useMemo(() => {
+    if (fromDate) return fromDate;
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 10);
+    return d;
+  }, [fromDate]);
+  const navEndMonth = useMemo(() => {
+    if (toDate) return toDate;
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    return d;
+  }, [toDate]);
 
   return (
     <Popover
@@ -94,8 +112,8 @@ export function CalendarInput({
           mode="single"
           selected={selected}
           defaultMonth={selected ?? new Date()}
-          startMonth={fromDate}
-          endMonth={toDate}
+          startMonth={navStartMonth}
+          endMonth={navEndMonth}
           disabled={
             fromDate || toDate
               ? (day: Date) => {
