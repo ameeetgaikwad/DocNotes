@@ -59,9 +59,6 @@ export default function DailyRegisterPage() {
           <h1 className="text-2xl font-semibold md:text-3xl">
             Daily Case Register
           </h1>
-          <p className="text-muted-foreground md:text-base">
-            Daily case register (Form 25) — patient visits and fees received
-          </p>
         </div>
         <Button
           onClick={() => setDialogOpen(true)}
@@ -240,7 +237,7 @@ export default function DailyRegisterPage() {
                       href={`/patients/${entry.patient.id}`}
                       className="text-muted-foreground hover:text-foreground"
                     >
-                      View patient
+                      View Patient Card
                     </Link>
                     <span className="text-muted-foreground/40">·</span>
                     <DeleteEntryButton entryId={entry.id} visitDate={visitDate}>

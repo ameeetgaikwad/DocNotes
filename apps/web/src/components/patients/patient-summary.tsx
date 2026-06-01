@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Save } from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
+import { formatPatientName } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,13 +47,31 @@ type Allergy = {
 export function PatientSummary({ patient }: PatientSummaryProps) {
   const allergies = (patient.allergies ?? []) as Allergy[];
   const conditions = (patient.activeConditions ?? []) as string[];
-  // Previously-used Responsible Party labels — powers the datalist
-  // autocomplete on the Summary card (Manoj msg 1095 #4).
+  // Previously-used Responsible Party labels — first source for the
+  // autocomplete (Manoj msg 1095 #4).
   const rpNamesQuery = useQuery({
     ...trpc.patient.responsiblePartyNames.queryOptions(),
     staleTime: 30_000,
   });
-  const rpSuggestions = rpNamesQuery.data ?? [];
+  // Patient-list query so the RP dropdown can suggest existing patients
+  // by name (Manoj msg 1398 #2 — the family head / payer is often
+  // another registered patient and typing should pull them up). 500
+  // covers any realistic single-doctor clinic; if a clinic outgrows
+  // that we can switch to a debounced server-side search.
+  const allPatientsQuery = useQuery({
+    ...trpc.patient.list.queryOptions({ page: 1, limit: 500 }),
+    staleTime: 60_000,
+  });
+  const rpSuggestions = useMemo(() => {
+    const set = new Set<string>();
+    for (const name of rpNamesQuery.data ?? []) set.add(name);
+    for (const p of allPatientsQuery.data?.items ?? []) {
+      const name = formatPatientName(p);
+      // A patient can't be their own Responsible Party.
+      if (name && p.id !== patient.id) set.add(name);
+    }
+    return Array.from(set);
+  }, [rpNamesQuery.data, allPatientsQuery.data, patient.id]);
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -173,6 +192,7 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
             initial={patient.responsiblePartyName ?? ""}
             maxLength={255}
             suggestions={rpSuggestions}
+            helpText="Any pending dues of this patient will be billed to the Responsible Party entered here."
           />
           <FieldEditor
             patientId={patient.id}
@@ -198,6 +218,7 @@ function FieldEditor({
   multiline,
   maxLength,
   suggestions,
+  helpText,
 }: {
   patientId: string;
   field:
@@ -214,6 +235,7 @@ function FieldEditor({
   multiline?: boolean;
   maxLength?: number;
   suggestions?: ReadonlyArray<string>;
+  helpText?: string;
 }) {
   const [focused, setFocused] = useState(false);
   const queryClient = useQueryClient();
@@ -307,6 +329,11 @@ function FieldEditor({
           </Button>
         )}
       </div>
+      {helpText && (
+        <p className="text-xs text-muted-foreground sm:basis-full sm:pl-32">
+          {helpText}
+        </p>
+      )}
       {serverError && (
         <p className="text-xs text-destructive sm:basis-full sm:pl-32">
           {serverError}

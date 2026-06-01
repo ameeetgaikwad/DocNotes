@@ -21,7 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const navItems = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/patients", label: "Patients", icon: Users },
   { to: "/schedule", label: "Schedule", icon: Calendar },
   {
@@ -51,7 +51,7 @@ export function AppSidebar() {
             <FileText className="h-4 w-4" />
           </div>
           <span className="text-lg font-semibold text-sidebar-foreground">
-            DocNotes
+            ClinikNote
           </span>
         </div>
       </div>
@@ -75,8 +75,8 @@ export function AppSidebar() {
         <nav className="flex flex-col gap-1">
           {navItems.map((item) => {
             const isActive =
-              item.to === "/"
-                ? currentPath === "/"
+              item.to === "/dashboard"
+                ? currentPath === "/dashboard"
                 : currentPath.startsWith(item.to);
             return (
               <Link

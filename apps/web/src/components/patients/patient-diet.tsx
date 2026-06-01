@@ -49,10 +49,6 @@ export function PatientDiet({ patientId, initialDietNotes }: PatientDietProps) {
         </div>
         <div>
           <h2 className="text-lg font-semibold md:text-xl">Diet</h2>
-          <p className="text-sm text-muted-foreground">
-            Dietary plans, restrictions, allergies relevant to food, and notes
-            given to the patient.
-          </p>
         </div>
       </div>
 
@@ -64,11 +60,6 @@ export function PatientDiet({ patientId, initialDietNotes }: PatientDietProps) {
           id="diet-notes"
           rows={10}
           maxLength={5000}
-          placeholder={
-            "e.g. Low-sodium diet from 2026-04. Avoid peanuts (severe allergy).\n" +
-            "Recommended: Mediterranean pattern, 3 fruits/day.\n" +
-            "Restrictions: limit refined sugars, alcohol."
-          }
           value={value}
           onChange={(e) => setValue(e.target.value)}
           className="md:min-h-[12rem] md:text-base"
@@ -85,16 +76,6 @@ export function PatientDiet({ patientId, initialDietNotes }: PatientDietProps) {
       )}
 
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {dirty && !saveMutation.isPending && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setValue(savedValue)}
-            className="md:h-11 md:px-5 md:text-base"
-          >
-            Discard changes
-          </Button>
-        )}
         <Button
           type="button"
           onClick={() => saveMutation.mutate(value)}
@@ -111,6 +92,16 @@ export function PatientDiet({ patientId, initialDietNotes }: PatientDietProps) {
             </>
           )}
         </Button>
+        {dirty && !saveMutation.isPending && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setValue(savedValue)}
+            className="md:h-11 md:px-5 md:text-base"
+          >
+            Discard changes
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -76,18 +76,25 @@ export const dailyRegisterRouter = router({
   summary: protectedProcedure
     .input(dailyRegisterSummaryQuerySchema)
     .query(async ({ ctx, input }) => {
+      // Join + filter by patients.isActive so the dashboard summary does
+      // not count entries belonging to archived (soft-deleted) patients.
+      // The Total Patients tile already excludes archived patients, so the
+      // mismatch (14 active patients vs 43 cases) was confusing — Manoj
+      // msg 1334. Form 25 / register exports still include archived
+      // patients' entries since IT retention requires the original
+      // transaction record to stay accurate.
       const rows = await ctx.db
         .select({
           totalCases: sql<number>`count(*)`,
-          // Receipts = everything actually received (paid in full + any partial)
           receipts: sql<string>`coalesce(sum(case when ${dailyRegisterEntries.paymentStatus} = 'paid' then ${dailyRegisterEntries.feeAmount} when ${dailyRegisterEntries.paymentStatus} = 'due' then ${dailyRegisterEntries.paidAmount} else 0 end), 0)`,
-          // Outstanding = unpaid portion of 'due' entries only
           pendingDues: sql<string>`coalesce(sum(case when ${dailyRegisterEntries.paymentStatus} = 'due' then greatest(${dailyRegisterEntries.feeAmount} - ${dailyRegisterEntries.paidAmount}, 0) else 0 end), 0)`,
         })
         .from(dailyRegisterEntries)
+        .innerJoin(patients, eq(patients.id, dailyRegisterEntries.patientId))
         .where(
           and(
             eq(dailyRegisterEntries.providerId, ctx.session.userId),
+            eq(patients.isActive, true),
             gte(dailyRegisterEntries.visitDate, input.startDate),
             lte(dailyRegisterEntries.visitDate, input.endDate),
           ),
@@ -159,6 +166,9 @@ export const dailyRegisterRouter = router({
         .where(
           and(
             eq(dailyRegisterEntries.providerId, ctx.session.userId),
+            // Hide archived patients from the overdue-dues report — same
+            // rationale as `summary` and `allPendingDues` (Manoj msg 1334).
+            eq(patients.isActive, true),
             eq(dailyRegisterEntries.paymentStatus, "due"),
           ),
         )
@@ -232,6 +242,10 @@ export const dailyRegisterRouter = router({
       .where(
         and(
           eq(dailyRegisterEntries.providerId, ctx.session.userId),
+          // Exclude archived patients' dues from the dashboard panel so it
+          // mirrors the Total Patients tile (Manoj msg 1334). Entries
+          // still live in the DB for IT retention.
+          eq(patients.isActive, true),
           eq(dailyRegisterEntries.paymentStatus, "due"),
           sql`${dailyRegisterEntries.feeAmount} > ${dailyRegisterEntries.paidAmount}`,
         ),

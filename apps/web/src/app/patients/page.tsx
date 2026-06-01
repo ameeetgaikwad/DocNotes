@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Loader2,
   AlertCircle,
+  Archive,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -70,13 +71,22 @@ export default function PatientsPage() {
           <h1 className="text-2xl font-semibold">Patients</h1>
           <p className="text-muted-foreground">Manage your patient records</p>
         </div>
-        <Button
-          onClick={() => setDialogOpen(true)}
-          className="hidden self-start sm:inline-flex"
-        >
-          <Plus className="h-4 w-4" />
-          New Patient
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/patients/archived"
+            className="inline-flex items-center gap-1 self-start rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <Archive className="h-4 w-4" />
+            Recently Deleted
+          </Link>
+          <Button
+            onClick={() => setDialogOpen(true)}
+            className="hidden self-start sm:inline-flex"
+          >
+            <Plus className="h-4 w-4" />
+            New Patient
+          </Button>
+        </div>
       </div>
 
       <div className="mb-6">

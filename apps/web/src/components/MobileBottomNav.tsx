@@ -17,6 +17,7 @@ import {
   ShoppingCart,
   BellRing,
   Pill,
+  Archive,
 } from "lucide-react";
 import { DailyCaseRegisterIcon } from "@/components/icons/daily-case-register";
 import { cn } from "@/lib/utils";
@@ -28,7 +29,7 @@ type NavItem = {
 };
 
 const TABS: NavItem[] = [
-  { to: "/", label: "Home", icon: LayoutDashboard },
+  { to: "/dashboard", label: "Home", icon: LayoutDashboard },
   { to: "/patients", label: "Patients", icon: Users },
   { to: "/daily-register", label: "Register", icon: DailyCaseRegisterIcon },
   { to: "/schedule", label: "Schedule", icon: Calendar },
@@ -48,13 +49,14 @@ const MORE_ITEMS: NavItem[] = [
   { to: "/reminders", label: "Reminders", icon: BellRing },
   { to: "/reports", label: "Reports", icon: FileText },
   { to: "/tasks", label: "Tasks", icon: ClipboardList },
+  { to: "/patients/archived", label: "Recently Deleted", icon: Archive },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
 const MORE_PATHS = MORE_ITEMS.map((i) => i.to);
 
 function isActivePath(currentPath: string, to: string): boolean {
-  if (to === "/") return currentPath === "/";
+  if (to === "/dashboard") return currentPath === "/dashboard";
   return currentPath === to || currentPath.startsWith(`${to}/`);
 }
 

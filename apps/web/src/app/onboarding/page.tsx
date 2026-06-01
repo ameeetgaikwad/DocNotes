@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -52,6 +53,11 @@ export default function OnboardingPage() {
     Partial<Record<keyof FormState, string>>
   >({});
   const [serverError, setServerError] = useState<string | null>(null);
+  // Disclaimer consent is captured here at onboarding since Clerk's
+  // express-consent toggle only supports Terms + Privacy slots. The
+  // tick gates the Save button and the accepted-at timestamp is
+  // written to Clerk user.unsafeMetadata on successful save.
+  const [disclaimerAgreed, setDisclaimerAgreed] = useState(false);
 
   useEffect(() => {
     if (profileQuery.data === null && form.email === "" && clerkLoaded) {
@@ -62,7 +68,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (profileQuery.data) {
-      router.replace("/");
+      router.replace("/dashboard");
     }
   }, [profileQuery.data, router]);
 
@@ -102,6 +108,22 @@ export default function OnboardingPage() {
       return trpcClient.doctorProfile.upsert.mutate(validated.data);
     },
     onSuccess: async (data) => {
+      // Persist disclaimer consent timestamp on the Clerk user record so
+      // we have a per-user audit point alongside Clerk's native
+      // Terms/Privacy consent. Best-effort — a failure here shouldn't
+      // block the doctor from getting into the app.
+      if (user) {
+        try {
+          await user.update({
+            unsafeMetadata: {
+              ...user.unsafeMetadata,
+              disclaimerAgreedAt: new Date().toISOString(),
+            },
+          });
+        } catch {
+          // swallow; doctor profile is saved, that's the main thing
+        }
+      }
       // Seed the cache so the Providers Shell doesn't read a stale `null`
       // and bounce us straight back to /onboarding while a refetch is in
       // flight. Then await invalidation so the next read is authoritative.
@@ -111,7 +133,7 @@ export default function OnboardingPage() {
       await queryClient.invalidateQueries({
         queryKey: [["doctorProfile"]],
       });
-      router.replace("/");
+      router.replace("/dashboard");
     },
     onError: (e) => {
       setServerError(e.message);
@@ -292,9 +314,33 @@ export default function OnboardingPage() {
             }
           />
 
+          <label className="flex cursor-pointer items-start gap-3 rounded-md border bg-muted/40 p-3 text-sm">
+            <input
+              type="checkbox"
+              checked={disclaimerAgreed}
+              onChange={(e) => setDisclaimerAgreed(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-primary"
+              aria-label="Accept disclaimer"
+            />
+            <span>
+              I have read and agree to the{" "}
+              <Link
+                href="/disclaimer"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                ClinikNote Disclaimer
+              </Link>
+              , including the responsibility to maintain accurate records and
+              parallel hard copies as required by Indian medical and Income Tax
+              regulations.
+            </span>
+          </label>
+
           <Button
             type="submit"
-            disabled={upsert.isPending}
+            disabled={upsert.isPending || !disclaimerAgreed}
             className="w-full md:h-12 md:text-base"
           >
             {upsert.isPending ? (

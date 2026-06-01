@@ -5,17 +5,18 @@ import { Providers } from "./providers";
 import { PWARegister } from "@/components/PWARegister";
 
 export const metadata: Metadata = {
-  title: "DocNotes",
-  description: "Medical records for general practitioners",
+  title: "ClinikNote",
+  description:
+    "Simple and smart digital register for doctors — daily practice records, patient history, and easy IT compliance.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "DocNotes",
+    title: "ClinikNote",
   },
   icons: {
     icon: [
-      { url: "/favicon.ico" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
@@ -42,9 +43,9 @@ export default function RootLayout({
     <ClerkProvider
       signInUrl="/auth/login"
       signUpUrl="/auth/register"
-      signInFallbackRedirectUrl="/"
-      signUpFallbackRedirectUrl="/"
-      afterSignOutUrl="/auth/login"
+      signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/dashboard"
+      afterSignOutUrl="/"
     >
       <html lang="en-IN">
         <head>
