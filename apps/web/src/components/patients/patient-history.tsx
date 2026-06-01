@@ -9,11 +9,9 @@ import {
   Save,
   Pill,
   Archive,
-  Printer,
 } from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
 import { formatDate } from "@/lib/format";
-import { printBase64Pdf } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -313,6 +311,14 @@ function VisitCard({
   // visits default to false to keep the timeline clean.
   const [editAll, setEditAll] = useState(isLatest);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // F/U inline form state — Manoj msg 1387. Replaces the non-functional
+  // Rx button. Tapping F/U opens a small popover with a days input and an
+  // optional 25-char reason. On Insert we append "Follow up after N days!
+  // <reason>" to the clinical notes; the existing detectFollowUp parser
+  // on save picks that up and schedules the appointment.
+  const [fuOpen, setFuOpen] = useState(false);
+  const [fuDays, setFuDays] = useState("");
+  const [fuReason, setFuReason] = useState("");
   const [followUpToast, setFollowUpToast] = useState<{
     text: string;
     when: string;
@@ -447,15 +453,6 @@ function VisitCard({
       queryClient.invalidateQueries({ queryKey: [["appointment"]] });
       setFollowUpToast(null);
     },
-  });
-
-  // Prescription print: server-rendered PDF on doctor letterhead with
-  // the current visit's clinical notes (Manoj msg 910). Mirrors the
-  // existing "Print Summary" flow on the patient header.
-  const printRxMutation = useMutation({
-    mutationFn: () =>
-      trpcClient.export.prescription.mutate({ visitId: visit.id }),
-    onSuccess: (data) => printBase64Pdf(data.base64),
   });
 
   const dirty = !sameForm(form, initial);
@@ -644,20 +641,90 @@ function VisitCard({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => printRxMutation.mutate()}
-                  disabled={printRxMutation.isPending}
+                  onClick={() => {
+                    setFuDays("");
+                    setFuReason("");
+                    setFuOpen((v) => !v);
+                  }}
                   className="h-7 px-2 text-xs"
-                  title="Open printable prescription"
+                  title="Insert a follow-up reminder"
                 >
-                  {printRxMutation.isPending ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Printer className="h-3.5 w-3.5" />
-                  )}
-                  Rx
+                  F/U
                 </Button>
               </div>
             </div>
+            {fuOpen && (
+              <div className="space-y-2 rounded-md border border-primary/40 bg-primary/5 p-3">
+                <p className="text-xs font-medium text-primary">
+                  Insert follow-up reminder
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm">Follow up after</span>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    autoFocus
+                    value={fuDays}
+                    onChange={(e) =>
+                      setFuDays(e.target.value.replace(/\D/g, "").slice(0, 3))
+                    }
+                    placeholder="N"
+                    maxLength={3}
+                    className="h-8 w-16 text-center"
+                  />
+                  <span className="text-sm">days!</span>
+                  <Input
+                    type="text"
+                    value={fuReason}
+                    onChange={(e) => setFuReason(e.target.value.slice(0, 25))}
+                    placeholder="reason (optional, max 25)"
+                    maxLength={25}
+                    className="h-8 min-w-[10rem] flex-1 text-sm"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!fuDays}
+                    onClick={() => {
+                      const reason = fuReason.trim();
+                      // Trailing "!" is what detectFollowUp keys on to
+                      // schedule the appointment; the optional reason
+                      // rides as the appointment's reason text.
+                      const line = reason
+                        ? `Follow up after ${fuDays} days! ${reason}`
+                        : `Follow up after ${fuDays} days!`;
+                      setForm((prev) => {
+                        const current = prev.clinicalNotes;
+                        const next =
+                          current.length === 0
+                            ? line
+                            : current.endsWith("\n")
+                              ? current + line
+                              : current + "\n" + line;
+                        return { ...prev, clinicalNotes: next };
+                      });
+                      setFuOpen(false);
+                    }}
+                  >
+                    Insert
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setFuOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  The reminder will be created automatically when you save the
+                  visit.
+                </p>
+              </div>
+            )}
             <MedicineAutocompleteTextarea
               id={`${visit.id}-notes`}
               rows={6}
@@ -670,6 +737,36 @@ function VisitCard({
               hints={medicineHints}
               className="md:min-h-[10rem] md:text-base"
             />
+            {editAll && (
+              <div className="flex justify-end gap-2 pt-2">
+                {dirty && !saveMutation.isPending && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setForm(initial)}
+                    className="md:h-10 md:px-4 md:text-sm"
+                  >
+                    Discard
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  onClick={() => saveMutation.mutate()}
+                  disabled={!dirty || saveMutation.isPending}
+                  className="md:h-10 md:px-4 md:text-sm"
+                >
+                  {saveMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Saving
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4" /> Save Visit
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -683,12 +780,6 @@ function VisitCard({
       {saveMutation.error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
           {saveMutation.error.message}
-        </div>
-      )}
-
-      {printRxMutation.error && (
-        <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
-          {printRxMutation.error.message}
         </div>
       )}
 
@@ -722,37 +813,6 @@ function VisitCard({
               Done
             </Button>
           </div>
-        </div>
-      )}
-
-      {editAll && (
-        <div className="flex justify-end gap-2">
-          {dirty && !saveMutation.isPending && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setForm(initial)}
-              className="md:h-11 md:px-5 md:text-base"
-            >
-              Discard
-            </Button>
-          )}
-          <Button
-            type="button"
-            onClick={() => saveMutation.mutate()}
-            disabled={!dirty || saveMutation.isPending}
-            className="md:h-11 md:px-5 md:text-base"
-          >
-            {saveMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Saving
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" /> Save Visit
-              </>
-            )}
-          </Button>
         </div>
       )}
     </div>
