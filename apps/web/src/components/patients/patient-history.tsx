@@ -509,6 +509,7 @@ function VisitCard({
                     onChange={(v) => setForm({ ...form, bpSystolic: v })}
                     placeholder="—"
                     className="w-16"
+                    maxLength={3}
                   />
                   <span className="text-muted-foreground">/</span>
                   <NumInput
@@ -516,6 +517,7 @@ function VisitCard({
                     onChange={(v) => setForm({ ...form, bpDiastolic: v })}
                     placeholder="—"
                     className="w-16"
+                    maxLength={3}
                   />
                 </div>
               </FieldGroup>
@@ -782,12 +784,14 @@ function NumInput({
   onChange,
   placeholder,
   className,
+  maxLength,
 }: {
   id?: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   className?: string;
+  maxLength?: number;
 }) {
   return (
     <Input
@@ -797,7 +801,11 @@ function NumInput({
       autoComplete="off"
       placeholder={placeholder}
       value={value}
-      onChange={(e) => onChange(sanitizeDecimal(e.target.value))}
+      onChange={(e) => {
+        const sanitized = sanitizeDecimal(e.target.value);
+        onChange(maxLength != null ? sanitized.slice(0, maxLength) : sanitized);
+      }}
+      maxLength={maxLength}
       className={`text-center ${className ?? ""}`}
     />
   );

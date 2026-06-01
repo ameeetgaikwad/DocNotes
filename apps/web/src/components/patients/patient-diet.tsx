@@ -76,16 +76,6 @@ export function PatientDiet({ patientId, initialDietNotes }: PatientDietProps) {
       )}
 
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {dirty && !saveMutation.isPending && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setValue(savedValue)}
-            className="md:h-11 md:px-5 md:text-base"
-          >
-            Discard changes
-          </Button>
-        )}
         <Button
           type="button"
           onClick={() => saveMutation.mutate(value)}
@@ -102,6 +92,16 @@ export function PatientDiet({ patientId, initialDietNotes }: PatientDietProps) {
             </>
           )}
         </Button>
+        {dirty && !saveMutation.isPending && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setValue(savedValue)}
+            className="md:h-11 md:px-5 md:text-base"
+          >
+            Discard changes
+          </Button>
+        )}
       </div>
     </div>
   );

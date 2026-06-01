@@ -160,7 +160,11 @@ export function NewDailyRegisterEntryDialog({
       setFeeAmount("");
       setPaymentStatus("paid");
       setPaymentMode("cash");
-      setReceiptDate("");
+      // Default to today so a reopened dialog with default Paid status
+      // shows a populated receipt date instead of an empty field. The
+      // [paymentStatus] effect alone wasn't sufficient because deps don't
+      // change on close→reopen and it never re-fires (Manoj msg 1384).
+      setReceiptDate(todayLocalIsoDate());
       setDiagnosis("");
       setNotes("");
       setServerError(null);
