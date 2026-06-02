@@ -110,18 +110,6 @@ function fyRange(y: number): { startDate: string; endDate: string } {
   return { startDate: `${y}-04-01`, endDate: `${y + 1}-03-31` };
 }
 
-function thisMonthRange(): { startDate: string; endDate: string } {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  const last = new Date(y, m + 1, 0).getDate();
-  const mm = String(m + 1).padStart(2, "0");
-  return {
-    startDate: `${y}-${mm}-01`,
-    endDate: `${y}-${mm}-${String(last).padStart(2, "0")}`,
-  };
-}
-
 function MetricTile({
   label,
   value,
@@ -714,23 +702,41 @@ function SummaryRow({
 function RegisterSummaryPanel() {
   const [tab, setTab] = useState<"today" | "month" | "fy">("today");
   const currentFy = currentFinancialYear();
-  const [fy, setFy] = useState<number | "">("");
+  const todayIso = todayLocalIsoDate();
+  const currentMonth = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+  // Each tab gets a picker that defaults to its current period and lets
+  // the doctor look back at older windows (Manoj msg 1414):
+  //  - Today: date picker, today by default, max 30 days back
+  //  - This Month: month picker, current month by default
+  //  - Current F.Y.: FY dropdown, current FY by default (was required-select before)
+  const [selectedDate, setSelectedDate] = useState(todayIso);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [fy, setFy] = useState<number>(currentFy);
+  const thirtyDaysBack = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }, []);
 
-  const range = useMemo<{ startDate: string; endDate: string } | null>(() => {
+  const range = useMemo<{ startDate: string; endDate: string }>(() => {
     if (tab === "today") {
-      const d = todayLocalIsoDate();
-      return { startDate: d, endDate: d };
+      return { startDate: selectedDate, endDate: selectedDate };
     }
-    if (tab === "month") return thisMonthRange();
-    return fy === "" ? null : fyRange(Number(fy));
-  }, [tab, fy]);
+    if (tab === "month") {
+      const [y, m] = selectedMonth.split("-").map(Number);
+      const last = new Date(y, m, 0).getDate();
+      return {
+        startDate: `${selectedMonth}-01`,
+        endDate: `${selectedMonth}-${String(last).padStart(2, "0")}`,
+      };
+    }
+    return fyRange(fy);
+  }, [tab, selectedDate, selectedMonth, fy]);
 
-  const summaryQuery = useQuery({
-    ...trpc.dailyRegister.summary.queryOptions(
-      range ?? { startDate: "1970-01-01", endDate: "1970-01-01" },
-    ),
-    enabled: range !== null,
-  });
+  const summaryQuery = useQuery(trpc.dailyRegister.summary.queryOptions(range));
 
   const fyOptions = useMemo(() => {
     const out: number[] = [];
@@ -744,19 +750,19 @@ function RegisterSummaryPanel() {
         label="Total Cases"
         value={String(summaryQuery.data?.totalCases ?? 0)}
         icon={ClipboardList}
-        isLoading={summaryQuery.isLoading && range !== null}
+        isLoading={summaryQuery.isLoading}
       />
       <MetricTile
         label="Receipts"
         value={formatINR(summaryQuery.data?.receipts ?? 0)}
         icon={IndianRupee}
-        isLoading={summaryQuery.isLoading && range !== null}
+        isLoading={summaryQuery.isLoading}
       />
       <MetricTile
         label="Pending Dues"
         value={formatINR(summaryQuery.data?.pendingDues ?? 0)}
         icon={AlertCircle}
-        isLoading={summaryQuery.isLoading && range !== null}
+        isLoading={summaryQuery.isLoading}
       />
     </div>
   );
@@ -780,11 +786,68 @@ function RegisterSummaryPanel() {
         <TabsList>
           <TabsTrigger value="today">Today</TabsTrigger>
           <TabsTrigger value="month">This Month</TabsTrigger>
-          <TabsTrigger value="fy">F. Year</TabsTrigger>
+          <TabsTrigger value="fy">Current F.Y.</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="today">{metrics}</TabsContent>
-        <TabsContent value="month">{metrics}</TabsContent>
+        <TabsContent value="today">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <label
+              htmlFor="today-date"
+              className="text-sm font-medium text-muted-foreground"
+            >
+              Date
+            </label>
+            <input
+              id="today-date"
+              type="date"
+              value={selectedDate}
+              min={thirtyDaysBack}
+              max={todayIso}
+              onChange={(e) => setSelectedDate(e.target.value || todayIso)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            />
+            {selectedDate !== todayIso && (
+              <button
+                type="button"
+                onClick={() => setSelectedDate(todayIso)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Back to today
+              </button>
+            )}
+          </div>
+          {metrics}
+        </TabsContent>
+
+        <TabsContent value="month">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <label
+              htmlFor="month-pick"
+              className="text-sm font-medium text-muted-foreground"
+            >
+              Month
+            </label>
+            <input
+              id="month-pick"
+              type="month"
+              value={selectedMonth}
+              max={currentMonth}
+              onChange={(e) => setSelectedMonth(e.target.value || currentMonth)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            />
+            {selectedMonth !== currentMonth && (
+              <button
+                type="button"
+                onClick={() => setSelectedMonth(currentMonth)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Back to this month
+              </button>
+            )}
+          </div>
+          {metrics}
+        </TabsContent>
+
         <TabsContent value="fy">
           <div className="mt-3 flex items-center gap-2">
             <label
@@ -795,27 +858,19 @@ function RegisterSummaryPanel() {
             </label>
             <Select
               id="fy-select"
-              value={fy === "" ? "" : String(fy)}
-              onChange={(e) =>
-                setFy(e.target.value === "" ? "" : Number(e.target.value))
-              }
-              className="w-40"
+              value={String(fy)}
+              onChange={(e) => setFy(Number(e.target.value))}
+              className="w-44"
             >
-              <option value="">— Select FY —</option>
               {fyOptions.map((y) => (
                 <option key={y} value={y}>
                   {fyLabel(y)}
+                  {y === currentFy ? " (current)" : ""}
                 </option>
               ))}
             </Select>
           </div>
-          {fy === "" ? (
-            <p className="mt-4 text-sm text-muted-foreground">
-              Pick a financial year to see its summary.
-            </p>
-          ) : (
-            metrics
-          )}
+          {metrics}
         </TabsContent>
       </Tabs>
     </div>
