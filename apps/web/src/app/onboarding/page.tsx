@@ -96,11 +96,15 @@ export default function OnboardingPage() {
     Partial<Record<keyof FormState, string>>
   >({});
   const [serverError, setServerError] = useState<string | null>(null);
-  // Disclaimer consent is captured here at onboarding since Clerk's
-  // express-consent toggle only supports Terms + Privacy slots. The
-  // tick gates the Save button and the accepted-at timestamp is
-  // written to Clerk user.unsafeMetadata on successful save.
-  const [disclaimerAgreed, setDisclaimerAgreed] = useState(false);
+  // Legal consent (Terms + Privacy + Disclaimer) is captured here at
+  // onboarding rather than at signup (Amit msg 1427). Clerk's native
+  // express-consent toggle only gates the email/password flow — Google
+  // OAuth signups bypassed it because Clerk hands the consent UI off to
+  // Google for those. Capturing at onboarding ensures EVERY first-time
+  // user, regardless of signup method, ticks the box before they can
+  // get into the app. Accepted-at timestamp is written to Clerk
+  // user.unsafeMetadata as legalAgreedAt on successful save.
+  const [legalAgreed, setLegalAgreed] = useState(false);
 
   useEffect(() => {
     if (profileQuery.data === null && form.email === "" && clerkLoaded) {
@@ -151,16 +155,16 @@ export default function OnboardingPage() {
       return trpcClient.doctorProfile.upsert.mutate(validated.data);
     },
     onSuccess: async (data) => {
-      // Persist disclaimer consent timestamp on the Clerk user record so
-      // we have a per-user audit point alongside Clerk's native
-      // Terms/Privacy consent. Best-effort — a failure here shouldn't
-      // block the doctor from getting into the app.
+      // Persist legal consent timestamp (Terms + Privacy + Disclaimer)
+      // on the Clerk user record. Best-effort — a failure here shouldn't
+      // block the doctor from getting into the app since the consent
+      // check already gated the Save button.
       if (user) {
         try {
           await user.update({
             unsafeMetadata: {
               ...user.unsafeMetadata,
-              disclaimerAgreedAt: new Date().toISOString(),
+              legalAgreedAt: new Date().toISOString(),
             },
           });
         } catch {
@@ -372,30 +376,48 @@ export default function OnboardingPage() {
           <label className="flex cursor-pointer items-start gap-3 rounded-md border bg-muted/40 p-3 text-sm">
             <input
               type="checkbox"
-              checked={disclaimerAgreed}
-              onChange={(e) => setDisclaimerAgreed(e.target.checked)}
+              checked={legalAgreed}
+              onChange={(e) => setLegalAgreed(e.target.checked)}
               className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-primary"
-              aria-label="Accept disclaimer"
+              aria-label="Accept legal terms"
             />
             <span>
-              I have read and agree to the{" "}
+              I have read and agree to ClinikNote&apos;s{" "}
+              <Link
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                Terms of Service
+              </Link>
+              ,{" "}
+              <Link
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                Privacy Policy
+              </Link>
+              , and{" "}
               <Link
                 href="/disclaimer"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"
               >
-                ClinikNote Disclaimer
+                Disclaimer
               </Link>
-              , including the responsibility to maintain accurate records and
-              parallel hard copies as required by Indian medical and Income Tax
-              regulations.
+              , including the responsibility to maintain accurate patient
+              records and parallel hard copies as required by Indian medical and
+              Income Tax regulations.
             </span>
           </label>
 
           <Button
             type="submit"
-            disabled={upsert.isPending || !disclaimerAgreed}
+            disabled={upsert.isPending || !legalAgreed}
             className="w-full md:h-12 md:text-base"
           >
             {upsert.isPending ? (
