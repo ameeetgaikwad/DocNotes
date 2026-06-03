@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 type NavItem = {
   to: string;
   label: string;
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  icon: React.ComponentType<{ className?: string }>;
 };
 
 const TABS: NavItem[] = [
@@ -82,37 +82,18 @@ export function MobileBottomNav() {
                 <Link
                   href={item.to}
                   className={cn(
-                    "relative flex h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition",
-                    active
-                      ? "text-primary"
-                      : "text-muted-foreground hover:text-foreground",
+                    "flex h-16 flex-col items-center justify-center gap-1 text-xs",
+                    active ? "text-primary" : "text-muted-foreground",
                   )}
                 >
-                  {active && (
-                    <span className="absolute inset-x-3 top-0 h-0.5 rounded-full bg-primary" />
-                  )}
-                  <span
-                    className={cn(
-                      "flex items-center justify-center rounded-xl p-1.5 transition",
-                      active ? "bg-primary/10" : "",
-                    )}
-                  >
-                    <item.icon
-                      className={
-                        item.to === "/daily-register"
-                          ? "h-7 w-7"
-                          : "h-[22px] w-[22px]"
-                      }
-                      strokeWidth={active ? 2.4 : 2}
-                    />
-                  </span>
+                  <item.icon
+                    className={
+                      item.to === "/daily-register" ? "h-7 w-7" : "h-5 w-5"
+                    }
+                  />
                   <span
                     className={
-                      item.to === "/daily-register"
-                        ? "font-bold"
-                        : active
-                          ? "font-semibold"
-                          : undefined
+                      item.to === "/daily-register" ? "font-bold" : undefined
                     }
                   >
                     {item.label}
@@ -127,31 +108,14 @@ export function MobileBottomNav() {
               onClick={() => setMoreOpen(true)}
               aria-expanded={moreOpen}
               className={cn(
-                "relative flex h-16 w-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition",
+                "flex h-16 w-full flex-col items-center justify-center gap-1 text-xs",
                 moreActive || moreOpen
                   ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground",
+                  : "text-muted-foreground",
               )}
             >
-              {(moreActive || moreOpen) && (
-                <span className="absolute inset-x-3 top-0 h-0.5 rounded-full bg-primary" />
-              )}
-              <span
-                className={cn(
-                  "flex items-center justify-center rounded-xl p-1.5 transition",
-                  moreActive || moreOpen ? "bg-primary/10" : "",
-                )}
-              >
-                <MoreHorizontal
-                  className="h-[22px] w-[22px]"
-                  strokeWidth={moreActive || moreOpen ? 2.4 : 2}
-                />
-              </span>
-              <span
-                className={moreActive || moreOpen ? "font-semibold" : undefined}
-              >
-                More
-              </span>
+              <MoreHorizontal className="h-5 w-5" />
+              <span>More</span>
             </button>
           </li>
         </ul>
