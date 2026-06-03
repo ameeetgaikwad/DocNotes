@@ -429,6 +429,36 @@ export const patientRouter = router({
       return updated ?? null;
     }),
 
+  // Distinct diagnoses pulled from this patient's daily register
+  // entries, ordered by most-recent occurrence. Powers the Diagnosis
+  // card on the patient Summary tab (Manoj msg 1435). Empty/null
+  // diagnosis values are filtered out. Limited to 20 — that's a lot
+  // of context for a Summary view; if a patient has more we trust
+  // the doctor will go to the register for the full history.
+  diagnoses: protectedProcedure
+    .input(z.object({ patientId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const rows = await ctx.db
+        .select({
+          diagnosis: dailyRegisterEntries.diagnosis,
+          latestDate: sql<string>`max(${dailyRegisterEntries.visitDate})`,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(dailyRegisterEntries)
+        .where(
+          and(
+            eq(dailyRegisterEntries.providerId, ctx.session.userId),
+            eq(dailyRegisterEntries.patientId, input.patientId),
+            isNotNull(dailyRegisterEntries.diagnosis),
+            ne(dailyRegisterEntries.diagnosis, ""),
+          ),
+        )
+        .groupBy(dailyRegisterEntries.diagnosis)
+        .orderBy(desc(sql`max(${dailyRegisterEntries.visitDate})`))
+        .limit(20);
+      return rows;
+    }),
+
   archive: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
