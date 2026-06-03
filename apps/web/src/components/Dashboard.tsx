@@ -879,6 +879,11 @@ function RegisterSummaryPanel() {
 
 export function Dashboard() {
   const { data, isLoading } = useQuery(trpc.dashboard.stats.queryOptions());
+  // Clinic name from the doctor's onboarding profile drives the title.
+  // Falls back to "My Clinic" until profile loads or if the field is
+  // blank (Manoj msg 1441 — personalised dashboard heading).
+  const profileQuery = useQuery(trpc.doctorProfile.me.queryOptions());
+  const clinicName = profileQuery.data?.clinicName?.trim() || "My Clinic";
   const [registerSummaryOpen, setRegisterSummaryOpen] = useState(false);
 
   const todayIso = todayLocalIsoDate();
@@ -892,7 +897,7 @@ export function Dashboard() {
   return (
     <div className="p-4 sm:p-6">
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
+        <h1 className="text-2xl font-semibold">{clinicName}</h1>
         <p className="text-muted-foreground">Welcome back, Doctor</p>
       </div>
 
