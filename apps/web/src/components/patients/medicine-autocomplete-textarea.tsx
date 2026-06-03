@@ -92,16 +92,16 @@ export const MedicineAutocompleteTextarea = forwardRef<
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIdx((i) => (i - 1 + matches.length) % matches.length);
-    } else if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      applyHint(matches[activeIdx].phrase);
-    } else if (e.key === "Tab") {
-      e.preventDefault();
-      applyHint(matches[activeIdx].phrase);
     } else if (e.key === "Escape") {
       e.preventDefault();
       setOpen(false);
     }
+    // Enter and Tab fall through to default behaviour (newline / focus
+    // shift) — never auto-apply a suggestion. Manoj msg 1431 hit the
+    // old behaviour: typing "Thigh pain" then hitting Enter for a new
+    // line silently swapped his text for whatever "Pain in abdomen…"
+    // happened to be the top match. Suggestions now apply ONLY via
+    // explicit click / tap.
   }
 
   useEffect(() => {
