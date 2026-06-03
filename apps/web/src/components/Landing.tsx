@@ -49,12 +49,13 @@ export function Landing() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-2">
             <Image
-              src="/icon-192.png"
+              src="/icon.svg"
               alt="ClinikNote"
               width={32}
               height={32}
               className="rounded-md"
               priority
+              unoptimized
             />
             <span className="text-lg font-semibold tracking-tight">
               ClinikNote
@@ -83,12 +84,13 @@ export function Landing() {
           <div className="mx-auto max-w-3xl text-center">
             <div className="mx-auto mb-6 inline-flex items-center justify-center">
               <Image
-                src="/icon-512.png"
+                src="/icon.svg"
                 alt="ClinikNote icon"
                 width={88}
                 height={88}
                 className="rounded-2xl shadow-sm"
                 priority
+                unoptimized
               />
             </div>
             <h1 className="text-balance text-4xl font-bold tracking-tight sm:text-5xl">
@@ -179,11 +181,12 @@ export function Landing() {
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:px-6">
           <div className="flex items-center gap-2">
             <Image
-              src="/icon-192.png"
+              src="/icon.svg"
               alt=""
               width={20}
               height={20}
               className="rounded"
+              unoptimized
             />
             <span>ClinikNote</span>
           </div>
