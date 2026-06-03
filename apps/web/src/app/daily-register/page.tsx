@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   Plus,
@@ -42,6 +43,13 @@ function formatINR(amount: number): string {
 export default function DailyRegisterPage() {
   const [visitDate, setVisitDate] = useState(todayLocalIsoDate());
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Open the Add Entry dialog automatically when the page is opened with
+  // ?add=1 (Dashboard's floating Add Entry button uses this so the FAB
+  // doesn't need to reach into another component's state).
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams?.get("add") === "1") setDialogOpen(true);
+  }, [searchParams]);
   const [editingEntry, setEditingEntry] = useState<RegisterEntryForEdit | null>(
     null,
   );

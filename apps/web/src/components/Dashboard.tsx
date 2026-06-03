@@ -16,6 +16,8 @@ import {
   Pencil,
   ChevronDown,
   ChevronRight,
+  Plus,
+  Stethoscope,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { todayLocalIsoDate, formatPatientName, formatDate } from "@/lib/format";
@@ -27,6 +29,10 @@ import {
   type RegisterEntryForEdit,
 } from "@/components/daily-register/edit-entry-dialog";
 
+// Larger numbers + a soft colored left border + a heavier rounded card
+// give the stat tiles the "premium" feel Manoj asked for in msg 1445.
+// Each tile can also take a custom accent color so the four headline
+// metrics on the dashboard read as distinct rather than a wall of teal.
 function StatCard({
   label,
   value,
@@ -35,6 +41,7 @@ function StatCard({
   href,
   onClick,
   active,
+  accent = "teal",
 }: {
   label: string;
   value: string | number;
@@ -43,28 +50,50 @@ function StatCard({
   href?: string;
   onClick?: () => void;
   active?: boolean;
+  accent?: "teal" | "emerald" | "amber" | "rose";
 }) {
+  const accentMap = {
+    teal: "border-l-teal-500 bg-teal-50/40 dark:bg-teal-950/20",
+    emerald: "border-l-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20",
+    amber: "border-l-amber-500 bg-amber-50/40 dark:bg-amber-950/20",
+    rose: "border-l-rose-500 bg-rose-50/40 dark:bg-rose-950/20",
+  } as const;
+  const iconBgMap = {
+    teal: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",
+    emerald:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    amber:
+      "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+    rose: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+  } as const;
+
   const body = (
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-sm text-muted-foreground">{label}</p>
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
         {isLoading ? (
-          <Loader2 className="mt-2 h-5 w-5 animate-spin text-muted-foreground" />
+          <Loader2 className="mt-2 h-6 w-6 animate-spin text-muted-foreground" />
         ) : (
-          <p className="mt-1 text-2xl font-semibold">{value}</p>
+          <p className="mt-2 text-3xl font-bold tracking-tight md:text-4xl">
+            {value}
+          </p>
         )}
       </div>
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-        <Icon className="h-5 w-5 text-primary" />
+      <div
+        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl md:h-14 md:w-14 ${iconBgMap[accent]}`}
+      >
+        <Icon className="h-6 w-6 md:h-7 md:w-7" />
       </div>
     </div>
   );
+
+  const baseClasses = `block rounded-2xl border border-l-4 bg-card p-5 shadow-sm transition md:p-6 ${accentMap[accent]}`;
 
   if (href) {
     return (
       <Link
         href={href}
-        className="block rounded-xl border bg-card p-6 transition hover:border-primary/40 hover:bg-accent/40"
+        className={`${baseClasses} hover:shadow-md hover:border-primary/30`}
       >
         {body}
       </Link>
@@ -77,8 +106,8 @@ function StatCard({
         type="button"
         onClick={onClick}
         aria-expanded={active}
-        className={`block w-full rounded-xl border bg-card p-6 text-left transition hover:border-primary/40 hover:bg-accent/40 ${
-          active ? "border-primary/60 bg-accent/30" : ""
+        className={`${baseClasses} w-full text-left hover:shadow-md hover:border-primary/30 ${
+          active ? "ring-2 ring-primary/40 shadow-md" : ""
         }`}
       >
         {body}
@@ -86,7 +115,7 @@ function StatCard({
     );
   }
 
-  return <div className="rounded-xl border bg-card p-6">{body}</div>;
+  return <div className={baseClasses}>{body}</div>;
 }
 
 function formatINR(amount: number): string {
@@ -894,11 +923,37 @@ export function Dashboard() {
     }),
   );
 
+  const doctorName = profileQuery.data?.fullName?.trim() ?? "";
+  const greeting = doctorName
+    ? `Welcome back, ${doctorName.startsWith("Dr") ? doctorName : `Dr. ${doctorName}`}`
+    : "Welcome back, Doctor";
+  const initials = doctorName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) =>
+      p
+        .replace(/^Dr\.?$/i, "")
+        .charAt(0)
+        .toUpperCase(),
+    )
+    .join("");
+
   return (
-    <div className="p-4 sm:p-6">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold">{clinicName}</h1>
-        <p className="text-muted-foreground">Welcome back, Doctor</p>
+    <div className="p-4 pb-24 sm:p-6 md:pb-6">
+      {/* Premium header with avatar, clinic name + greeting (Manoj 1445 #1) */}
+      <div className="mb-8 flex items-center gap-4">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/60 text-base font-semibold text-primary-foreground shadow-md md:h-16 md:w-16 md:text-lg">
+          {initials || <Stethoscope className="h-7 w-7" />}
+        </div>
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-bold tracking-tight md:text-3xl">
+            {clinicName}
+          </h1>
+          <p className="truncate text-sm text-muted-foreground md:text-base">
+            {greeting}
+          </p>
+        </div>
       </div>
 
       <div
@@ -914,6 +969,7 @@ export function Dashboard() {
           icon={Calendar}
           isLoading={isLoading}
           href="/schedule"
+          accent="amber"
         />
         <StatCard
           label="Total Patients"
@@ -921,6 +977,7 @@ export function Dashboard() {
           icon={Users}
           isLoading={isLoading}
           href="/patients"
+          accent="emerald"
         />
         <StatCard
           label="Register Summary"
@@ -929,6 +986,7 @@ export function Dashboard() {
           isLoading={todayRegister.isLoading}
           active={registerSummaryOpen}
           onClick={() => setRegisterSummaryOpen((v) => !v)}
+          accent="teal"
         />
         {!registerSummaryOpen && (
           <StatCard
@@ -936,6 +994,7 @@ export function Dashboard() {
             value={data?.recordsThisWeek ?? 0}
             icon={Activity}
             isLoading={isLoading}
+            accent="rose"
           />
         )}
       </div>
@@ -949,12 +1008,25 @@ export function Dashboard() {
               value={data?.recordsThisWeek ?? 0}
               icon={Activity}
               isLoading={isLoading}
+              accent="rose"
             />
           </div>
         </>
       )}
 
       <PendingDuesPanel />
+
+      {/* Floating Add Entry button (Manoj 1445 #1). Sits above the
+          mobile bottom-nav (4rem) and the iOS safe area; on desktop the
+          sidebar layout has more space, so we anchor it lower. */}
+      <Link
+        href="/daily-register?add=1"
+        className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-5 z-30 flex h-14 items-center gap-2 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/30 transition hover:shadow-xl active:scale-95 md:bottom-6 md:h-16 md:px-6 md:text-base"
+        aria-label="Add Register Entry"
+      >
+        <Plus className="h-5 w-5 md:h-6 md:w-6" />
+        Add Entry
+      </Link>
     </div>
   );
 }
