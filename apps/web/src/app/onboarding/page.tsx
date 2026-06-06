@@ -12,6 +12,49 @@ import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+
+// 28 states + 8 union territories of India. Used by the State dropdown
+// on doctor onboarding (Manoj msg 1403). Sorted alphabetically; UTs
+// flagged with "(UT)" so doctors can distinguish them at a glance.
+const INDIAN_STATES_AND_UTS = [
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+  "Andaman and Nicobar Islands (UT)",
+  "Chandigarh (UT)",
+  "Dadra and Nagar Haveli and Daman and Diu (UT)",
+  "Delhi (UT)",
+  "Jammu and Kashmir (UT)",
+  "Ladakh (UT)",
+  "Lakshadweep (UT)",
+  "Puducherry (UT)",
+];
 
 type FormState = {
   fullName: string;
@@ -53,11 +96,15 @@ export default function OnboardingPage() {
     Partial<Record<keyof FormState, string>>
   >({});
   const [serverError, setServerError] = useState<string | null>(null);
-  // Disclaimer consent is captured here at onboarding since Clerk's
-  // express-consent toggle only supports Terms + Privacy slots. The
-  // tick gates the Save button and the accepted-at timestamp is
-  // written to Clerk user.unsafeMetadata on successful save.
-  const [disclaimerAgreed, setDisclaimerAgreed] = useState(false);
+  // Legal consent (Terms + Privacy + Disclaimer) is captured here at
+  // onboarding rather than at signup (Amit msg 1427). Clerk's native
+  // express-consent toggle only gates the email/password flow — Google
+  // OAuth signups bypassed it because Clerk hands the consent UI off to
+  // Google for those. Capturing at onboarding ensures EVERY first-time
+  // user, regardless of signup method, ticks the box before they can
+  // get into the app. Accepted-at timestamp is written to Clerk
+  // user.unsafeMetadata as legalAgreedAt on successful save.
+  const [legalAgreed, setLegalAgreed] = useState(false);
 
   useEffect(() => {
     if (profileQuery.data === null && form.email === "" && clerkLoaded) {
@@ -108,16 +155,16 @@ export default function OnboardingPage() {
       return trpcClient.doctorProfile.upsert.mutate(validated.data);
     },
     onSuccess: async (data) => {
-      // Persist disclaimer consent timestamp on the Clerk user record so
-      // we have a per-user audit point alongside Clerk's native
-      // Terms/Privacy consent. Best-effort — a failure here shouldn't
-      // block the doctor from getting into the app.
+      // Persist legal consent timestamp (Terms + Privacy + Disclaimer)
+      // on the Clerk user record. Best-effort — a failure here shouldn't
+      // block the doctor from getting into the app since the consent
+      // check already gated the Save button.
       if (user) {
         try {
           await user.update({
             unsafeMetadata: {
               ...user.unsafeMetadata,
-              disclaimerAgreedAt: new Date().toISOString(),
+              legalAgreedAt: new Date().toISOString(),
             },
           });
         } catch {
@@ -245,12 +292,12 @@ export default function OnboardingPage() {
 
           <div className="space-y-2">
             <Label className="md:text-base">Address *</Label>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <Input
                 value={form.taluka}
                 onChange={(e) => set("taluka", e.target.value)}
-                placeholder="Taluka"
-                aria-label="Taluka"
+                placeholder="Taluka / Tehsil"
+                aria-label="Taluka / Tehsil"
               />
               <Input
                 value={form.district}
@@ -258,11 +305,23 @@ export default function OnboardingPage() {
                 placeholder="District"
                 aria-label="District"
               />
-              <Input
+              <Select
                 value={form.state}
                 onChange={(e) => set("state", e.target.value)}
-                placeholder="State"
-                aria-label="State"
+                aria-label="State / Union Territory"
+              >
+                <option value="">— State / Union Territory —</option>
+                {INDIAN_STATES_AND_UTS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                value="India"
+                disabled
+                aria-label="Country"
+                title="ClinikNote is built exclusively for doctors practicing in India"
               />
             </div>
             {(errors.taluka || errors.district || errors.state) && (
@@ -317,30 +376,48 @@ export default function OnboardingPage() {
           <label className="flex cursor-pointer items-start gap-3 rounded-md border bg-muted/40 p-3 text-sm">
             <input
               type="checkbox"
-              checked={disclaimerAgreed}
-              onChange={(e) => setDisclaimerAgreed(e.target.checked)}
+              checked={legalAgreed}
+              onChange={(e) => setLegalAgreed(e.target.checked)}
               className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-primary"
-              aria-label="Accept disclaimer"
+              aria-label="Accept legal terms"
             />
             <span>
-              I have read and agree to the{" "}
+              I have read and agree to ClinikNote&apos;s{" "}
+              <Link
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                Terms of Service
+              </Link>
+              ,{" "}
+              <Link
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                Privacy Policy
+              </Link>
+              , and{" "}
               <Link
                 href="/disclaimer"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"
               >
-                ClinikNote Disclaimer
+                Disclaimer
               </Link>
-              , including the responsibility to maintain accurate records and
-              parallel hard copies as required by Indian medical and Income Tax
-              regulations.
+              , including the responsibility to maintain accurate patient
+              records and parallel hard copies as required by Indian medical and
+              Income Tax regulations.
             </span>
           </label>
 
           <Button
             type="submit"
-            disabled={upsert.isPending || !disclaimerAgreed}
+            disabled={upsert.isPending || !legalAgreed}
             className="w-full md:h-12 md:text-base"
           >
             {upsert.isPending ? (

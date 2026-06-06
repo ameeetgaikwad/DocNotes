@@ -17,11 +17,12 @@ export function LegalLayout({
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2">
             <Image
-              src="/icon-192.png"
+              src="/icon.svg"
               alt="ClinikNote"
               width={28}
               height={28}
               className="rounded-md"
+              unoptimized
             />
             <span className="text-base font-semibold">ClinikNote</span>
           </Link>

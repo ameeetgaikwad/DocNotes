@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Save } from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
-import { formatPatientName } from "@/lib/format";
+import { formatDate, formatPatientName } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,12 +54,16 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
     staleTime: 30_000,
   });
   // Patient-list query so the RP dropdown can suggest existing patients
-  // by name (Manoj msg 1398 #2 — the family head / payer is often
-  // another registered patient and typing should pull them up). 500
-  // covers any realistic single-doctor clinic; if a clinic outgrows
-  // that we can switch to a debounced server-side search.
+  // by name (Manoj msg 1398 #2). Limit clamped to the patientSearchSchema
+  // max of 100 — Amit msg 1404 caught the prior limit:500 returning a
+  // tRPC validation error which left the suggestions silently empty.
+  // The previously-used RP labels (rpNamesQuery, no limit) cover the
+  // common-case payers; the 100 most-recent patients here cover the
+  // long tail. A clinic with >100 patients can still type the full
+  // name to save it as a free-text RP label; that label then flows
+  // into future suggestions via rpNamesQuery.
   const allPatientsQuery = useQuery({
-    ...trpc.patient.list.queryOptions({ page: 1, limit: 500 }),
+    ...trpc.patient.list.queryOptions({ page: 1, limit: 100 }),
     staleTime: 60_000,
   });
   const rpSuggestions = useMemo(() => {
@@ -148,9 +152,27 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
         </CardContent>
       </Card>
 
+      <DiagnosisCard patientId={patient.id} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Notes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <FieldEditor
+            patientId={patient.id}
+            field="notes"
+            label="Notes"
+            initial={patient.notes ?? ""}
+            multiline
+            placeholder="Anything else worth remembering about this patient…"
+          />
+        </CardContent>
+      </Card>
+
       <Card className="md:col-span-2">
         <CardHeader>
-          <CardTitle className="text-base">Contact &amp; details</CardTitle>
+          <CardTitle className="text-base">Contact details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <PhoneEditor patientId={patient.id} initial={patient.phone ?? ""} />
@@ -194,17 +216,64 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
             suggestions={rpSuggestions}
             helpText="Any pending dues of this patient will be billed to the Responsible Party entered here."
           />
-          <FieldEditor
-            patientId={patient.id}
-            field="notes"
-            label="Notes"
-            initial={patient.notes ?? ""}
-            multiline
-            placeholder="Anything else worth remembering about this patient…"
-          />
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// Diagnosis card pulls the distinct diagnoses recorded against this
+// patient's daily register entries, sorted by most-recent occurrence.
+// Read-only on the Summary tab — the source of truth is the register
+// entry itself, so editing happens through the daily-register flow.
+// (Manoj msg 1435: "diagnosis entered in the Add Register Entry page
+// should automatically reflect and appear in the Summary tab".)
+function DiagnosisCard({ patientId }: { patientId: string }) {
+  const diagnosesQuery = useQuery(
+    trpc.patient.diagnoses.queryOptions({ patientId }),
+  );
+  const rows = diagnosesQuery.data ?? [];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">
+          Diagnosis{rows.length > 0 && ` (${rows.length})`}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {diagnosesQuery.isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" /> Loading…
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No diagnoses recorded yet. Add a Daily Register entry with a
+            diagnosis to populate this list.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {rows.map((row) => (
+              <li
+                key={row.diagnosis ?? ""}
+                className="flex items-baseline justify-between gap-3 text-sm"
+              >
+                <span className="min-w-0 flex-1 break-words font-medium">
+                  {row.diagnosis}
+                </span>
+                <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
+                  {formatDate(row.latestDate)}
+                  {row.count > 1 ? ` · ×${row.count}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Pulled from this patient&apos;s Daily Register entries. Edit the
+          register entry to change a diagnosis.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -74,10 +74,9 @@ export default function ArchivedPatientsPage() {
         </Link>
         <h1 className="text-2xl font-semibold md:text-3xl">Recently Deleted</h1>
         <p className="text-sm text-muted-foreground md:text-base">
-          Patients you&apos;ve deleted. Their clinical records are preserved
-          here for medical and Income Tax retention. Restore to bring a patient
-          back to the active list, or permanently delete if it was a test/typo
-          entry with no clinical history.
+          Deleted patients are preserved here. You can Restore them to the
+          active list or Permanently Delete (for test or typo entries with no
+          clinical history).
         </p>
       </div>
 

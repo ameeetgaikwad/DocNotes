@@ -21,6 +21,7 @@ export const SERVICE_TYPES = [
   "Ayurvedic Medicine",
   "Homeopathic Medicine",
   "Unani Medicine",
+  "Referred to Specialist",
   "Other",
 ] as const;
 export type ServiceType = (typeof SERVICE_TYPES)[number];
