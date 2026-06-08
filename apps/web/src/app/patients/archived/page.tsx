@@ -205,10 +205,10 @@ export default function ArchivedPatientsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/30 dark:text-amber-200">
-            This action is only permitted for patients with NO clinical history.
+            This action is only permitted for patients with no clinical history.
+            <br />
             The server will refuse if any register entries, visits, or
-            prescriptions exist — medical and Income Tax laws require those
-            records to be retained for 3-6+ years.
+            prescriptions exist.
           </div>
           <DialogFooter className="gap-2">
             <DialogClose asChild>
