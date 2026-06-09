@@ -13,6 +13,7 @@ import { doctorProfileRouter } from "./doctor-profile.js";
 import { medicineDealerRouter } from "./medicine-dealer.js";
 import { purchaseItemRouter } from "./purchase-item.js";
 import { homeopathicMedicineRouter } from "./homeopathic-medicine.js";
+import { clinicExpenseRouter } from "./clinic-expense.js";
 
 export const appRouter = router({
   dashboard: dashboardRouter,
@@ -29,6 +30,7 @@ export const appRouter = router({
   medicineDealer: medicineDealerRouter,
   purchaseItem: purchaseItemRouter,
   homeopathicMedicine: homeopathicMedicineRouter,
+  clinicExpense: clinicExpenseRouter,
 });
 
 export type AppRouter = typeof appRouter;

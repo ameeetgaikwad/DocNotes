@@ -12,3 +12,4 @@ export * from "./doctor-profile.js";
 export * from "./medicine-dealer.js";
 export * from "./purchase-item.js";
 export * from "./homeopathic-medicine.js";
+export * from "./clinic-expense.js";

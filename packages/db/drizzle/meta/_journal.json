@@ -134,6 +134,13 @@
       "when": 1779580800002,
       "tag": "0018_patients_responsible_party",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1780912800000,
+      "tag": "0019_clinic_expenses",
+      "breakpoints": true
     }
   ]
 }
