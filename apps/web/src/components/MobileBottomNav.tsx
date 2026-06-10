@@ -44,7 +44,7 @@ const MORE_ITEMS: NavItem[] = [
   },
   {
     to: "/homeopathic-medicine",
-    label: "Homeopathic Medicine",
+    label: "Medicines",
     icon: Pill,
   },
   { to: "/clinic-expenses", label: "Clinic Expenses", icon: Wallet },

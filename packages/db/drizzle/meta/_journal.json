@@ -148,6 +148,13 @@
       "when": 1781020800000,
       "tag": "0020_clinic_expense_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1781082000000,
+      "tag": "0021_medicines_potency_optional",
+      "breakpoints": true
     }
   ]
 }

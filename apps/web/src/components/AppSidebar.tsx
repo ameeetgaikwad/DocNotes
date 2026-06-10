@@ -14,6 +14,7 @@ import {
   ShoppingCart,
   BellRing,
   Wallet,
+  Pill,
 } from "lucide-react";
 import { DailyCaseRegisterIcon } from "@/components/icons/daily-case-register";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ const navItems = [
   },
   { to: "/purchase-list", label: "Purchase List", icon: ShoppingCart },
   { to: "/clinic-expenses", label: "Clinic Expenses", icon: Wallet },
+  { to: "/homeopathic-medicine", label: "Medicines", icon: Pill },
   { to: "/reminders", label: "Reminders", icon: BellRing },
   { to: "/tasks", label: "Tasks", icon: ClipboardList },
   { to: "/reports", label: "Reports", icon: FileText },

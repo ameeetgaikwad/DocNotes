@@ -16,7 +16,7 @@ export const homeopathicMedicines = pgTable(
       .notNull()
       .references(() => users.id),
     name: varchar("name", { length: 200 }).notNull(),
-    potency: varchar("potency", { length: 50 }).notNull(),
+    potency: varchar("potency", { length: 50 }),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

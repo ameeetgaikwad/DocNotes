@@ -633,9 +633,9 @@ function VisitCard({
                   size="sm"
                   onClick={() => setPickerOpen(true)}
                   className="h-7 px-2 text-xs"
-                  title="Insert homeopathic medicine"
+                  title="Insert medicine"
                 >
-                  <Pill className="h-3.5 w-3.5" />H
+                  <Pill className="h-3.5 w-3.5" />M
                 </Button>
                 <Button
                   type="button"

@@ -103,12 +103,10 @@ export default function HomeopathicMedicinePage() {
     <div className="p-4 sm:p-6 md:p-8">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between md:mb-8">
         <div>
-          <h1 className="text-2xl font-semibold md:text-3xl">
-            Homeopathic Medicines
-          </h1>
+          <h1 className="text-2xl font-semibold md:text-3xl">Medicines</h1>
           <p className="text-muted-foreground md:text-base">
-            Your saved list of medicines and potencies — used by the
-            &ldquo;H&rdquo; picker in Clinical Notes.
+            Your saved list of medicines — homeopathic, ayurvedic, unani, or
+            allopathic. Used by the &ldquo;M&rdquo; picker in Clinical Notes.
           </p>
         </div>
         <div className="flex flex-wrap items-start gap-2">
@@ -153,9 +151,10 @@ export default function HomeopathicMedicinePage() {
             <Pill className="mb-3 h-12 w-12" />
             <p className="text-base font-medium">No medicines yet</p>
             <p className="mt-1 max-w-md text-center text-sm">
-              Add the medicines you prescribe most often to insert them into
-              clinical notes in one tap — or load a suggested starter list of 12
-              common remedies you can edit later.
+              Add the medicines you prescribe most often — homeopathic,
+              ayurvedic, unani, or allopathic — to insert them into clinical
+              notes in one tap. Or load a suggested starter list of 12 common
+              homeopathic remedies you can edit later.
             </p>
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
               <Button
@@ -191,10 +190,15 @@ export default function HomeopathicMedicinePage() {
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium md:text-base">
-                    {medicine.name}{" "}
-                    <span className="text-muted-foreground">
-                      {medicine.potency}
-                    </span>
+                    {medicine.name}
+                    {medicine.potency && (
+                      <>
+                        {" "}
+                        <span className="text-muted-foreground">
+                          {medicine.potency}
+                        </span>
+                      </>
+                    )}
                   </p>
                   {medicine.notes && (
                     <p className="mt-0.5 text-xs text-muted-foreground">
@@ -260,7 +264,7 @@ function MedicineDialog({
     mutationFn: () =>
       trpcClient.homeopathicMedicine.create.mutate({
         name: name.trim(),
-        potency: potency.trim(),
+        potency: potency.trim() || null,
         notes: notes.trim() || null,
       }),
     onSuccess: () => {
@@ -275,7 +279,7 @@ function MedicineDialog({
       trpcClient.homeopathicMedicine.update.mutate({
         id: editing!.id,
         name: name.trim(),
-        potency: potency.trim(),
+        potency: potency.trim() || null,
         notes: notes.trim() || null,
       }),
     onSuccess: () => {
@@ -286,7 +290,7 @@ function MedicineDialog({
   });
 
   const isPending = createMutation.isPending || updateMutation.isPending;
-  const canSubmit = name.trim().length > 0 && potency.trim().length > 0;
+  const canSubmit = name.trim().length > 0;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -304,8 +308,8 @@ function MedicineDialog({
             {editing ? "Edit medicine" : "Add medicine"}
           </DialogTitle>
           <DialogDescription>
-            Saved medicines appear in the &ldquo;H&rdquo; picker inside Clinical
-            Notes.
+            Saved medicines appear in the &ldquo;M&rdquo; picker inside Clinical
+            Notes — works for homeopathic, ayurvedic, unani, and allopathic.
           </DialogDescription>
         </DialogHeader>
 
@@ -329,14 +333,18 @@ function MedicineDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="medicine-potency">Potency *</Label>
+            <Label htmlFor="medicine-potency">Strength / Potency</Label>
             <Input
               id="medicine-potency"
               value={potency}
               onChange={(e) => setPotency(e.target.value)}
-              placeholder="e.g. 30C, 200, 1M"
+              placeholder="e.g. 30C, 200, 1M, 500mg, 10ml"
               maxLength={50}
             />
+            <p className="text-xs text-muted-foreground">
+              Optional — leave blank for medicines without a potency or
+              strength.
+            </p>
           </div>
 
           <div className="space-y-2">
