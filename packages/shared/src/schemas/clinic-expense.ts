@@ -9,6 +9,9 @@ export const DEFAULT_CLINIC_EXPENSE_CATEGORIES: ReadonlyArray<string> = [
   "Other",
 ];
 
+export const PAYMENT_METHODS = ["cash", "digital"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
 export const clinicExpenseSchema = z.object({
   id: z.string().uuid(),
   providerId: z.string(),
@@ -16,6 +19,8 @@ export const clinicExpenseSchema = z.object({
   categoryName: z.string(),
   expenseDate: z.string(),
   paidAt: z.coerce.date().nullable(),
+  paymentMethod: z.enum(PAYMENT_METHODS).nullable(),
+  staffName: z.string().nullable(),
   note: z.string().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -38,7 +43,13 @@ export const createClinicExpenseSchema = z.object({
     .min(1, "Category is required")
     .max(100, "Category must be 100 characters or fewer"),
   expenseDate: isoDate,
-  paid: z.boolean(),
+  paymentMethod: z.enum(PAYMENT_METHODS).nullable(),
+  staffName: z
+    .string()
+    .trim()
+    .max(100, "Staff name must be 100 characters or fewer")
+    .nullable()
+    .optional(),
   note: z
     .string()
     .trim()
@@ -54,6 +65,8 @@ export const updateClinicExpenseSchema = z.object({
   amount: z.number().positive().max(99999999.99).optional(),
   categoryName: z.string().trim().min(1).max(100).optional(),
   expenseDate: isoDate.optional(),
+  paymentMethod: z.enum(PAYMENT_METHODS).nullable().optional(),
+  staffName: z.string().trim().max(100).nullable().optional(),
   note: z.string().trim().max(500).nullable().optional(),
 });
 

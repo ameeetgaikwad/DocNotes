@@ -9,12 +9,13 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Check,
-  Undo2,
   BarChart3,
   X,
 } from "lucide-react";
-import { DEFAULT_CLINIC_EXPENSE_CATEGORIES } from "@docnotes/shared";
+import {
+  DEFAULT_CLINIC_EXPENSE_CATEGORIES,
+  type PaymentMethod,
+} from "@docnotes/shared";
 import { trpc, trpcClient } from "@/lib/trpc";
 import { formatDate, formatINR, todayLocalIsoDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -38,10 +39,20 @@ type Expense = {
   categoryName: string;
   expenseDate: string;
   paidAt: Date | string | null;
+  paymentMethod: PaymentMethod | null;
+  staffName: string | null;
   note: string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 };
+
+const STAFF_SALARY_CATEGORY = "Staff Salary";
+
+function paymentStatusLabel(method: PaymentMethod | null): string {
+  if (method === "cash") return "Paid in Cash";
+  if (method === "digital") return "Paid via UPI";
+  return "Unpaid";
+}
 
 type Category = {
   name: string;
@@ -114,7 +125,7 @@ export default function ClinicExpensesPage() {
   const paidTotal = useMemo(
     () =>
       items
-        .filter((e) => e.paidAt)
+        .filter((e) => e.paymentMethod !== null)
         .reduce((acc, e) => acc + Number(e.amount), 0),
     [items],
   );
@@ -129,12 +140,6 @@ export default function ClinicExpensesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => trpcClient.clinicExpense.delete.mutate({ id }),
-    onSuccess: invalidate,
-  });
-
-  const togglePaidMutation = useMutation({
-    mutationFn: (id: string) =>
-      trpcClient.clinicExpense.togglePaid.mutate({ id }),
     onSuccess: invalidate,
   });
 
@@ -319,7 +324,12 @@ export default function ClinicExpensesPage() {
         <div className="rounded-xl border bg-card">
           <ul className="divide-y">
             {items.map((expense) => {
-              const isPaid = Boolean(expense.paidAt);
+              const isPaid = expense.paymentMethod !== null;
+              const categoryLabel =
+                expense.categoryName === STAFF_SALARY_CATEGORY &&
+                expense.staffName
+                  ? `${expense.categoryName} — ${expense.staffName}`
+                  : expense.categoryName;
               return (
                 <li
                   key={expense.id}
@@ -331,7 +341,7 @@ export default function ClinicExpensesPage() {
                         {formatINR(expense.amount)}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {expense.categoryName}
+                        {categoryLabel}
                       </p>
                       <span
                         className={
@@ -340,7 +350,7 @@ export default function ClinicExpensesPage() {
                             : "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
                         }
                       >
-                        {isPaid ? "Paid" : "Unpaid"}
+                        {paymentStatusLabel(expense.paymentMethod)}
                       </span>
                     </div>
                     <p className="mt-0.5 text-xs text-muted-foreground">
@@ -353,25 +363,6 @@ export default function ClinicExpensesPage() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2 sm:shrink-0">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => togglePaidMutation.mutate(expense.id)}
-                      disabled={togglePaidMutation.isPending}
-                    >
-                      {isPaid ? (
-                        <>
-                          <Undo2 className="h-4 w-4" />
-                          Mark Unpaid
-                        </>
-                      ) : (
-                        <>
-                          <Check className="h-4 w-4" />
-                          Mark Paid
-                        </>
-                      )}
-                    </Button>
                     <Button
                       type="button"
                       variant="outline"
@@ -431,7 +422,10 @@ function ExpenseDialog({
   const [amount, setAmount] = useState<string>("");
   const [categoryName, setCategoryName] = useState<string>("");
   const [expenseDate, setExpenseDate] = useState<string>(todayLocalIsoDate());
-  const [paid, setPaid] = useState<boolean>(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(
+    null,
+  );
+  const [staffName, setStaffName] = useState<string>("");
   const [note, setNote] = useState<string>("");
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -441,7 +435,8 @@ function ExpenseDialog({
     setAmount("");
     setCategoryName("");
     setExpenseDate(todayLocalIsoDate());
-    setPaid(false);
+    setPaymentMethod(null);
+    setStaffName("");
     setNote("");
     setShowAddCategory(false);
     setNewCategoryName("");
@@ -458,7 +453,8 @@ function ExpenseDialog({
       setAmount(String(Number(editing.amount)));
       setCategoryName(editing.categoryName);
       setExpenseDate(editing.expenseDate);
-      setPaid(Boolean(editing.paidAt));
+      setPaymentMethod(editing.paymentMethod);
+      setStaffName(editing.staffName ?? "");
       setNote(editing.note ?? "");
       setShowAddCategory(false);
       setNewCategoryName("");
@@ -477,7 +473,8 @@ function ExpenseDialog({
       amount: number;
       categoryName: string;
       expenseDate: string;
-      paid: boolean;
+      paymentMethod: PaymentMethod | null;
+      staffName: string | null;
       note: string | null;
     }) => trpcClient.clinicExpense.create.mutate(input),
     onSuccess: onSaved,
@@ -490,6 +487,8 @@ function ExpenseDialog({
       amount: number;
       categoryName: string;
       expenseDate: string;
+      paymentMethod: PaymentMethod | null;
+      staffName: string | null;
       note: string | null;
     }) => trpcClient.clinicExpense.update.mutate(input),
     onSuccess: onSaved,
@@ -527,6 +526,8 @@ function ExpenseDialog({
     addCategoryMutation.mutate(name);
   }
 
+  const isStaffSalary = categoryName === STAFF_SALARY_CATEGORY;
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
@@ -539,22 +540,24 @@ function ExpenseDialog({
       setFormError("Category is required");
       return;
     }
+    const trimmedStaffName = staffName.trim();
+    if (isStaffSalary && !trimmedStaffName) {
+      setFormError("Staff Name is required for Staff Salary entries");
+      return;
+    }
+    const staffNameForSubmit = isStaffSalary ? trimmedStaffName : null;
+    const payload = {
+      amount: n,
+      categoryName,
+      expenseDate,
+      paymentMethod,
+      staffName: staffNameForSubmit,
+      note: note.trim() || null,
+    };
     if (editing) {
-      updateMutation.mutate({
-        id: editing.id,
-        amount: n,
-        categoryName,
-        expenseDate,
-        note: note.trim() || null,
-      });
+      updateMutation.mutate({ id: editing.id, ...payload });
     } else {
-      createMutation.mutate({
-        amount: n,
-        categoryName,
-        expenseDate,
-        paid,
-        note: note.trim() || null,
-      });
+      createMutation.mutate(payload);
     }
   }
 
@@ -641,6 +644,18 @@ function ExpenseDialog({
               </div>
             )}
           </div>
+          {isStaffSalary && (
+            <div className="space-y-1.5">
+              <Label htmlFor="staffName">Staff Name</Label>
+              <Input
+                id="staffName"
+                value={staffName}
+                onChange={(e) => setStaffName(e.target.value)}
+                placeholder="e.g. Ravi, Sunita, Mahesh"
+                maxLength={100}
+              />
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="expenseDate">Date</Label>
             <Input
@@ -650,27 +665,50 @@ function ExpenseDialog({
               onChange={(e) => setExpenseDate(e.target.value)}
             />
           </div>
-          {!editing && (
-            <div className="flex items-center gap-2">
-              <input
-                id="paid"
-                type="checkbox"
-                checked={paid}
-                onChange={(e) => setPaid(e.target.checked)}
-                className="h-4 w-4 rounded border-input"
-              />
-              <Label htmlFor="paid" className="cursor-pointer text-sm">
-                Already paid
-              </Label>
-            </div>
-          )}
           <div className="space-y-1.5">
-            <Label htmlFor="note">Note (optional)</Label>
+            <Label>Payment status</Label>
+            <div className="flex flex-col gap-1">
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-input p-2.5 text-sm hover:bg-accent">
+                <input
+                  type="radio"
+                  name="paymentStatus"
+                  value="unpaid"
+                  checked={paymentMethod === null}
+                  onChange={() => setPaymentMethod(null)}
+                  className="h-4 w-4"
+                />
+                <span>Unpaid</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-input p-2.5 text-sm hover:bg-accent">
+                <input
+                  type="radio"
+                  name="paymentStatus"
+                  value="cash"
+                  checked={paymentMethod === "cash"}
+                  onChange={() => setPaymentMethod("cash")}
+                  className="h-4 w-4"
+                />
+                <span>Paid in Cash</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-input p-2.5 text-sm hover:bg-accent">
+                <input
+                  type="radio"
+                  name="paymentStatus"
+                  value="digital"
+                  checked={paymentMethod === "digital"}
+                  onChange={() => setPaymentMethod("digital")}
+                  className="h-4 w-4"
+                />
+                <span>Paid via Digital / UPI</span>
+              </label>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="note">Note</Label>
             <Textarea
               id="note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Any extra context…"
               rows={2}
             />
           </div>

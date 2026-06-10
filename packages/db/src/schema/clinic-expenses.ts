@@ -42,6 +42,8 @@ export const clinicExpenses = pgTable(
     categoryName: varchar("category_name", { length: 100 }).notNull(),
     expenseDate: date("expense_date").notNull(),
     paidAt: timestamp("paid_at", { withTimezone: true }),
+    paymentMethod: text("payment_method"),
+    staffName: text("staff_name"),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

@@ -83,7 +83,9 @@ export const clinicExpenseRouter = router({
           amount: input.amount.toFixed(2),
           categoryName: input.categoryName.trim(),
           expenseDate: input.expenseDate,
-          paidAt: input.paid ? new Date() : null,
+          paidAt: input.paymentMethod ? new Date() : null,
+          paymentMethod: input.paymentMethod,
+          staffName: input.staffName?.trim() || null,
           note: input.note?.trim() || null,
         })
         .returning();
@@ -104,6 +106,9 @@ export const clinicExpenseRouter = router({
         amount?: string;
         categoryName?: string;
         expenseDate?: string;
+        paidAt?: Date | null;
+        paymentMethod?: string | null;
+        staffName?: string | null;
         note?: string | null;
       } = {};
       if (input.amount !== undefined) patch.amount = input.amount.toFixed(2);
@@ -111,6 +116,12 @@ export const clinicExpenseRouter = router({
         patch.categoryName = input.categoryName.trim();
       if (input.expenseDate !== undefined)
         patch.expenseDate = input.expenseDate;
+      if (input.paymentMethod !== undefined) {
+        patch.paymentMethod = input.paymentMethod;
+        patch.paidAt = input.paymentMethod ? new Date() : null;
+      }
+      if (input.staffName !== undefined)
+        patch.staffName = input.staffName?.trim() || null;
       if (input.note !== undefined) patch.note = input.note?.trim() || null;
 
       const [updated] = await ctx.db
@@ -126,40 +137,6 @@ export const clinicExpenseRouter = router({
       if (updated) {
         logAudit(ctx, {
           action: "update",
-          resource: "clinic_expense",
-          resourceId: updated.id,
-        });
-      }
-      return updated ?? null;
-    }),
-
-  togglePaid: protectedProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      const [existing] = await ctx.db
-        .select()
-        .from(clinicExpenses)
-        .where(
-          and(
-            eq(clinicExpenses.id, input.id),
-            eq(clinicExpenses.providerId, ctx.session.userId),
-          ),
-        )
-        .limit(1);
-      if (!existing) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Expense not found",
-        });
-      }
-      const [updated] = await ctx.db
-        .update(clinicExpenses)
-        .set({ paidAt: existing.paidAt ? null : new Date() })
-        .where(eq(clinicExpenses.id, input.id))
-        .returning();
-      if (updated) {
-        logAudit(ctx, {
-          action: existing.paidAt ? "mark_unpaid" : "mark_paid",
           resource: "clinic_expense",
           resourceId: updated.id,
         });

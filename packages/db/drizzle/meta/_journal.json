@@ -141,6 +141,13 @@
       "when": 1780912800000,
       "tag": "0019_clinic_expenses",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781020800000,
+      "tag": "0020_clinic_expense_v2",
+      "breakpoints": true
     }
   ]
 }
