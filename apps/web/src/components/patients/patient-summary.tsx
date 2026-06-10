@@ -205,7 +205,7 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
             label="Emergency phone"
             initial={patient.emergencyContactPhone ?? ""}
             type="tel"
-            placeholder="+91 98765 43210"
+            placeholder=""
           />
           <FieldEditor
             patientId={patient.id}
@@ -547,7 +547,7 @@ function PhoneEditor({
           autoComplete="tel"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="+91 98765 43210"
+          placeholder=""
           className="flex-1"
         />
         {dirty && (

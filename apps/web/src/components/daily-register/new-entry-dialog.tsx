@@ -1033,7 +1033,7 @@ function PatientFieldsForm({
           inputMode="tel"
           value={pPhone}
           onChange={(e) => setPPhone(e.target.value)}
-          placeholder="+91 98765 43210"
+          placeholder=""
           className="md:h-11 md:text-base"
         />
       </div>
@@ -1236,7 +1236,7 @@ function EmergencyContactBlock({
               id="em-phone"
               type="tel"
               inputMode="tel"
-              placeholder="+91 98765 43210"
+              placeholder=""
               value={pEmergencyPhone}
               onChange={(e) => setPEmergencyPhone(e.target.value)}
               className="md:h-11 md:text-base"

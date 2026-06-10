@@ -325,7 +325,7 @@ export function EditPatientDialog({
                 <Input
                   id="editPhone"
                   type="tel"
-                  placeholder="+91 98765 43210"
+                  placeholder=""
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                 />
@@ -363,7 +363,7 @@ export function EditPatientDialog({
                 <Input
                   id="editEmergencyPhone"
                   type="tel"
-                  placeholder="+91 98765 43210"
+                  placeholder=""
                   value={emergencyPhone}
                   onChange={(e) => setEmergencyPhone(e.target.value)}
                 />
