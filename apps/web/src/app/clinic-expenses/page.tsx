@@ -60,54 +60,11 @@ type Category = {
   id: string | null;
 };
 
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
 const ADD_NEW_OPTION = "__add_new__";
-
-function currentYearMonth(): { year: number; month: number } {
-  const now = new Date();
-  return { year: now.getFullYear(), month: now.getMonth() + 1 };
-}
 
 export default function ClinicExpensesPage() {
   const queryClient = useQueryClient();
-  const init = currentYearMonth();
-  const [year, setYear] = useState<number>(init.year);
-  const [month, setMonth] = useState<number | "all">(init.month);
-  const [categoryFilter, setCategoryFilter] = useState<string>("");
-  const [paidFilter, setPaidFilter] = useState<"all" | "paid" | "unpaid">(
-    "all",
-  );
-
-  const filterInput = useMemo(
-    () => ({
-      year,
-      month: month === "all" ? undefined : month,
-      categoryName: categoryFilter || undefined,
-      paid:
-        paidFilter === "paid"
-          ? true
-          : paidFilter === "unpaid"
-            ? false
-            : undefined,
-    }),
-    [year, month, categoryFilter, paidFilter],
-  );
-
-  const listQuery = useQuery(trpc.clinicExpense.list.queryOptions(filterInput));
+  const listQuery = useQuery(trpc.clinicExpense.list.queryOptions(undefined));
   const categoriesQuery = useQuery(
     trpc.clinicExpense.listCategories.queryOptions(),
   );
@@ -117,19 +74,6 @@ export default function ClinicExpensesPage() {
     [listQuery.data],
   );
   const categories = (categoriesQuery.data ?? []) as Category[];
-
-  const monthTotal = useMemo(
-    () => items.reduce((acc, e) => acc + Number(e.amount), 0),
-    [items],
-  );
-  const paidTotal = useMemo(
-    () =>
-      items
-        .filter((e) => e.paymentMethod !== null)
-        .reduce((acc, e) => acc + Number(e.amount), 0),
-    [items],
-  );
-  const unpaidTotal = monthTotal - paidTotal;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
@@ -163,11 +107,6 @@ export default function ClinicExpensesPage() {
     }
   }
 
-  const yearOptions = useMemo(() => {
-    const curr = new Date().getFullYear();
-    return [curr + 1, curr, curr - 1, curr - 2, curr - 3];
-  }, []);
-
   return (
     <div className="p-4 sm:p-6 md:p-8">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between md:mb-8">
@@ -199,103 +138,7 @@ export default function ClinicExpensesPage() {
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border bg-card p-3 sm:p-4">
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="year" className="text-xs">
-            Year
-          </Label>
-          <select
-            id="year"
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            className="h-11 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            {yearOptions.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="month" className="text-xs">
-            Month
-          </Label>
-          <select
-            id="month"
-            value={month}
-            onChange={(e) =>
-              setMonth(
-                e.target.value === "all" ? "all" : Number(e.target.value),
-              )
-            }
-            className="h-11 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            <option value="all">All months</option>
-            {MONTHS.map((m, i) => (
-              <option key={m} value={i + 1}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="category" className="text-xs">
-            Category
-          </Label>
-          <select
-            id="category"
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="h-11 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            <option value="">All categories</option>
-            {categories.map((c) => (
-              <option key={c.name} value={c.name}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="paid" className="text-xs">
-            Status
-          </Label>
-          <select
-            id="paid"
-            value={paidFilter}
-            onChange={(e) =>
-              setPaidFilter(e.target.value as "all" | "paid" | "unpaid")
-            }
-            className="h-11 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            <option value="all">All</option>
-            <option value="paid">Paid</option>
-            <option value="unpaid">Unpaid</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="mb-4 grid grid-cols-3 gap-3 sm:gap-4">
-        <div className="rounded-xl border bg-card p-3 sm:p-4">
-          <p className="text-xs text-muted-foreground">Total</p>
-          <p className="mt-1 text-lg font-semibold sm:text-2xl">
-            {formatINR(monthTotal)}
-          </p>
-        </div>
-        <div className="rounded-xl border bg-card p-3 sm:p-4">
-          <p className="text-xs text-emerald-700 dark:text-emerald-300">Paid</p>
-          <p className="mt-1 text-lg font-semibold text-emerald-700 dark:text-emerald-300 sm:text-2xl">
-            {formatINR(paidTotal)}
-          </p>
-        </div>
-        <div className="rounded-xl border bg-card p-3 sm:p-4">
-          <p className="text-xs text-amber-700 dark:text-amber-300">Unpaid</p>
-          <p className="mt-1 text-lg font-semibold text-amber-700 dark:text-amber-300 sm:text-2xl">
-            {formatINR(unpaidTotal)}
-          </p>
-        </div>
-      </div>
+      <div className="mt-8 md:mt-10" />
 
       {listQuery.isLoading && (
         <div className="flex items-center justify-center py-16">
