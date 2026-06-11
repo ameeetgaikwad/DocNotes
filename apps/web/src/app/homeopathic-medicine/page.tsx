@@ -110,22 +110,6 @@ export default function HomeopathicMedicinePage() {
           </p>
         </div>
         <div className="flex flex-wrap items-start gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => seedMutation.mutate()}
-            disabled={seedMutation.isPending}
-            className="md:h-12 md:px-5 md:text-base"
-          >
-            {seedMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin md:h-5 md:w-5" />
-                Loading
-              </>
-            ) : (
-              <>Load suggested defaults</>
-            )}
-          </Button>
           <Button onClick={openAdd} className="md:h-12 md:px-6 md:text-base">
             <Plus className="h-4 w-4 md:h-5 md:w-5" />
             Add Medicine
@@ -225,6 +209,32 @@ export default function HomeopathicMedicinePage() {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Manoj msg 1562: keep "Load suggested defaults" out of the
+          header so it doesn't crowd the Add Medicine CTA. Tuck it at
+          the bottom of the page where a doctor who wants the starter
+          list can still find it after scrolling through their own
+          additions. */}
+      {items.length > 0 && (
+        <div className="mt-6 flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => seedMutation.mutate()}
+            disabled={seedMutation.isPending}
+            className="md:h-10 md:text-sm"
+          >
+            {seedMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading
+              </>
+            ) : (
+              "Load suggested defaults"
+            )}
+          </Button>
         </div>
       )}
 
