@@ -296,7 +296,26 @@ function VisitCard({
 }) {
   const queryClient = useQueryClient();
   const initial = visitToForm(visit);
-  const [form, setForm] = useState(initial);
+  // Manoj msg 1557: switching tabs while editing was discarding the
+  // in-progress edits because Radix Tabs unmount inactive panels.
+  // Persist the form to localStorage on every change (when dirty)
+  // and restore on mount so a Summary → History round-trip keeps
+  // the doctor's draft intact. Cleared on successful save.
+  const draftKey = `clinik:draft:visit:${visit.id}`;
+  const [form, setForm] = useState<VisitFormState>(() => {
+    if (typeof window === "undefined") return initial;
+    try {
+      const raw = window.localStorage.getItem(draftKey);
+      if (raw) {
+        const draft = JSON.parse(raw) as VisitFormState;
+        if (!sameForm(draft, initial)) return draft;
+      }
+    } catch {
+      // localStorage may be unavailable (private mode, quota, etc.)
+      // — fall through to the live data without complaint.
+    }
+    return initial;
+  });
   // Inline-autocomplete corpus for the clinical-notes textarea (Manoj
   // msg 972 → 976). Pulled once per session — tanstack-query caches
   // the result across all VisitCard instances on the page.
@@ -351,8 +370,50 @@ function VisitCard({
   }
 
   useEffect(() => {
+    // Hydrate form when the underlying visit changes (e.g., refetch
+    // after another tab edited it). Honour any localStorage draft
+    // that's newer than the live data — but if the live data has
+    // caught up to the draft (e.g., a successful save) drop the
+    // draft so we don't keep flagging "Unsaved changes" forever.
+    if (typeof window === "undefined") {
+      setForm(visitToForm(visit));
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(draftKey);
+      if (raw) {
+        const draft = JSON.parse(raw) as VisitFormState;
+        const liveInitial = visitToForm(visit);
+        if (sameForm(draft, liveInitial)) {
+          window.localStorage.removeItem(draftKey);
+          setForm(liveInitial);
+          return;
+        }
+        setForm(draft);
+        return;
+      }
+    } catch {
+      // Same fall-through rationale as the useState init above.
+    }
     setForm(visitToForm(visit));
-  }, [visit]);
+  }, [visit, draftKey]);
+
+  // Mirror dirty edits into localStorage so a tab switch (or
+  // accidental refresh) doesn't drop them. Clearing localStorage
+  // when the form is clean keeps the draft list tidy.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (sameForm(form, initial)) {
+        window.localStorage.removeItem(draftKey);
+      } else {
+        window.localStorage.setItem(draftKey, JSON.stringify(form));
+      }
+    } catch {
+      // Ignore quota / privacy errors — the user just loses the
+      // persistence safety net, not the in-memory edits.
+    }
+  }, [form, initial, draftKey]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -445,6 +506,16 @@ function VisitCard({
       // Manoj msg 795: after saving, collapse back to read-only mode —
       // Save button disappears and only reappears via "Edit fields".
       setEditAll(false);
+      // Manoj msg 1557: the draft we mirrored to localStorage is now
+      // stale once the server has the new data. Clear it so the next
+      // mount restores the fresh visit, not yesterday's edit.
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.removeItem(draftKey);
+        } catch {
+          // ignore
+        }
+      }
       if (result.followUp) {
         const f = result.followUp;
         setFollowUpToast({
@@ -490,12 +561,44 @@ function VisitCard({
 
   return (
     <div className="space-y-4 rounded-xl border bg-card p-4 sm:p-6">
-      <div className="flex items-center justify-between gap-2">
+      {/* Sticky header keeps Save / Discard reachable while editing on
+          mobile — without this the on-screen keyboard covers the
+          bottom-of-card buttons (Manoj msg 1557). bg-card + z-10 stop
+          the textarea content from showing through during scroll. */}
+      <div className="sticky top-0 z-10 -mx-4 -mt-4 flex items-center justify-between gap-2 border-b bg-card px-4 py-3 sm:-mx-6 sm:-mt-6 sm:px-6">
         <h3 className="text-base font-semibold md:text-lg">
           {formatDate(visit.visitDate)}
         </h3>
-        <div className="flex items-center gap-3">
-          {dirty && (
+        <div className="flex items-center gap-2">
+          {editAll && dirty && !saveMutation.isPending && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setForm(initial)}
+            >
+              Discard
+            </Button>
+          )}
+          {editAll && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => saveMutation.mutate()}
+              disabled={!dirty || saveMutation.isPending}
+            >
+              {saveMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Saving
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" /> Save
+                </>
+              )}
+            </Button>
+          )}
+          {!editAll && dirty && (
             <span className="text-xs text-muted-foreground">
               Unsaved changes
             </span>
@@ -753,36 +856,9 @@ function VisitCard({
               hints={medicineHints}
               className="md:min-h-[10rem] md:text-base"
             />
-            {editAll && (
-              <div className="flex justify-end gap-2 pt-2">
-                {dirty && !saveMutation.isPending && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setForm(initial)}
-                    className="md:h-10 md:px-4 md:text-sm"
-                  >
-                    Discard
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  onClick={() => saveMutation.mutate()}
-                  disabled={!dirty || saveMutation.isPending}
-                  className="md:h-10 md:px-4 md:text-sm"
-                >
-                  {saveMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" /> Saving
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4" /> Save Visit
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
+            {/* Save / Discard moved to the sticky header above so the
+                keyboard never covers them. Bottom-of-card spacing kept
+                for breathing room. */}
           </div>
         )}
 
