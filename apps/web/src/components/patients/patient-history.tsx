@@ -306,10 +306,26 @@ function VisitCard({
   });
   const medicineHints = hintsQuery.data ?? [];
   // editAll = true means all fields are visible (empty included) AND the
-  // Save / Discard buttons are usable. The latest visit defaults to true
-  // so the doctor can fill in today's data without an extra click; older
-  // visits default to false to keep the timeline clean.
-  const [editAll, setEditAll] = useState(isLatest);
+  // Save / Discard buttons are usable. Default behaviour (Manoj msg
+  // 1550): only show fields that already have values, regardless of
+  // whether this is the latest visit. The single exception is a
+  // brand-new latest visit with NO content at all — there we still
+  // default to edit mode so the doctor can fill in today's data without
+  // hunting for "Edit fields". Once anything is saved, the read-only
+  // view kicks in and empty vitals stay hidden until the doctor opts in.
+  const isVisitEmpty =
+    visit.bpSystolic === null &&
+    visit.bpDiastolic === null &&
+    visit.heartRate === null &&
+    visit.spO2Percent === null &&
+    !visit.bslFasting &&
+    !visit.bslPostprandial &&
+    !visit.bslRandom &&
+    !visit.temperatureCelsius &&
+    !visit.weightKg &&
+    !visit.heightCm &&
+    !visit.clinicalNotes;
+  const [editAll, setEditAll] = useState(isLatest && isVisitEmpty);
   const [pickerOpen, setPickerOpen] = useState(false);
   // F/U inline form state — Manoj msg 1387. Replaces the non-functional
   // Rx button. Tapping F/U opens a small popover with a days input and an
