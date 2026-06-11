@@ -296,26 +296,13 @@ function VisitCard({
 }) {
   const queryClient = useQueryClient();
   const initial = visitToForm(visit);
-  // Manoj msg 1557: switching tabs while editing was discarding the
-  // in-progress edits because Radix Tabs unmount inactive panels.
-  // Persist the form to localStorage on every change (when dirty)
-  // and restore on mount so a Summary → History round-trip keeps
-  // the doctor's draft intact. Cleared on successful save.
-  const draftKey = `clinik:draft:visit:${visit.id}`;
-  const [form, setForm] = useState<VisitFormState>(() => {
-    if (typeof window === "undefined") return initial;
-    try {
-      const raw = window.localStorage.getItem(draftKey);
-      if (raw) {
-        const draft = JSON.parse(raw) as VisitFormState;
-        if (!sameForm(draft, initial)) return draft;
-      }
-    } catch {
-      // localStorage may be unavailable (private mode, quota, etc.)
-      // — fall through to the live data without complaint.
-    }
-    return initial;
-  });
+  const [form, setForm] = useState<VisitFormState>(initial);
+  // Tracks the most recently saved snapshot so the Save/Discard
+  // buttons disappear instantly on save success — without this the
+  // `initial` derived from `visit` is stale (the React Query refetch
+  // hasn't arrived yet) and `dirty` stays true for the duration of
+  // the network roundtrip (Manoj msg 1573). Resets on visit change.
+  const [lastSaved, setLastSaved] = useState<VisitFormState>(initial);
   // Inline-autocomplete corpus for the clinical-notes textarea (Manoj
   // msg 972 → 976). Pulled once per session — tanstack-query caches
   // the result across all VisitCard instances on the page.
@@ -370,50 +357,10 @@ function VisitCard({
   }
 
   useEffect(() => {
-    // Hydrate form when the underlying visit changes (e.g., refetch
-    // after another tab edited it). Honour any localStorage draft
-    // that's newer than the live data — but if the live data has
-    // caught up to the draft (e.g., a successful save) drop the
-    // draft so we don't keep flagging "Unsaved changes" forever.
-    if (typeof window === "undefined") {
-      setForm(visitToForm(visit));
-      return;
-    }
-    try {
-      const raw = window.localStorage.getItem(draftKey);
-      if (raw) {
-        const draft = JSON.parse(raw) as VisitFormState;
-        const liveInitial = visitToForm(visit);
-        if (sameForm(draft, liveInitial)) {
-          window.localStorage.removeItem(draftKey);
-          setForm(liveInitial);
-          return;
-        }
-        setForm(draft);
-        return;
-      }
-    } catch {
-      // Same fall-through rationale as the useState init above.
-    }
-    setForm(visitToForm(visit));
-  }, [visit, draftKey]);
-
-  // Mirror dirty edits into localStorage so a tab switch (or
-  // accidental refresh) doesn't drop them. Clearing localStorage
-  // when the form is clean keeps the draft list tidy.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      if (sameForm(form, initial)) {
-        window.localStorage.removeItem(draftKey);
-      } else {
-        window.localStorage.setItem(draftKey, JSON.stringify(form));
-      }
-    } catch {
-      // Ignore quota / privacy errors — the user just loses the
-      // persistence safety net, not the in-memory edits.
-    }
-  }, [form, initial, draftKey]);
+    const next = visitToForm(visit);
+    setForm(next);
+    setLastSaved(next);
+  }, [visit]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -506,16 +453,12 @@ function VisitCard({
       // Manoj msg 795: after saving, collapse back to read-only mode —
       // Save button disappears and only reappears via "Edit fields".
       setEditAll(false);
-      // Manoj msg 1557: the draft we mirrored to localStorage is now
-      // stale once the server has the new data. Clear it so the next
-      // mount restores the fresh visit, not yesterday's edit.
-      if (typeof window !== "undefined") {
-        try {
-          window.localStorage.removeItem(draftKey);
-        } catch {
-          // ignore
-        }
-      }
+      // Snapshot the just-saved form as the new "last saved" state so
+      // dirty flips to false instantly — the React Query refetch
+      // hasn't replaced `visit` yet, so relying on `initial` would
+      // leave the Save button on screen during the network roundtrip
+      // (Manoj msg 1573).
+      setLastSaved(form);
       if (result.followUp) {
         const f = result.followUp;
         setFollowUpToast({
@@ -542,7 +485,7 @@ function VisitCard({
     },
   });
 
-  const dirty = !sameForm(form, initial);
+  const dirty = !sameForm(form, lastSaved);
   const showAllFields = editAll;
   const showBp =
     showAllFields || form.bpSystolic !== "" || form.bpDiastolic !== "";
@@ -581,7 +524,7 @@ function VisitCard({
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => setForm(initial)}
+              onClick={() => setForm(lastSaved)}
             >
               Discard
             </Button>

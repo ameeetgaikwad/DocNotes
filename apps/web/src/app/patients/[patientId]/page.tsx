@@ -290,7 +290,17 @@ export default function PatientProfilePage({
           <PatientSummary patient={patient} />
         </TabsContent>
 
-        <TabsContent value="history">
+        {/* forceMount keeps the History panel in the DOM even when
+            Summary or another tab is active. Without it Radix unmounts
+            inactive panels, which threw away in-progress Clinical Notes
+            edits on every tab switch (Manoj msg 1557 / 1573). The cost
+            is one extra patientVisit.listByPatient query on initial
+            page load, which is acceptable. */}
+        <TabsContent
+          value="history"
+          forceMount
+          className="data-[state=inactive]:hidden"
+        >
           <PatientHistory patientId={patient.id} />
         </TabsContent>
 
