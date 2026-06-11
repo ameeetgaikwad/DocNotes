@@ -589,15 +589,7 @@ function CustomTodosSection({
                     aria-label={`${isDone ? "Unmark" : "Mark done"}: ${t.text}`}
                   />
                   <div className="min-w-0 flex-1">
-                    <p
-                      className={
-                        isDone
-                          ? "text-sm text-muted-foreground line-through md:text-base"
-                          : "text-sm md:text-base"
-                      }
-                    >
-                      {t.text}
-                    </p>
+                    <p className="text-sm md:text-base">{t.text}</p>
                     {t.dueDate && (
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         Due {formatDate(t.dueDate)}
