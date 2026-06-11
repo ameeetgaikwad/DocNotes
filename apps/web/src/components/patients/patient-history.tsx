@@ -570,7 +570,13 @@ function VisitCard({
           {formatDate(visit.visitDate)}
         </h3>
         <div className="flex items-center gap-2">
-          {editAll && dirty && !saveMutation.isPending && (
+          {/* Manoj msg 1567: Save / Discard show whenever the form is
+              dirty, not just when editAll is on. The Clinical Notes
+              textarea stays editable in read-only mode (only the empty
+              vitals are hidden), so a doctor who just types a quick
+              note still needs Save reachable without first tapping
+              "Edit fields". */}
+          {dirty && !saveMutation.isPending && (
             <Button
               type="button"
               size="sm"
@@ -580,12 +586,12 @@ function VisitCard({
               Discard
             </Button>
           )}
-          {editAll && (
+          {dirty && (
             <Button
               type="button"
               size="sm"
               onClick={() => saveMutation.mutate()}
-              disabled={!dirty || saveMutation.isPending}
+              disabled={saveMutation.isPending}
             >
               {saveMutation.isPending ? (
                 <>
@@ -597,11 +603,6 @@ function VisitCard({
                 </>
               )}
             </Button>
-          )}
-          {!editAll && dirty && (
-            <span className="text-xs text-muted-foreground">
-              Unsaved changes
-            </span>
           )}
           <button
             type="button"
