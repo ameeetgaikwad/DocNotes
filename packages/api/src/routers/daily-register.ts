@@ -612,11 +612,17 @@ export const dailyRegisterRouter = router({
     }),
 
   // Register entries flagged as "incomplete" for the Actions Center:
-  // EITHER fees still due (paidAmount < feeAmount or payment_status =
-  // 'due') OR clinical notes blank. Manoj msg 1493 defined incomplete
-  // as missing fees-paid AND/OR clinical-notes (not diagnosis). Sorted
-  // newest-first so today's gaps appear above yesterday's, and capped
-  // at 50 rows so the page stays snappy on years of history.
+  // missing Fees Paid AND/OR Clinical Notes (Manoj msg 1493). Manoj
+  // bug report 1542: clinical notes for a register entry are stored
+  // on the matching patient_visits row's `clinical_notes` column,
+  // not on dailyRegisterEntries.notes. The previous version checked
+  // the wrong field and flagged completed visits as "Clinical notes
+  // blank". Now we LEFT JOIN patient_visits on (patient, date,
+  // provider) and treat a visit as "notes complete" when EITHER the
+  // visit row's clinical_notes is non-empty OR the register entry's
+  // own notes are non-empty (belt-and-suspenders for legacy entries
+  // from before syncEntryNotesToVisit existed). Sorted newest-first,
+  // capped at 50 rows.
   incompleteVisits: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db
       .select({
@@ -625,8 +631,8 @@ export const dailyRegisterRouter = router({
         feeAmount: dailyRegisterEntries.feeAmount,
         paidAmount: dailyRegisterEntries.paidAmount,
         paymentStatus: dailyRegisterEntries.paymentStatus,
-        notes: dailyRegisterEntries.notes,
-        diagnosis: dailyRegisterEntries.diagnosis,
+        entryNotes: dailyRegisterEntries.notes,
+        visitClinicalNotes: patientVisits.clinicalNotes,
         patientId: patients.id,
         firstName: patients.firstName,
         middleName: patients.middleName,
@@ -634,11 +640,19 @@ export const dailyRegisterRouter = router({
       })
       .from(dailyRegisterEntries)
       .innerJoin(patients, eq(patients.id, dailyRegisterEntries.patientId))
+      .leftJoin(
+        patientVisits,
+        and(
+          eq(patientVisits.patientId, dailyRegisterEntries.patientId),
+          eq(patientVisits.visitDate, dailyRegisterEntries.visitDate),
+          eq(patientVisits.providerId, dailyRegisterEntries.providerId),
+        ),
+      )
       .where(
         and(
           eq(dailyRegisterEntries.providerId, ctx.session.userId),
           eq(patients.isActive, true),
-          sql`(${dailyRegisterEntries.paidAmount} < ${dailyRegisterEntries.feeAmount} OR ${dailyRegisterEntries.paymentStatus} = 'due' OR ${dailyRegisterEntries.notes} IS NULL OR btrim(${dailyRegisterEntries.notes}) = '')`,
+          sql`(${dailyRegisterEntries.paidAmount} < ${dailyRegisterEntries.feeAmount} OR ${dailyRegisterEntries.paymentStatus} = 'due' OR ((${patientVisits.clinicalNotes} IS NULL OR btrim(${patientVisits.clinicalNotes}) = '') AND (${dailyRegisterEntries.notes} IS NULL OR btrim(${dailyRegisterEntries.notes}) = '')))`,
         ),
       )
       .orderBy(
@@ -652,7 +666,10 @@ export const dailyRegisterRouter = router({
       const paid = Number(r.paidAmount ?? 0);
       const feeOutstanding = Math.max(fee - paid, 0);
       const missingFees = feeOutstanding > 0 || r.paymentStatus === "due";
-      const missingNotes = !r.notes || r.notes.trim() === "";
+      const visitNotesEmpty =
+        !r.visitClinicalNotes || r.visitClinicalNotes.trim() === "";
+      const entryNotesEmpty = !r.entryNotes || r.entryNotes.trim() === "";
+      const missingNotes = visitNotesEmpty && entryNotesEmpty;
       return {
         id: r.id,
         visitDate: r.visitDate,
