@@ -611,28 +611,25 @@ export const dailyRegisterRouter = router({
       return entry ?? null;
     }),
 
-  // Register entries flagged as "incomplete" for the Actions Center:
-  // missing Fees Paid AND/OR Clinical Notes (Manoj msg 1493). Manoj
-  // bug report 1542: clinical notes for a register entry are stored
-  // on the matching patient_visits row's `clinical_notes` column,
-  // not on dailyRegisterEntries.notes. The previous version checked
-  // the wrong field and flagged completed visits as "Clinical notes
-  // blank". Now we LEFT JOIN patient_visits on (patient, date,
-  // provider) and treat a visit as "notes complete" when EITHER the
-  // visit row's clinical_notes is non-empty OR the register entry's
-  // own notes are non-empty (belt-and-suspenders for legacy entries
-  // from before syncEntryNotesToVisit existed). Sorted newest-first,
+  // Register entries flagged as "incomplete" for the Actions Center.
+  // Manoj msg 1551 narrowed the definition: a visit is COMPLETE if
+  // EITHER clinical notes are entered OR at least one vital is
+  // recorded. So "incomplete" requires BOTH to be empty — clinical
+  // notes blank AND every vital field null. Fees outstanding is no
+  // longer a trigger here (the Overdue Calls section already covers
+  // unpaid dues separately).
+  //
+  // LEFT JOIN patient_visits on (patient, date, provider) since
+  // vitals + clinical_notes live on that row. The register entry's
+  // own `notes` field still counts as clinical content for the
+  // notes check (belt-and-suspenders for legacy entries from
+  // before syncEntryNotesToVisit existed). Sorted newest-first,
   // capped at 50 rows.
   incompleteVisits: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db
       .select({
         id: dailyRegisterEntries.id,
         visitDate: dailyRegisterEntries.visitDate,
-        feeAmount: dailyRegisterEntries.feeAmount,
-        paidAmount: dailyRegisterEntries.paidAmount,
-        paymentStatus: dailyRegisterEntries.paymentStatus,
-        entryNotes: dailyRegisterEntries.notes,
-        visitClinicalNotes: patientVisits.clinicalNotes,
         patientId: patients.id,
         firstName: patients.firstName,
         middleName: patients.middleName,
@@ -652,7 +649,18 @@ export const dailyRegisterRouter = router({
         and(
           eq(dailyRegisterEntries.providerId, ctx.session.userId),
           eq(patients.isActive, true),
-          sql`(${dailyRegisterEntries.paidAmount} < ${dailyRegisterEntries.feeAmount} OR ${dailyRegisterEntries.paymentStatus} = 'due' OR ((${patientVisits.clinicalNotes} IS NULL OR btrim(${patientVisits.clinicalNotes}) = '') AND (${dailyRegisterEntries.notes} IS NULL OR btrim(${dailyRegisterEntries.notes}) = '')))`,
+          sql`(${patientVisits.clinicalNotes} IS NULL OR btrim(${patientVisits.clinicalNotes}) = '')`,
+          sql`(${dailyRegisterEntries.notes} IS NULL OR btrim(${dailyRegisterEntries.notes}) = '')`,
+          isNull(patientVisits.bpSystolic),
+          isNull(patientVisits.bpDiastolic),
+          isNull(patientVisits.heartRate),
+          isNull(patientVisits.spO2Percent),
+          isNull(patientVisits.bslFasting),
+          isNull(patientVisits.bslPostprandial),
+          isNull(patientVisits.bslRandom),
+          isNull(patientVisits.temperatureCelsius),
+          isNull(patientVisits.weightKg),
+          isNull(patientVisits.heightCm),
         ),
       )
       .orderBy(
@@ -661,26 +669,13 @@ export const dailyRegisterRouter = router({
       )
       .limit(50);
 
-    return rows.map((r) => {
-      const fee = Number(r.feeAmount);
-      const paid = Number(r.paidAmount ?? 0);
-      const feeOutstanding = Math.max(fee - paid, 0);
-      const missingFees = feeOutstanding > 0 || r.paymentStatus === "due";
-      const visitNotesEmpty =
-        !r.visitClinicalNotes || r.visitClinicalNotes.trim() === "";
-      const entryNotesEmpty = !r.entryNotes || r.entryNotes.trim() === "";
-      const missingNotes = visitNotesEmpty && entryNotesEmpty;
-      return {
-        id: r.id,
-        visitDate: r.visitDate,
-        patientId: r.patientId,
-        firstName: r.firstName,
-        middleName: r.middleName,
-        lastName: r.lastName,
-        feeOutstanding,
-        missingFees,
-        missingNotes,
-      };
-    });
+    return rows.map((r) => ({
+      id: r.id,
+      visitDate: r.visitDate,
+      patientId: r.patientId,
+      firstName: r.firstName,
+      middleName: r.middleName,
+      lastName: r.lastName,
+    }));
   }),
 });

@@ -76,9 +76,6 @@ type IncompleteRow = {
   firstName: string;
   middleName: string | null;
   lastName: string;
-  feeOutstanding: number;
-  missingFees: boolean;
-  missingNotes: boolean;
 };
 
 function formatScheduledTime(d: Date | string): string {
@@ -444,39 +441,33 @@ function IncompleteSection({ rows }: { rows: IncompleteRow[] }) {
         count={rows.length}
       />
       <p className="mb-2 text-xs text-muted-foreground">
-        Register entries missing Fees Paid or Clinical Notes (or both).
+        Visits with no clinical notes AND no vitals recorded.
       </p>
       <div className="rounded-xl border bg-card">
         <ul className="divide-y">
-          {rows.map((r) => {
-            const missingBits: string[] = [];
-            if (r.missingFees)
-              missingBits.push(`Fees ${formatINR(r.feeOutstanding)} due`);
-            if (r.missingNotes) missingBits.push("Clinical notes blank");
-            return (
-              <li
-                key={r.id}
-                className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium md:text-base">
-                    {formatPatientName(r)}
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {formatDate(r.visitDate)} · {missingBits.join(" · ")}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2 sm:shrink-0">
-                  <Button asChild type="button" size="sm" variant="outline">
-                    <Link href={`/patients/${r.patientId}`}>
-                      <Pencil className="h-4 w-4" />
-                      View entry
-                    </Link>
-                  </Button>
-                </div>
-              </li>
-            );
-          })}
+          {rows.map((r) => (
+            <li
+              key={r.id}
+              className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium md:text-base">
+                  {formatPatientName(r)}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {formatDate(r.visitDate)} · No clinical data recorded
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 sm:shrink-0">
+                <Button asChild type="button" size="sm" variant="outline">
+                  <Link href={`/patients/${r.patientId}`}>
+                    <Pencil className="h-4 w-4" />
+                    View entry
+                  </Link>
+                </Button>
+              </div>
+            </li>
+          ))}
         </ul>
       </div>
     </section>
