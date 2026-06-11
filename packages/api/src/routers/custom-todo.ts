@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, eq, isNull, asc, desc } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
 import { customTodos } from "@docnotes/db";
 import {
   createCustomTodoSchema,
@@ -10,19 +10,19 @@ import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
 
 export const customTodoRouter = router({
-  // Open to-dos — anything not marked done. Sorted by due_date asc
-  // (with NULL due dates at the bottom) so the most urgent is on top.
-  listOpen: protectedProcedure.query(async ({ ctx }) => {
+  // All to-dos for the doctor — both done and open. Manoj msg 1549
+  // asked for the Purchase-List pattern where ticked rows sit above
+  // unticked rows. The client sorts: ticked first (by updatedAt asc
+  // → newly-ticked goes to bottom of the ticked group, "achievement
+  // log" reads top-down), then unticked (by updatedAt desc → newly
+  // unticked goes to top of the unticked group). The server just
+  // returns the raw rows.
+  list: protectedProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select()
       .from(customTodos)
-      .where(
-        and(
-          eq(customTodos.providerId, ctx.session.userId),
-          isNull(customTodos.completedAt),
-        ),
-      )
-      .orderBy(asc(customTodos.dueDate), desc(customTodos.createdAt));
+      .where(eq(customTodos.providerId, ctx.session.userId))
+      .orderBy(desc(customTodos.updatedAt));
   }),
 
   create: protectedProcedure

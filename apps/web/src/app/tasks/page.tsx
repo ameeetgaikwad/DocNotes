@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -102,12 +102,13 @@ export default function ActionsPage() {
   const incompleteQuery = useQuery(
     trpc.dailyRegister.incompleteVisits.queryOptions(),
   );
-  const todosQuery = useQuery(trpc.customTodo.listOpen.queryOptions());
+  const todosQuery = useQuery(trpc.customTodo.list.queryOptions());
 
   const overdue = (overdueQuery.data ?? []) as OverdueRow[];
   const homeVisits = (homeVisitsQuery.data ?? []) as HomeVisitRow[];
   const incomplete = (incompleteQuery.data ?? []) as IncompleteRow[];
   const todos = (todosQuery.data ?? []) as CustomTodoRow[];
+  const pendingTodoCount = todos.filter((t) => !t.completedAt).length;
 
   const isLoading =
     overdueQuery.isLoading ||
@@ -202,6 +203,7 @@ export default function ActionsPage() {
           <IncompleteSection rows={incomplete} />
           <CustomTodosSection
             rows={todos}
+            pendingCount={pendingTodoCount}
             onAdd={() => {
               setEditingTodo(null);
               setTodoDialogOpen(true);
@@ -483,31 +485,80 @@ function IncompleteSection({ rows }: { rows: IncompleteRow[] }) {
 
 function CustomTodosSection({
   rows,
+  pendingCount,
   onAdd,
   onEdit,
   onChanged,
 }: {
   rows: CustomTodoRow[];
+  pendingCount: number;
   onAdd: () => void;
   onEdit: (t: CustomTodoRow) => void;
   onChanged: () => void;
 }) {
+  const queryClient = useQueryClient();
+  const listKey = trpc.customTodo.list.queryOptions().queryKey;
+
+  // Optimistic toggle so the row repositions instantly (the row's
+  // updatedAt is bumped client-side first, then the server confirms).
+  // Mirrors the Purchase List pattern Manoj asked for in msg 1549.
   const markMutation = useMutation({
     mutationFn: (input: { id: string; done: boolean }) =>
       trpcClient.customTodo.markDone.mutate(input),
-    onSuccess: onChanged,
+    onMutate: async ({ id, done }) => {
+      await queryClient.cancelQueries({ queryKey: listKey });
+      const prev = queryClient.getQueryData(listKey);
+      queryClient.setQueryData<CustomTodoRow[]>(listKey, (old) =>
+        (old ?? []).map((t) =>
+          t.id === id
+            ? {
+                ...t,
+                completedAt: done ? new Date() : null,
+                updatedAt: new Date(),
+              }
+            : t,
+        ),
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(listKey, ctx.prev);
+    },
+    onSettled: onChanged,
   });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => trpcClient.customTodo.delete.mutate({ id }),
     onSuccess: onChanged,
   });
 
+  // Manoj msg 1549 (mirrors Purchase List msg 1326): ticked rows
+  // grouped at the TOP, ordered by updatedAt asc — a newly-ticked
+  // item lands at the bottom of the ticked group. Unticked rows
+  // below, ordered by updatedAt desc — a newly-unticked item lands
+  // at the top of the unticked group. Both pivots on updatedAt
+  // which we bump optimistically above.
+  const sortedRows = useMemo(() => {
+    const done = rows
+      .filter((t) => t.completedAt)
+      .sort(
+        (a, b) =>
+          new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime(),
+      );
+    const open = rows
+      .filter((t) => !t.completedAt)
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      );
+    return [...done, ...open];
+  }, [rows]);
+
   return (
     <section>
       <SectionHeader
         icon={ClipboardList}
         title="To-Dos"
-        count={rows.length}
+        count={pendingCount}
         action={
           <Button type="button" size="sm" variant="outline" onClick={onAdd}>
             <Plus className="h-4 w-4" />
@@ -517,7 +568,7 @@ function CustomTodosSection({
       />
       {rows.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-card p-4 text-sm text-muted-foreground">
-          No pending to-dos.{" "}
+          No to-dos yet.{" "}
           <button
             type="button"
             onClick={onAdd}
@@ -530,58 +581,62 @@ function CustomTodosSection({
       ) : (
         <div className="rounded-xl border bg-card">
           <ul className="divide-y">
-            {rows.map((t) => (
-              <li
-                key={t.id}
-                className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm md:text-base">{t.text}</p>
-                  {t.dueDate && (
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Due {formatDate(t.dueDate)}
-                    </p>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2 sm:shrink-0">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      markMutation.mutate({ id: t.id, done: true })
+            {sortedRows.map((t) => {
+              const isDone = Boolean(t.completedAt);
+              return (
+                <li
+                  key={t.id}
+                  className="flex items-start gap-3 px-4 py-3 sm:px-6 sm:py-4"
+                >
+                  <input
+                    type="checkbox"
+                    checked={isDone}
+                    onChange={() =>
+                      markMutation.mutate({ id: t.id, done: !isDone })
                     }
-                    disabled={markMutation.isPending}
-                  >
-                    <Check className="h-4 w-4" />
-                    Mark Done
-                  </Button>
-                  <Button
+                    className="mt-1 h-4 w-4 cursor-pointer accent-primary"
+                    aria-label={`${isDone ? "Unmark" : "Mark done"}: ${t.text}`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={
+                        isDone
+                          ? "text-sm text-muted-foreground line-through md:text-base"
+                          : "text-sm md:text-base"
+                      }
+                    >
+                      {t.text}
+                    </p>
+                    {t.dueDate && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Due {formatDate(t.dueDate)}
+                      </p>
+                    )}
+                  </div>
+                  <button
                     type="button"
-                    size="sm"
-                    variant="outline"
                     onClick={() => onEdit(t)}
+                    className="flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                    aria-label="Edit to-do"
                   >
-                    <Pencil className="h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button
+                    <Pencil className="h-5 w-5" />
+                  </button>
+                  <button
                     type="button"
-                    size="sm"
-                    variant="outline"
                     onClick={() => {
                       if (window.confirm("Delete this to-do?")) {
                         deleteMutation.mutate(t.id);
                       }
                     }}
                     disabled={deleteMutation.isPending}
-                    className="text-destructive hover:text-destructive"
+                    className="flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive"
+                    aria-label="Delete to-do"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </li>
-            ))}
+                    <Trash2 className="h-5 w-5" />
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
