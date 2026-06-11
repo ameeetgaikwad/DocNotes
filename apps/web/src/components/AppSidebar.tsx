@@ -35,7 +35,7 @@ const navItems = [
   { to: "/clinic-expenses", label: "Clinic Expenses", icon: Wallet },
   { to: "/homeopathic-medicine", label: "Medicines", icon: Pill },
   { to: "/reminders", label: "Reminders", icon: BellRing },
-  { to: "/tasks", label: "Tasks", icon: ClipboardList },
+  { to: "/tasks", label: "Actions", icon: ClipboardList },
   { to: "/reports", label: "Reports", icon: FileText },
 ] as const;
 

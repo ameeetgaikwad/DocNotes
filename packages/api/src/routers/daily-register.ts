@@ -610,4 +610,60 @@ export const dailyRegisterRouter = router({
 
       return entry ?? null;
     }),
+
+  // Register entries flagged as "incomplete" for the Actions Center:
+  // EITHER fees still due (paidAmount < feeAmount or payment_status =
+  // 'due') OR clinical notes blank. Manoj msg 1493 defined incomplete
+  // as missing fees-paid AND/OR clinical-notes (not diagnosis). Sorted
+  // newest-first so today's gaps appear above yesterday's, and capped
+  // at 50 rows so the page stays snappy on years of history.
+  incompleteVisits: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db
+      .select({
+        id: dailyRegisterEntries.id,
+        visitDate: dailyRegisterEntries.visitDate,
+        feeAmount: dailyRegisterEntries.feeAmount,
+        paidAmount: dailyRegisterEntries.paidAmount,
+        paymentStatus: dailyRegisterEntries.paymentStatus,
+        notes: dailyRegisterEntries.notes,
+        diagnosis: dailyRegisterEntries.diagnosis,
+        patientId: patients.id,
+        firstName: patients.firstName,
+        middleName: patients.middleName,
+        lastName: patients.lastName,
+      })
+      .from(dailyRegisterEntries)
+      .innerJoin(patients, eq(patients.id, dailyRegisterEntries.patientId))
+      .where(
+        and(
+          eq(dailyRegisterEntries.providerId, ctx.session.userId),
+          eq(patients.isActive, true),
+          sql`(${dailyRegisterEntries.paidAmount} < ${dailyRegisterEntries.feeAmount} OR ${dailyRegisterEntries.paymentStatus} = 'due' OR ${dailyRegisterEntries.notes} IS NULL OR btrim(${dailyRegisterEntries.notes}) = '')`,
+        ),
+      )
+      .orderBy(
+        desc(dailyRegisterEntries.visitDate),
+        desc(dailyRegisterEntries.createdAt),
+      )
+      .limit(50);
+
+    return rows.map((r) => {
+      const fee = Number(r.feeAmount);
+      const paid = Number(r.paidAmount ?? 0);
+      const feeOutstanding = Math.max(fee - paid, 0);
+      const missingFees = feeOutstanding > 0 || r.paymentStatus === "due";
+      const missingNotes = !r.notes || r.notes.trim() === "";
+      return {
+        id: r.id,
+        visitDate: r.visitDate,
+        patientId: r.patientId,
+        firstName: r.firstName,
+        middleName: r.middleName,
+        lastName: r.lastName,
+        feeOutstanding,
+        missingFees,
+        missingNotes,
+      };
+    });
+  }),
 });
