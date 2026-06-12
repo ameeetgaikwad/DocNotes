@@ -22,6 +22,18 @@ export function fyRange(y: number): { startDate: string; endDate: string } {
   return { startDate: `${y}-04-01`, endDate: `${y + 1}-03-31` };
 }
 
+const INR_FORMATTER = new Intl.NumberFormat("en-IN", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
+export function formatINR(amount: number | string | null | undefined): string {
+  if (amount === null || amount === undefined || amount === "") return "₹0";
+  const n = typeof amount === "string" ? Number(amount) : amount;
+  if (!Number.isFinite(n)) return "₹0";
+  return `₹${INR_FORMATTER.format(n)}`;
+}
+
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "—";
   const d = new Date(date);

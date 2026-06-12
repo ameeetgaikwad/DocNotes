@@ -5,6 +5,7 @@ import {
   varchar,
   date,
   timestamp,
+  integer,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { users } from "./users.js";
@@ -29,6 +30,9 @@ export const doctorProfiles = pgTable(
     registrationNumber: varchar("registration_number", {
       length: 80,
     }).notNull(),
+    overdueDaysThreshold: integer("overdue_days_threshold")
+      .notNull()
+      .default(7),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -1,6 +1,10 @@
 import { eq } from "drizzle-orm";
 import { doctorProfiles } from "@docnotes/db";
-import { upsertDoctorProfileSchema } from "@docnotes/shared";
+import {
+  upsertDoctorProfileSchema,
+  updateOverdueThresholdSchema,
+} from "@docnotes/shared";
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
 
@@ -67,5 +71,28 @@ export const doctorProfileRouter = router({
         });
       }
       return created ?? null;
+    }),
+
+  updateOverdueThreshold: protectedProcedure
+    .input(updateOverdueThresholdSchema)
+    .mutation(async ({ ctx, input }) => {
+      const [updated] = await ctx.db
+        .update(doctorProfiles)
+        .set({ overdueDaysThreshold: input.overdueDaysThreshold })
+        .where(eq(doctorProfiles.userId, ctx.session.userId))
+        .returning();
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message:
+            "Doctor profile not found. Complete onboarding before changing settings.",
+        });
+      }
+      logAudit(ctx, {
+        action: "update",
+        resource: "doctor_profile",
+        resourceId: updated.id,
+      });
+      return updated;
     }),
 });

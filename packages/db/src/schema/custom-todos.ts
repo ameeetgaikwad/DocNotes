@@ -2,22 +2,22 @@ import {
   pgTable,
   uuid,
   text,
-  varchar,
+  date,
   timestamp,
   index,
 } from "drizzle-orm/pg-core";
 import { users } from "./users.js";
 
-export const homeopathicMedicines = pgTable(
-  "homeopathic_medicines",
+export const customTodos = pgTable(
+  "custom_todos",
   {
     id: uuid("id").defaultRandom().primaryKey(),
     providerId: text("provider_id")
       .notNull()
       .references(() => users.id),
-    name: varchar("name", { length: 200 }).notNull(),
-    potency: varchar("potency", { length: 50 }),
-    notes: text("notes"),
+    text: text("text").notNull(),
+    dueDate: date("due_date"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -26,8 +26,8 @@ export const homeopathicMedicines = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [index("homeopathic_medicines_provider_idx").on(table.providerId)],
+  (table) => [index("custom_todos_provider_idx").on(table.providerId)],
 );
 
-export type HomeopathicMedicine = typeof homeopathicMedicines.$inferSelect;
-export type NewHomeopathicMedicine = typeof homeopathicMedicines.$inferInsert;
+export type CustomTodo = typeof customTodos.$inferSelect;
+export type NewCustomTodo = typeof customTodos.$inferInsert;

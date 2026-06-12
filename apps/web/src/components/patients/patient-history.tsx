@@ -296,7 +296,13 @@ function VisitCard({
 }) {
   const queryClient = useQueryClient();
   const initial = visitToForm(visit);
-  const [form, setForm] = useState(initial);
+  const [form, setForm] = useState<VisitFormState>(initial);
+  // Tracks the most recently saved snapshot so the Save/Discard
+  // buttons disappear instantly on save success — without this the
+  // `initial` derived from `visit` is stale (the React Query refetch
+  // hasn't arrived yet) and `dirty` stays true for the duration of
+  // the network roundtrip (Manoj msg 1573). Resets on visit change.
+  const [lastSaved, setLastSaved] = useState<VisitFormState>(initial);
   // Inline-autocomplete corpus for the clinical-notes textarea (Manoj
   // msg 972 → 976). Pulled once per session — tanstack-query caches
   // the result across all VisitCard instances on the page.
@@ -306,10 +312,26 @@ function VisitCard({
   });
   const medicineHints = hintsQuery.data ?? [];
   // editAll = true means all fields are visible (empty included) AND the
-  // Save / Discard buttons are usable. The latest visit defaults to true
-  // so the doctor can fill in today's data without an extra click; older
-  // visits default to false to keep the timeline clean.
-  const [editAll, setEditAll] = useState(isLatest);
+  // Save / Discard buttons are usable. Default behaviour (Manoj msg
+  // 1550): only show fields that already have values, regardless of
+  // whether this is the latest visit. The single exception is a
+  // brand-new latest visit with NO content at all — there we still
+  // default to edit mode so the doctor can fill in today's data without
+  // hunting for "Edit fields". Once anything is saved, the read-only
+  // view kicks in and empty vitals stay hidden until the doctor opts in.
+  const isVisitEmpty =
+    visit.bpSystolic === null &&
+    visit.bpDiastolic === null &&
+    visit.heartRate === null &&
+    visit.spO2Percent === null &&
+    !visit.bslFasting &&
+    !visit.bslPostprandial &&
+    !visit.bslRandom &&
+    !visit.temperatureCelsius &&
+    !visit.weightKg &&
+    !visit.heightCm &&
+    !visit.clinicalNotes;
+  const [editAll, setEditAll] = useState(isLatest && isVisitEmpty);
   const [pickerOpen, setPickerOpen] = useState(false);
   // F/U inline form state — Manoj msg 1387. Replaces the non-functional
   // Rx button. Tapping F/U opens a small popover with a days input and an
@@ -335,7 +357,9 @@ function VisitCard({
   }
 
   useEffect(() => {
-    setForm(visitToForm(visit));
+    const next = visitToForm(visit);
+    setForm(next);
+    setLastSaved(next);
   }, [visit]);
 
   const saveMutation = useMutation({
@@ -429,6 +453,12 @@ function VisitCard({
       // Manoj msg 795: after saving, collapse back to read-only mode —
       // Save button disappears and only reappears via "Edit fields".
       setEditAll(false);
+      // Snapshot the just-saved form as the new "last saved" state so
+      // dirty flips to false instantly — the React Query refetch
+      // hasn't replaced `visit` yet, so relying on `initial` would
+      // leave the Save button on screen during the network roundtrip
+      // (Manoj msg 1573).
+      setLastSaved(form);
       if (result.followUp) {
         const f = result.followUp;
         setFollowUpToast({
@@ -455,7 +485,7 @@ function VisitCard({
     },
   });
 
-  const dirty = !sameForm(form, initial);
+  const dirty = !sameForm(form, lastSaved);
   const showAllFields = editAll;
   const showBp =
     showAllFields || form.bpSystolic !== "" || form.bpDiastolic !== "";
@@ -474,15 +504,48 @@ function VisitCard({
 
   return (
     <div className="space-y-4 rounded-xl border bg-card p-4 sm:p-6">
-      <div className="flex items-center justify-between gap-2">
+      {/* Sticky header keeps Save / Discard reachable while editing on
+          mobile — without this the on-screen keyboard covers the
+          bottom-of-card buttons (Manoj msg 1557). bg-card + z-10 stop
+          the textarea content from showing through during scroll. */}
+      <div className="sticky top-0 z-10 -mx-4 -mt-4 flex items-center justify-between gap-2 border-b bg-card px-4 py-3 sm:-mx-6 sm:-mt-6 sm:px-6">
         <h3 className="text-base font-semibold md:text-lg">
           {formatDate(visit.visitDate)}
         </h3>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* Manoj msg 1567: Save / Discard show whenever the form is
+              dirty, not just when editAll is on. The Clinical Notes
+              textarea stays editable in read-only mode (only the empty
+              vitals are hidden), so a doctor who just types a quick
+              note still needs Save reachable without first tapping
+              "Edit fields". */}
+          {dirty && !saveMutation.isPending && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setForm(lastSaved)}
+            >
+              Discard
+            </Button>
+          )}
           {dirty && (
-            <span className="text-xs text-muted-foreground">
-              Unsaved changes
-            </span>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+            >
+              {saveMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Saving
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" /> Save
+                </>
+              )}
+            </Button>
           )}
           <button
             type="button"
@@ -633,9 +696,9 @@ function VisitCard({
                   size="sm"
                   onClick={() => setPickerOpen(true)}
                   className="h-7 px-2 text-xs"
-                  title="Insert homeopathic medicine"
+                  title="Insert medicine"
                 >
-                  <Pill className="h-3.5 w-3.5" />H
+                  <Pill className="h-3.5 w-3.5" />M
                 </Button>
                 <Button
                   type="button"
@@ -737,36 +800,9 @@ function VisitCard({
               hints={medicineHints}
               className="md:min-h-[10rem] md:text-base"
             />
-            {editAll && (
-              <div className="flex justify-end gap-2 pt-2">
-                {dirty && !saveMutation.isPending && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setForm(initial)}
-                    className="md:h-10 md:px-4 md:text-sm"
-                  >
-                    Discard
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  onClick={() => saveMutation.mutate()}
-                  disabled={!dirty || saveMutation.isPending}
-                  className="md:h-10 md:px-4 md:text-sm"
-                >
-                  {saveMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" /> Saving
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4" /> Save Visit
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
+            {/* Save / Discard moved to the sticky header above so the
+                keyboard never covers them. Bottom-of-card spacing kept
+                for breathing room. */}
           </div>
         )}
 

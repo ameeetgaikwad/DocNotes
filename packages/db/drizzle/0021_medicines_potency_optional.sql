@@ -1,0 +1,1 @@
+ALTER TABLE "homeopathic_medicines" ALTER COLUMN "potency" DROP NOT NULL;

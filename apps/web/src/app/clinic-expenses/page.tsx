@@ -1,0 +1,586 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Loader2,
+  Wallet,
+  Plus,
+  Pencil,
+  Trash2,
+  BarChart3,
+  X,
+} from "lucide-react";
+import {
+  DEFAULT_CLINIC_EXPENSE_CATEGORIES,
+  type PaymentMethod,
+} from "@docnotes/shared";
+import { trpc, trpcClient } from "@/lib/trpc";
+import { formatDate, formatINR, todayLocalIsoDate } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  ResponsiveDialog as Dialog,
+  ResponsiveDialogContent as DialogContent,
+  ResponsiveDialogHeader as DialogHeader,
+  ResponsiveDialogTitle as DialogTitle,
+  ResponsiveDialogDescription as DialogDescription,
+  ResponsiveDialogFooter as DialogFooter,
+  ResponsiveDialogClose as DialogClose,
+} from "@/components/ui/responsive-dialog";
+
+type Expense = {
+  id: string;
+  providerId: string;
+  amount: string;
+  categoryName: string;
+  expenseDate: string;
+  paidAt: Date | string | null;
+  paymentMethod: PaymentMethod | null;
+  staffName: string | null;
+  note: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+};
+
+const STAFF_SALARY_CATEGORY = "Staff Salary";
+
+function paymentStatusLabel(method: PaymentMethod | null): string {
+  if (method === "cash") return "Paid in Cash";
+  if (method === "digital") return "Paid via UPI";
+  return "Unpaid";
+}
+
+type Category = {
+  name: string;
+  isDefault: boolean;
+  id: string | null;
+};
+
+const ADD_NEW_OPTION = "__add_new__";
+
+export default function ClinicExpensesPage() {
+  const queryClient = useQueryClient();
+  const listQuery = useQuery(trpc.clinicExpense.list.queryOptions(undefined));
+  const categoriesQuery = useQuery(
+    trpc.clinicExpense.listCategories.queryOptions(),
+  );
+
+  const items = useMemo(
+    () => (listQuery.data ?? []) as Expense[],
+    [listQuery.data],
+  );
+  const categories = (categoriesQuery.data ?? []) as Category[];
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Expense | null>(null);
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: [["clinicExpense"]] });
+  }
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => trpcClient.clinicExpense.delete.mutate({ id }),
+    onSuccess: invalidate,
+  });
+
+  function openAdd() {
+    setEditing(null);
+    setDialogOpen(true);
+  }
+
+  function openEdit(expense: Expense) {
+    setEditing(expense);
+    setDialogOpen(true);
+  }
+
+  function handleDelete(expense: Expense) {
+    if (
+      window.confirm(
+        `Delete ${formatINR(expense.amount)} on ${formatDate(expense.expenseDate)}?`,
+      )
+    ) {
+      deleteMutation.mutate(expense.id);
+    }
+  }
+
+  return (
+    <div className="p-4 sm:p-6 md:p-8">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between md:mb-8">
+        <div>
+          <h1 className="text-2xl font-semibold md:text-3xl">
+            Clinic Expenses
+          </h1>
+          <p className="text-muted-foreground md:text-base">
+            Track your clinic&apos;s operating costs — electricity, rent,
+            salaries, medicine purchase, and more.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-start gap-2">
+          <Button
+            asChild
+            type="button"
+            variant="outline"
+            className="md:h-12 md:px-5 md:text-base"
+          >
+            <Link href="/clinic-expenses/summary">
+              <BarChart3 className="h-4 w-4 md:h-5 md:w-5" />
+              Summary
+            </Link>
+          </Button>
+          <Button onClick={openAdd} className="md:h-12 md:px-6 md:text-base">
+            <Plus className="h-4 w-4 md:h-5 md:w-5" />
+            Add Expense
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-8 md:mt-10" />
+
+      {listQuery.isLoading && (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {!listQuery.isLoading && items.length === 0 && (
+        <div className="rounded-xl border bg-card">
+          <div className="flex flex-col items-center justify-center px-4 py-16 text-muted-foreground">
+            <Wallet className="mb-3 h-12 w-12" />
+            <p className="text-base font-medium">No expenses yet</p>
+            <p className="mt-1 max-w-md text-center text-sm">
+              Start tracking your clinic&apos;s operating costs — categorise
+              them and see a monthly/yearly breakdown anytime.
+            </p>
+            <Button type="button" onClick={openAdd} className="mt-5">
+              <Plus className="h-4 w-4" />
+              Add Expense
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {items.length > 0 && (
+        <div className="rounded-xl border bg-card">
+          <ul className="divide-y">
+            {items.map((expense) => {
+              const isPaid = expense.paymentMethod !== null;
+              const categoryLabel =
+                expense.categoryName === STAFF_SALARY_CATEGORY &&
+                expense.staffName
+                  ? `${expense.categoryName} — ${expense.staffName}`
+                  : expense.categoryName;
+              return (
+                <li
+                  key={expense.id}
+                  className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <p className="text-base font-semibold md:text-lg">
+                        {formatINR(expense.amount)}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {categoryLabel}
+                      </p>
+                      <span
+                        className={
+                          isPaid
+                            ? "rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                            : "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                        }
+                      >
+                        {paymentStatusLabel(expense.paymentMethod)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {formatDate(expense.expenseDate)}
+                    </p>
+                    {expense.note && (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {expense.note}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2 sm:shrink-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEdit(expense)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDelete(expense)}
+                      disabled={deleteMutation.isPending}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      <ExpenseDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        editing={editing}
+        categories={categories}
+        onSaved={() => {
+          setDialogOpen(false);
+          invalidate();
+        }}
+      />
+    </div>
+  );
+}
+
+function ExpenseDialog({
+  open,
+  onOpenChange,
+  editing,
+  categories,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  editing: Expense | null;
+  categories: Category[];
+  onSaved: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [amount, setAmount] = useState<string>("");
+  const [categoryName, setCategoryName] = useState<string>("");
+  const [expenseDate, setExpenseDate] = useState<string>(todayLocalIsoDate());
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(
+    null,
+  );
+  const [staffName, setStaffName] = useState<string>("");
+  const [note, setNote] = useState<string>("");
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+
+  function resetForm() {
+    setAmount("");
+    setCategoryName("");
+    setExpenseDate(todayLocalIsoDate());
+    setPaymentMethod(null);
+    setStaffName("");
+    setNote("");
+    setShowAddCategory(false);
+    setNewCategoryName("");
+    setFormError(null);
+  }
+
+  // Hydrate form when opening for edit, reset when opening for add.
+  // Using key prop on the Dialog would also work but we want a stable
+  // reference for transitions.
+  const lastEditingId = editing?.id ?? null;
+  const [hydratedFor, setHydratedFor] = useState<string | null>(null);
+  if (open && hydratedFor !== (lastEditingId ?? "__add__")) {
+    if (editing) {
+      setAmount(String(Number(editing.amount)));
+      setCategoryName(editing.categoryName);
+      setExpenseDate(editing.expenseDate);
+      setPaymentMethod(editing.paymentMethod);
+      setStaffName(editing.staffName ?? "");
+      setNote(editing.note ?? "");
+      setShowAddCategory(false);
+      setNewCategoryName("");
+      setFormError(null);
+    } else {
+      resetForm();
+    }
+    setHydratedFor(lastEditingId ?? "__add__");
+  }
+  if (!open && hydratedFor !== null) {
+    setHydratedFor(null);
+  }
+
+  const createMutation = useMutation({
+    mutationFn: (input: {
+      amount: number;
+      categoryName: string;
+      expenseDate: string;
+      paymentMethod: PaymentMethod | null;
+      staffName: string | null;
+      note: string | null;
+    }) => trpcClient.clinicExpense.create.mutate(input),
+    onSuccess: onSaved,
+    onError: (e) => setFormError(e.message),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (input: {
+      id: string;
+      amount: number;
+      categoryName: string;
+      expenseDate: string;
+      paymentMethod: PaymentMethod | null;
+      staffName: string | null;
+      note: string | null;
+    }) => trpcClient.clinicExpense.update.mutate(input),
+    onSuccess: onSaved,
+    onError: (e) => setFormError(e.message),
+  });
+
+  const addCategoryMutation = useMutation({
+    mutationFn: (name: string) =>
+      trpcClient.clinicExpense.addCustomCategory.mutate({ name }),
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({
+        queryKey: [["clinicExpense", "listCategories"]],
+      });
+      if (created) setCategoryName(created.name);
+      setShowAddCategory(false);
+      setNewCategoryName("");
+    },
+    onError: (e) => setFormError(e.message),
+  });
+
+  function handleCategoryChange(value: string) {
+    if (value === ADD_NEW_OPTION) {
+      setShowAddCategory(true);
+      return;
+    }
+    setCategoryName(value);
+  }
+
+  function handleAddNewCategory() {
+    const name = newCategoryName.trim();
+    if (!name) {
+      setFormError("Category name is required");
+      return;
+    }
+    addCategoryMutation.mutate(name);
+  }
+
+  const isStaffSalary = categoryName === STAFF_SALARY_CATEGORY;
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError(null);
+    const n = Number(amount);
+    if (!Number.isFinite(n) || n <= 0) {
+      setFormError("Amount must be a positive number");
+      return;
+    }
+    if (!categoryName) {
+      setFormError("Category is required");
+      return;
+    }
+    const trimmedStaffName = staffName.trim();
+    if (isStaffSalary && !trimmedStaffName) {
+      setFormError("Staff Name is required for Staff Salary entries");
+      return;
+    }
+    const staffNameForSubmit = isStaffSalary ? trimmedStaffName : null;
+    const payload = {
+      amount: n,
+      categoryName,
+      expenseDate,
+      paymentMethod,
+      staffName: staffNameForSubmit,
+      note: note.trim() || null,
+    };
+    if (editing) {
+      updateMutation.mutate({ id: editing.id, ...payload });
+    } else {
+      createMutation.mutate(payload);
+    }
+  }
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{editing ? "Edit expense" : "Add expense"}</DialogTitle>
+          <DialogDescription>
+            {editing
+              ? "Update the amount, category, date, or note for this expense."
+              : "Record a clinic operating expense — electricity, rent, salary, and more."}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="amount">Amount (₹)</Label>
+            <Input
+              id="amount"
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              min="0"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="categorySelect">Category</Label>
+            {!showAddCategory ? (
+              <select
+                id="categorySelect"
+                value={categoryName}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Select a category…</option>
+                {categories.map((c) => (
+                  <option key={c.name} value={c.name}>
+                    {c.name}
+                    {c.isDefault ? "" : " (custom)"}
+                  </option>
+                ))}
+                {DEFAULT_CLINIC_EXPENSE_CATEGORIES.length > 0 && (
+                  <option value={ADD_NEW_OPTION}>+ Add new category…</option>
+                )}
+              </select>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Input
+                  id="newCategory"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="New category name"
+                  autoFocus
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleAddNewCategory}
+                  disabled={addCategoryMutation.isPending}
+                >
+                  {addCategoryMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Add"
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setShowAddCategory(false);
+                    setNewCategoryName("");
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+          {isStaffSalary && (
+            <div className="space-y-1.5">
+              <Label htmlFor="staffName">Staff Name</Label>
+              <Input
+                id="staffName"
+                value={staffName}
+                onChange={(e) => setStaffName(e.target.value)}
+                placeholder="e.g. Ravi, Sunita, Mahesh"
+                maxLength={100}
+              />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="expenseDate">Date</Label>
+            <Input
+              id="expenseDate"
+              type="date"
+              value={expenseDate}
+              onChange={(e) => setExpenseDate(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Payment status</Label>
+            <div className="flex flex-col gap-1">
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-input p-2.5 text-sm hover:bg-accent">
+                <input
+                  type="radio"
+                  name="paymentStatus"
+                  value="unpaid"
+                  checked={paymentMethod === null}
+                  onChange={() => setPaymentMethod(null)}
+                  className="h-4 w-4"
+                />
+                <span>Unpaid</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-input p-2.5 text-sm hover:bg-accent">
+                <input
+                  type="radio"
+                  name="paymentStatus"
+                  value="cash"
+                  checked={paymentMethod === "cash"}
+                  onChange={() => setPaymentMethod("cash")}
+                  className="h-4 w-4"
+                />
+                <span>Paid in Cash</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-input p-2.5 text-sm hover:bg-accent">
+                <input
+                  type="radio"
+                  name="paymentStatus"
+                  value="digital"
+                  checked={paymentMethod === "digital"}
+                  onChange={() => setPaymentMethod("digital")}
+                  className="h-4 w-4"
+                />
+                <span>Paid via Digital / UPI</span>
+              </label>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="note">Note</Label>
+            <Textarea
+              id="note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={2}
+            />
+          </div>
+          {formError && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive">
+              {formError}
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving
+                </>
+              ) : editing ? (
+                "Save changes"
+              ) : (
+                "Add expense"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

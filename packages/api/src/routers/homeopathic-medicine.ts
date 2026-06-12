@@ -101,7 +101,9 @@ export const homeopathicMedicineRouter = router({
       .from(homeopathicMedicines)
       .where(eq(homeopathicMedicines.providerId, ctx.session.userId));
     const existingKey = new Set(
-      existing.map((r) => `${r.name.toLowerCase()}|${r.potency.toLowerCase()}`),
+      existing.map(
+        (r) => `${r.name.toLowerCase()}|${(r.potency ?? "").toLowerCase()}`,
+      ),
     );
     const toInsert = DEFAULT_MEDICINES.filter(
       (d) =>
@@ -132,7 +134,7 @@ export const homeopathicMedicineRouter = router({
         .values({
           providerId: ctx.session.userId,
           name: input.name.trim(),
-          potency: input.potency.trim(),
+          potency: input.potency?.trim() || null,
           notes: input.notes?.trim() || null,
         })
         .returning();
@@ -149,10 +151,14 @@ export const homeopathicMedicineRouter = router({
   update: protectedProcedure
     .input(updateHomeopathicMedicineSchema)
     .mutation(async ({ ctx, input }) => {
-      const patch: { name?: string; potency?: string; notes?: string | null } =
-        {};
+      const patch: {
+        name?: string;
+        potency?: string | null;
+        notes?: string | null;
+      } = {};
       if (input.name !== undefined) patch.name = input.name.trim();
-      if (input.potency !== undefined) patch.potency = input.potency.trim();
+      if (input.potency !== undefined)
+        patch.potency = input.potency?.trim() || null;
       if (input.notes !== undefined) patch.notes = input.notes?.trim() || null;
 
       const [updated] = await ctx.db

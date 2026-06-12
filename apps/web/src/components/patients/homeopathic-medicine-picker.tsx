@@ -55,7 +55,7 @@ export function HomeopathicMedicinePicker({
     return items.filter(
       (m) =>
         m.name.toLowerCase().includes(q) ||
-        m.potency.toLowerCase().includes(q) ||
+        (m.potency ?? "").toLowerCase().includes(q) ||
         (m.notes ?? "").toLowerCase().includes(q),
     );
   }, [items, filter]);
@@ -72,7 +72,7 @@ export function HomeopathicMedicinePicker({
   function handleInsert() {
     const lines = items
       .filter((m) => selected.has(m.id))
-      .map((m) => `${m.name} ${m.potency}`);
+      .map((m) => (m.potency ? `${m.name} ${m.potency}` : m.name));
     if (lines.length > 0) onInsert(lines);
     onOpenChange(false);
   }
@@ -81,9 +81,11 @@ export function HomeopathicMedicinePicker({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Insert homeopathic medicine</DialogTitle>
+          <DialogTitle>Insert medicine</DialogTitle>
           <DialogDescription>
-            Pick one or more medicines to append to the Plan field.
+            Pick one or more medicines to append to the Plan field. Works for
+            homeopathic, ayurvedic, unani, and allopathic — whatever you&apos;ve
+            saved.
           </DialogDescription>
         </DialogHeader>
 
@@ -106,7 +108,7 @@ export function HomeopathicMedicinePicker({
                 className="text-primary hover:underline"
                 onClick={() => onOpenChange(false)}
               >
-                More → Homeopathic Medicine
+                More → Medicines
               </Link>
               .
             </p>
@@ -141,10 +143,15 @@ export function HomeopathicMedicinePicker({
                       />
                       <div className="min-w-0 flex-1">
                         <p className="font-medium">
-                          {m.name}{" "}
-                          <span className="text-muted-foreground">
-                            {m.potency}
-                          </span>
+                          {m.name}
+                          {m.potency && (
+                            <>
+                              {" "}
+                              <span className="text-muted-foreground">
+                                {m.potency}
+                              </span>
+                            </>
+                          )}
                         </p>
                         {m.notes && (
                           <p className="mt-0.5 text-xs text-muted-foreground">

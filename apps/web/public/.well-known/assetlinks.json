@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.cliniknote.android",
+      "sha256_cert_fingerprints": [
+        "7D:97:00:F3:86:59:9F:98:3D:26:02:E4:96:65:A7:F1:D1:70:25:6A:28:09:B6:FE:EF:13:EE:99:AA:45:80:16"
+      ]
+    }
+  }
+]

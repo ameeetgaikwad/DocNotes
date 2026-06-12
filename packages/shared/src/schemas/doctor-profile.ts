@@ -27,6 +27,7 @@ export const doctorProfileSchema = z.object({
   mobileNumber: z.string(),
   email: z.string().nullable(),
   registrationNumber: z.string(),
+  overdueDaysThreshold: z.number().int(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
@@ -59,6 +60,24 @@ export const upsertDoctorProfileSchema = z.object({
     .nullable()
     .optional(),
   registrationNumber: trimmedRequired("Registration number", 80),
+  overdueDaysThreshold: z
+    .number()
+    .int("Threshold must be a whole number")
+    .min(1, "Threshold must be at least 1 day")
+    .max(365, "Threshold must be 365 days or fewer")
+    .optional(),
 });
 
 export type UpsertDoctorProfile = z.infer<typeof upsertDoctorProfileSchema>;
+
+export const updateOverdueThresholdSchema = z.object({
+  overdueDaysThreshold: z
+    .number()
+    .int("Threshold must be a whole number")
+    .min(1, "Threshold must be at least 1 day")
+    .max(365, "Threshold must be 365 days or fewer"),
+});
+
+export type UpdateOverdueThreshold = z.infer<
+  typeof updateOverdueThresholdSchema
+>;
