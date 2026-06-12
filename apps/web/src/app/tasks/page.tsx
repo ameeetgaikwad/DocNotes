@@ -881,12 +881,16 @@ function CustomTodoDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="dueDate">Due date</Label>
+            {/* Only block past-dates on new to-dos. Editing an
+                overdue to-do (whose due_date is already in the past)
+                must not be locked out — the doctor may just want to
+                fix a typo in the text. Amit review 2026-06-12 P3. */}
             <Input
               id="dueDate"
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              min={todayLocalIsoDate()}
+              min={editing ? undefined : todayLocalIsoDate()}
             />
           </div>
           {formError && (
