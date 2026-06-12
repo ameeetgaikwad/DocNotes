@@ -6,16 +6,23 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
 
-function startOfTodayUtc(): Date {
+// India-only product right now; hardcode IST so "today's visits" mean
+// today in the doctor's local sense, not UTC midnight. UTC midnight is
+// 05:30 IST — a query that bounds on it drops visits scheduled before
+// 05:30 today and includes 00:00-05:29 visits tomorrow (Amit review
+// 2026-06-12 P2). When/if the app goes multi-region, this should move
+// to a per-doctor timezone from doctor_profiles.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+function startOfTodayIST(): Date {
   const now = new Date();
-  return new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-  );
+  const ist = new Date(now.getTime() + IST_OFFSET_MS);
+  ist.setUTCHours(0, 0, 0, 0);
+  return new Date(ist.getTime() - IST_OFFSET_MS);
 }
 
-function startOfTomorrowUtc(): Date {
-  const t = startOfTodayUtc();
-  return new Date(t.getTime() + 24 * 60 * 60 * 1000);
+function startOfTomorrowIST(): Date {
+  return new Date(startOfTodayIST().getTime() + 24 * 60 * 60 * 1000);
 }
 
 export const homeVisitRouter = router({
@@ -30,8 +37,8 @@ export const homeVisitRouter = router({
         and(
           eq(homeVisits.providerId, ctx.session.userId),
           isNull(homeVisits.completedAt),
-          gte(homeVisits.scheduledAt, startOfTodayUtc()),
-          lt(homeVisits.scheduledAt, startOfTomorrowUtc()),
+          gte(homeVisits.scheduledAt, startOfTodayIST()),
+          lt(homeVisits.scheduledAt, startOfTomorrowIST()),
         ),
       )
       .orderBy(asc(homeVisits.scheduledAt));
