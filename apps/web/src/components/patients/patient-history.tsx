@@ -519,16 +519,8 @@ function VisitCard({
               vitals are hidden), so a doctor who just types a quick
               note still needs Save reachable without first tapping
               "Edit fields". */}
-          {dirty && !saveMutation.isPending && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setForm(lastSaved)}
-            >
-              Discard
-            </Button>
-          )}
+          {/* Manoj msg 1759: Save on the left, Discard on the right —
+              swap from the previous layout. */}
           {dirty && (
             <Button
               type="button"
@@ -545,6 +537,16 @@ function VisitCard({
                   <Save className="h-4 w-4" /> Save
                 </>
               )}
+            </Button>
+          )}
+          {dirty && !saveMutation.isPending && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setForm(lastSaved)}
+            >
+              Discard
             </Button>
           )}
           <button
