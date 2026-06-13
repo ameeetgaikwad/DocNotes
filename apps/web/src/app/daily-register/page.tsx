@@ -404,6 +404,23 @@ export default function DailyRegisterPage() {
         onOpenChange={(o) => !o && setEditingEntry(null)}
         entry={editingEntry}
       />
+
+      {/* Manoj msg 1820: mirror the top "Add Entry" button as a floating
+          circular FAB at the bottom-left so a doctor mid-scroll doesn't
+          need to scroll up to add another entry. Bottom offset clears
+          the MobileBottomNav (h-14 + safe-area). Left side keeps the
+          FAB out of the way of the right-handed-thumb area where users
+          tap nav items. Mobile-only — desktop already has the top
+          button visible at all times. */}
+      <button
+        type="button"
+        onClick={() => setDialogOpen(true)}
+        aria-label="Add Entry"
+        className="fixed bottom-20 left-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 md:hidden"
+        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 5rem)" }}
+      >
+        <Plus className="h-6 w-6" />
+      </button>
     </div>
   );
 }
