@@ -81,12 +81,30 @@ export function HomeopathicMedicinePicker({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Insert medicine</DialogTitle>
-          <DialogDescription>
-            Pick one or more medicines to append to the Plan field. Works for
-            homeopathic, ayurvedic, unani, and allopathic — whatever you&apos;ve
-            saved.
-          </DialogDescription>
+          {/* Manoj msg 1818: keep the Insert button at the bottom but
+              ALSO mirror it at the top-right so a doctor who scrolled
+              through a long list doesn't need to scroll back down to
+              hit Insert. The pr-8 reserves space for the dialog's
+              own close X (positioned absolutely in the top-right by
+              ResponsiveDialog). */}
+          <div className="flex items-start justify-between gap-2 pr-8">
+            <div className="min-w-0 flex-1">
+              <DialogTitle>Insert medicine</DialogTitle>
+              <DialogDescription>
+                Pick one or more medicines to append to the Plan field. Works
+                for homeopathic, ayurvedic, unani, and allopathic — whatever
+                you&apos;ve saved.
+              </DialogDescription>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleInsert}
+              disabled={selected.size === 0}
+            >
+              Insert {selected.size > 0 ? `(${selected.size})` : ""}
+            </Button>
+          </div>
         </DialogHeader>
 
         {listQuery.isLoading && (
