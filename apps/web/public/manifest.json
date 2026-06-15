@@ -2,7 +2,7 @@
   "name": "ClinikNote",
   "short_name": "ClinikNote",
   "description": "Simple and smart digital register for doctors — daily practice records, patient history, and easy IT compliance.",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
