@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   Loader2,
@@ -77,6 +77,37 @@ function parseIsoDate(
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!m) return null;
   return { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) };
+}
+
+function highlightMatch(text: string, query: string): ReactNode {
+  const tokens = query
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (tokens.length === 0) return text;
+  const re = new RegExp(`(${tokens.join("|")})`, "gi");
+  const out: ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    out.push(
+      <strong key={m.index} className="font-bold text-primary">
+        {m[0]}
+      </strong>,
+    );
+    last = m.index + m[0].length;
+    if (m[0].length === 0) re.lastIndex++;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return (
+    <>
+      {out.map((node, i) => (
+        <Fragment key={i}>{node}</Fragment>
+      ))}
+    </>
+  );
 }
 
 export function NewDailyRegisterEntryDialog({
@@ -590,14 +621,20 @@ export function NewDailyRegisterEntryDialog({
                                 p.emergencyContactPhone ?? null,
                             })
                           }
-                          className="flex w-full flex-col items-start gap-0.5 border-b px-3 py-2 text-left text-sm hover:bg-accent md:px-4 md:py-3 md:text-base"
+                          className="flex w-full flex-col items-start gap-0.5 border-b bg-primary/5 px-3 py-2 text-left text-sm hover:bg-primary/15 md:px-4 md:py-3 md:text-base"
                         >
                           <span className="font-medium">
-                            {formatPatientName(p)}
+                            {highlightMatch(
+                              formatPatientName(p),
+                              trimmedSearch,
+                            )}
                           </span>
                           {metaParts.length > 0 && (
                             <span className="text-xs text-muted-foreground md:text-sm">
-                              {metaParts.join(" · ")}
+                              {highlightMatch(
+                                metaParts.join(" · "),
+                                trimmedSearch,
+                              )}
                             </span>
                           )}
                         </button>
