@@ -234,7 +234,7 @@ export default function DailyRegisterPage() {
                   </button>
                   <div className="mt-2 flex items-center justify-end gap-2 border-t pt-2 text-xs">
                     <Link
-                      href={`/patients/${entry.patient.id}`}
+                      href={`/patients/${entry.patient.id}?from=register`}
                       className="text-muted-foreground hover:text-foreground"
                     >
                       View Patient Card
@@ -278,7 +278,7 @@ export default function DailyRegisterPage() {
                     </TableCell>
                     <TableCell className="font-medium md:py-4">
                       <Link
-                        href={`/patients/${entry.patient.id}`}
+                        href={`/patients/${entry.patient.id}?from=register`}
                         className="text-primary hover:underline"
                       >
                         {formatPatientName(entry.patient)}

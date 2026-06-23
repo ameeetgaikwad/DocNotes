@@ -64,6 +64,14 @@ export default function PatientProfilePage({
     ];
     return raw && allowed.includes(raw) ? raw : "summary";
   })();
+  // Manoj msg 1931: back link should reflect entry point. Register links
+  // pass ?from=register; everything else falls back to the Patients list.
+  const backTarget = (() => {
+    if (searchParams.get("from") === "register") {
+      return { href: "/daily-register", label: "Back to Register" };
+    }
+    return { href: "/patients", label: "Back to Patients" };
+  })();
 
   const {
     data: patient,
@@ -97,11 +105,11 @@ export default function PatientProfilePage({
     return (
       <div className="p-4 sm:p-6">
         <Link
-          href="/patients"
+          href={backTarget.href}
           className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Patients
+          {backTarget.label}
         </Link>
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <AlertCircle className="mb-3 h-12 w-12 text-destructive/60" />
@@ -120,11 +128,11 @@ export default function PatientProfilePage({
     return (
       <div className="p-4 sm:p-6">
         <Link
-          href="/patients"
+          href={backTarget.href}
           className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Patients
+          {backTarget.label}
         </Link>
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <p className="text-lg font-medium">Patient not found</p>
@@ -149,11 +157,11 @@ export default function PatientProfilePage({
   return (
     <div className="p-4 sm:p-6">
       <Link
-        href="/patients"
+        href={backTarget.href}
         className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to Patients
+        {backTarget.label}
       </Link>
 
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
