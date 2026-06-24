@@ -20,6 +20,7 @@ import {
   formatGender,
   formatPatientName,
   formatPatientAgeDob,
+  formatINR,
 } from "@/lib/format";
 import { downloadBase64File, printBase64Pdf } from "@/lib/download";
 import { Button } from "@/components/ui/button";
@@ -78,6 +79,15 @@ export default function PatientProfilePage({
     isLoading,
     error,
   } = useQuery(trpc.patient.getById.queryOptions({ id: patientId }));
+
+  // Manoj msg 1927: at-a-glance pending dues badge in the header.
+  // Hide when total === 0; render as a warning-toned pill alongside the
+  // action icons so the doctor sees the financial status without
+  // opening the Pending Dues tab.
+  const duesQuery = useQuery(
+    trpc.dailyRegister.pendingDuesByPatient.queryOptions({ patientId }),
+  );
+  const pendingDuesTotal = duesQuery.data?.total ?? 0;
 
   const exportMutation = useMutation({
     mutationFn: (action: "download" | "print") =>
@@ -218,7 +228,20 @@ export default function PatientProfilePage({
           </div>
         </div>
 
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 items-center gap-2">
+          {pendingDuesTotal > 0 && (
+            <Link
+              href={`/patients/${patientId}?tab=pending-dues`}
+              aria-label={`Pending dues ${formatINR(pendingDuesTotal)}`}
+            >
+              <Badge
+                variant="warning"
+                className="px-3 py-1 text-sm sm:text-base"
+              >
+                Pending Dues: {formatINR(pendingDuesTotal)}
+              </Badge>
+            </Link>
+          )}
           <Button
             variant="outline"
             size="icon"
