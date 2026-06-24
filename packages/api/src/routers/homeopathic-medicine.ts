@@ -8,7 +8,10 @@ import {
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
 
-const DEFAULT_MEDICINES: ReadonlyArray<{ name: string; potency: string }> = [
+const DEFAULT_MEDICINES: ReadonlyArray<{
+  name: string;
+  potency: string | null;
+}> = [
   { name: "Arnica Montana", potency: "30C" },
   { name: "Arnica Montana", potency: "200C" },
   { name: "Arsenicum Album", potency: "30C" },
@@ -21,6 +24,18 @@ const DEFAULT_MEDICINES: ReadonlyArray<{ name: string; potency: string }> = [
   { name: "Chamomilla", potency: "30C" },
   { name: "Allium Cepa", potency: "30C" },
   { name: "Aconitum Napellus", potency: "30C" },
+  // Ayurvedic defaults (Manoj msg 1942). Potency doesn't apply to
+  // these — the picker dialog already handles a null potency by
+  // omitting the trailing space.
+  { name: "Triphala Churna", potency: null },
+  { name: "Chyawanprash", potency: null },
+  { name: "Ashwagandha Tablets", potency: null },
+  { name: "Shatavari Churna", potency: null },
+  { name: "Brahmi Tablets", potency: null },
+  { name: "Trikatu Churna", potency: null },
+  { name: "Hingvashtak Churna", potency: null },
+  { name: "Guduchi (Giloy) Tablets", potency: null },
+  { name: "Punarnava Tablets", potency: null },
 ];
 
 export const homeopathicMedicineRouter = router({
@@ -107,7 +122,9 @@ export const homeopathicMedicineRouter = router({
     );
     const toInsert = DEFAULT_MEDICINES.filter(
       (d) =>
-        !existingKey.has(`${d.name.toLowerCase()}|${d.potency.toLowerCase()}`),
+        !existingKey.has(
+          `${d.name.toLowerCase()}|${(d.potency ?? "").toLowerCase()}`,
+        ),
     );
     if (toInsert.length === 0) {
       return { inserted: 0 };
