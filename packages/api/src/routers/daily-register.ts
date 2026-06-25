@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, desc, asc, gte, lte, sql } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, sql, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { dailyRegisterEntries, patients, patientVisits } from "@docnotes/db";
 import { isNull } from "drizzle-orm";
@@ -58,6 +58,19 @@ export const dailyRegisterRouter = router({
           }
           continue;
         }
+        if (r.paymentStatus === "split") {
+          // Split entries break the fee into explicit cash + digital + due
+          // buckets. The columns are authoritative — fall back to the
+          // paymentMode-based split only if the per-channel amounts
+          // are missing (shouldn't happen since Zod enforces them).
+          const cash = Number(r.cashAmount ?? 0);
+          const digital = Number(r.digitalAmount ?? 0);
+          const balance = Number(r.balanceAmount ?? 0);
+          cashTotal += cash;
+          digitalTotal += digital;
+          dueTotal += Math.max(balance, 0);
+          continue;
+        }
         if (r.paymentMode === "cash") cashTotal += fee;
         else if (r.paymentMode === "digital") digitalTotal += fee;
       }
@@ -86,8 +99,12 @@ export const dailyRegisterRouter = router({
       const rows = await ctx.db
         .select({
           totalCases: sql<number>`count(*)`,
-          receipts: sql<string>`coalesce(sum(case when ${dailyRegisterEntries.paymentStatus} = 'paid' then ${dailyRegisterEntries.feeAmount} when ${dailyRegisterEntries.paymentStatus} = 'due' then ${dailyRegisterEntries.paidAmount} else 0 end), 0)`,
-          pendingDues: sql<string>`coalesce(sum(case when ${dailyRegisterEntries.paymentStatus} = 'due' then greatest(${dailyRegisterEntries.feeAmount} - ${dailyRegisterEntries.paidAmount}, 0) else 0 end), 0)`,
+          // Receipts: full fee for 'paid', collected portion for 'due'
+          // (recordPayment writes paid_amount), and cash+digital for
+          // 'split' (Manoj msg 1926 — balance is owed, not received).
+          receipts: sql<string>`coalesce(sum(case when ${dailyRegisterEntries.paymentStatus} = 'paid' then ${dailyRegisterEntries.feeAmount} when ${dailyRegisterEntries.paymentStatus} = 'due' then ${dailyRegisterEntries.paidAmount} when ${dailyRegisterEntries.paymentStatus} = 'split' then coalesce(${dailyRegisterEntries.cashAmount}, 0) + coalesce(${dailyRegisterEntries.digitalAmount}, 0) else 0 end), 0)`,
+          // Pending dues: outstanding for 'due', balance_amount for 'split'.
+          pendingDues: sql<string>`coalesce(sum(case when ${dailyRegisterEntries.paymentStatus} = 'due' then greatest(${dailyRegisterEntries.feeAmount} - ${dailyRegisterEntries.paidAmount}, 0) when ${dailyRegisterEntries.paymentStatus} = 'split' then greatest(coalesce(${dailyRegisterEntries.balanceAmount}, 0), 0) else 0 end), 0)`,
         })
         .from(dailyRegisterEntries)
         .innerJoin(patients, eq(patients.id, dailyRegisterEntries.patientId))
@@ -125,7 +142,12 @@ export const dailyRegisterRouter = router({
           and(
             eq(dailyRegisterEntries.providerId, ctx.session.userId),
             eq(dailyRegisterEntries.patientId, input.patientId),
-            eq(dailyRegisterEntries.paymentStatus, "due"),
+            // Include split entries whose balance hasn't been settled
+            // (Manoj msg 1926). Both 'due' and 'split' rows share the
+            // same fee > paid invariant: split rows persist paidAmount
+            // = cash + digital, so fee - paid still equals the unpaid
+            // balance.
+            inArray(dailyRegisterEntries.paymentStatus, ["due", "split"]),
             // Skip "fees not recorded yet" placeholders (status=due,
             // amount=0) — they're not actual outstanding balances and
             // would otherwise render as ₹0 rows on the Pending Dues
@@ -169,7 +191,7 @@ export const dailyRegisterRouter = router({
             // Hide archived patients from the overdue-dues report — same
             // rationale as `summary` and `allPendingDues` (Manoj msg 1334).
             eq(patients.isActive, true),
-            eq(dailyRegisterEntries.paymentStatus, "due"),
+            inArray(dailyRegisterEntries.paymentStatus, ["due", "split"]),
           ),
         )
         .groupBy(
@@ -246,7 +268,7 @@ export const dailyRegisterRouter = router({
           // mirrors the Total Patients tile (Manoj msg 1334). Entries
           // still live in the DB for IT retention.
           eq(patients.isActive, true),
-          eq(dailyRegisterEntries.paymentStatus, "due"),
+          inArray(dailyRegisterEntries.paymentStatus, ["due", "split"]),
           sql`${dailyRegisterEntries.feeAmount} > ${dailyRegisterEntries.paidAmount}`,
         ),
       )
@@ -285,25 +307,32 @@ export const dailyRegisterRouter = router({
           message: "Register entry not found",
         });
       }
-      if (e.paymentStatus !== "due") {
+      if (e.paymentStatus !== "due" && e.paymentStatus !== "split") {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Only 'due' entries can have payments recorded",
+          message: "Only 'due' or 'split' entries can have payments recorded",
         });
       }
       const fee = Number(e.feeAmount);
       const clamped = Math.min(Math.max(input.paidAmount, 0), fee);
       // Once the entry is fully settled (paidAmount >= feeAmount),
-      // flip paymentStatus to "paid" so it stops showing as Due in
-      // the register and stops returning from pendingDuesByPatient.
-      // Use a small epsilon to be safe against decimal rounding.
+      // flip paymentStatus to "paid" so it stops showing as Due/Split
+      // in the register and stops returning from pendingDuesByPatient.
+      // For split entries we also clear the balance column since the
+      // outstanding amount is now zero — keeps the row consistent so a
+      // later read doesn't think there's still balance owed.
       const fullyPaid = clamped + 0.005 >= fee;
       const [updated] = await ctx.db
         .update(dailyRegisterEntries)
         .set({
           paidAmount: clamped.toFixed(2),
           feeReceivedAt: input.feeReceivedAt ?? null,
-          ...(fullyPaid ? { paymentStatus: "paid" as const } : {}),
+          ...(fullyPaid
+            ? {
+                paymentStatus: "paid" as const,
+                ...(e.paymentStatus === "split" ? { balanceAmount: "0" } : {}),
+              }
+            : {}),
         })
         .where(
           and(
@@ -353,7 +382,17 @@ export const dailyRegisterRouter = router({
         });
       }
 
-      const initialPaid = input.paymentStatus === "paid" ? input.feeAmount : 0;
+      // paidAmount semantics:
+      //   paid  → fee was collected in full
+      //   due   → nothing collected yet
+      //   nil   → no fee charged
+      //   split → cash + digital portions were collected; balance owed
+      const initialPaid =
+        input.paymentStatus === "paid"
+          ? input.feeAmount
+          : input.paymentStatus === "split"
+            ? (input.cashAmount ?? 0) + (input.digitalAmount ?? 0)
+            : 0;
       const [entry] = await ctx.db
         .insert(dailyRegisterEntries)
         .values({
@@ -365,6 +404,20 @@ export const dailyRegisterRouter = router({
           paidAmount: initialPaid.toFixed(2),
           paymentMode: input.paymentMode,
           paymentStatus: input.paymentStatus,
+          // Only persist split columns when paymentStatus === "split";
+          // Zod refines on the schema enforce all-or-nothing.
+          cashAmount:
+            input.paymentStatus === "split"
+              ? (input.cashAmount ?? 0).toFixed(2)
+              : null,
+          digitalAmount:
+            input.paymentStatus === "split"
+              ? (input.digitalAmount ?? 0).toFixed(2)
+              : null,
+          balanceAmount:
+            input.paymentStatus === "split"
+              ? (input.balanceAmount ?? 0).toFixed(2)
+              : null,
           feeReceivedAt: input.feeReceivedAt ?? null,
           diagnosis: input.diagnosis?.trim() ? input.diagnosis.trim() : null,
           notes: input.notes ?? null,
@@ -463,7 +516,10 @@ export const dailyRegisterRouter = router({
         feeAmount?: string;
         paidAmount?: string;
         paymentMode?: "cash" | "digital";
-        paymentStatus?: "paid" | "due" | "nil";
+        paymentStatus?: "paid" | "due" | "nil" | "split";
+        cashAmount?: string | null;
+        digitalAmount?: string | null;
+        balanceAmount?: string | null;
         feeReceivedAt?: string | null;
         diagnosis?: string | null;
         notes?: string | null;
@@ -501,6 +557,13 @@ export const dailyRegisterRouter = router({
           patch.paidAmount = nextFee.toFixed(2);
         } else if (nextStatus === "nil") {
           patch.paidAmount = "0.00";
+        } else if (nextStatus === "split") {
+          // Split: paidAmount = cash + digital (balance is owed).
+          // The Zod refine on the input has already enforced that the
+          // three sum to fee, so we trust the values here.
+          patch.paidAmount = (
+            (input.data.cashAmount ?? 0) + (input.data.digitalAmount ?? 0)
+          ).toFixed(2);
         } else if (statusChanged && current.paymentStatus === "paid") {
           // paid → due: the prior paidAmount equals feeAmount by the
           // "paid" invariant (see create + this branch above). The
@@ -515,6 +578,22 @@ export const dailyRegisterRouter = router({
             nextFee,
           ).toFixed(2);
         }
+      }
+
+      // Split amount columns: write them when status is becoming/staying
+      // split; clear them when transitioning to a non-split status. This
+      // keeps the row internally consistent for future reads.
+      if (nextStatus === "split") {
+        if (input.data.cashAmount !== undefined)
+          patch.cashAmount = (input.data.cashAmount ?? 0).toFixed(2);
+        if (input.data.digitalAmount !== undefined)
+          patch.digitalAmount = (input.data.digitalAmount ?? 0).toFixed(2);
+        if (input.data.balanceAmount !== undefined)
+          patch.balanceAmount = (input.data.balanceAmount ?? 0).toFixed(2);
+      } else if (statusChanged && current.paymentStatus === "split") {
+        patch.cashAmount = null;
+        patch.digitalAmount = null;
+        patch.balanceAmount = null;
       }
 
       const [entry] = await ctx.db

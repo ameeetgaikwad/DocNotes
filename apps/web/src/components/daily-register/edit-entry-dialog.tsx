@@ -10,6 +10,7 @@ import {
   Smartphone,
   Save,
   Loader2,
+  SplitSquareHorizontal,
 } from "lucide-react";
 import { SERVICE_TYPES } from "@docnotes/shared";
 import { trpcClient } from "@/lib/trpc";
@@ -29,8 +30,9 @@ import {
   ResponsiveDialogFooter as DialogFooter,
   ResponsiveDialogClose as DialogClose,
 } from "@/components/ui/responsive-dialog";
+import { SplitPaymentBlock } from "./split-payment-block";
 
-type PaymentStatus = "paid" | "due" | "nil";
+type PaymentStatus = "paid" | "due" | "nil" | "split";
 type PaymentMode = "cash" | "digital";
 
 export interface RegisterEntryForEdit {
@@ -40,6 +42,9 @@ export interface RegisterEntryForEdit {
   feeAmount: string | number | null;
   paymentMode: string | null;
   paymentStatus: string | null;
+  cashAmount?: string | number | null;
+  digitalAmount?: string | number | null;
+  balanceAmount?: string | number | null;
   feeReceivedAt: string | null;
   diagnosis: string | null;
   notes: string | null;
@@ -66,6 +71,8 @@ export function EditDailyRegisterEntryDialog({
   const [feeAmount, setFeeAmount] = useState("");
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("paid");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("cash");
+  const [splitCash, setSplitCash] = useState("");
+  const [splitDigital, setSplitDigital] = useState("");
   const [receiptDate, setReceiptDate] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
   const [notes, setNotes] = useState("");
@@ -81,16 +88,26 @@ export function EditDailyRegisterEntryDialog({
     );
     setPaymentStatus((entry.paymentStatus as PaymentStatus) || "paid");
     setPaymentMode((entry.paymentMode as PaymentMode) || "cash");
+    setSplitCash(
+      entry.cashAmount != null && Number(entry.cashAmount) > 0
+        ? String(Number(entry.cashAmount))
+        : "",
+    );
+    setSplitDigital(
+      entry.digitalAmount != null && Number(entry.digitalAmount) > 0
+        ? String(Number(entry.digitalAmount))
+        : "",
+    );
     setReceiptDate(entry.feeReceivedAt ?? "");
     setDiagnosis(entry.diagnosis ?? "");
     setNotes(entry.notes ?? "");
     setServerError(null);
   }, [open, entry]);
 
-  // Mirror the create-dialog behaviour: switching to Paid auto-fills
-  // today if the receipt date is blank; switching to Due clears it.
+  // Mirror the create-dialog behaviour: switching to Paid or Split
+  // auto-fills today if blank; switching to Due clears it.
   useEffect(() => {
-    if (paymentStatus === "paid") {
+    if (paymentStatus === "paid" || paymentStatus === "split") {
       setReceiptDate((current) => current || todayLocalIsoDate());
     } else if (paymentStatus === "due") {
       setReceiptDate("");
@@ -102,6 +119,17 @@ export function EditDailyRegisterEntryDialog({
       if (!entry) throw new Error("Nothing to update");
       const fee =
         paymentStatus === "nil" || feeAmount === "" ? 0 : Number(feeAmount);
+      const cashNum = Number(splitCash) || 0;
+      const digitalNum = Number(splitDigital) || 0;
+      const balanceNum = Math.max(0, fee - cashNum - digitalNum);
+      const splitFields =
+        paymentStatus === "split"
+          ? {
+              cashAmount: cashNum,
+              digitalAmount: digitalNum,
+              balanceAmount: balanceNum,
+            }
+          : {};
       return trpcClient.dailyRegister.update.mutate({
         id: entry.id,
         data: {
@@ -109,6 +137,7 @@ export function EditDailyRegisterEntryDialog({
           feeAmount: fee,
           paymentMode,
           paymentStatus,
+          ...splitFields,
           feeReceivedAt: receiptDate || null,
           diagnosis: diagnosis.trim() || null,
           notes: notes.trim() || null,
@@ -126,8 +155,13 @@ export function EditDailyRegisterEntryDialog({
     paymentStatus === "nil" || feeAmount === "" || Number(feeAmount) >= 0;
   const receiptDateOk =
     receiptDate === "" || /^\d{4}-\d{2}-\d{2}$/.test(receiptDate);
+  const splitOk =
+    paymentStatus !== "split" ||
+    (Number(feeAmount) > 0 &&
+      (Number(splitCash) || 0) + (Number(splitDigital) || 0) <=
+        Number(feeAmount) + 0.005);
   const canSubmit =
-    entry !== null && serviceType !== "" && feeOk && receiptDateOk;
+    entry !== null && serviceType !== "" && feeOk && splitOk && receiptDateOk;
 
   if (!entry) return null;
 
@@ -200,12 +234,17 @@ export function EditDailyRegisterEntryDialog({
                 disabled={paymentStatus === "nil"}
                 className="min-w-[8rem] flex-1 md:h-12 md:text-base"
               />
-              <div className="flex gap-1 rounded-md border p-1 md:gap-2 md:p-1.5">
+              <div className="flex flex-wrap gap-1 rounded-md border p-1 md:gap-2 md:p-1.5">
                 {(
                   [
                     { key: "paid", label: "Paid", Icon: Check },
                     { key: "due", label: "Due", Icon: Clock },
                     { key: "nil", label: "Nil", Icon: Ban },
+                    {
+                      key: "split",
+                      label: "Split",
+                      Icon: SplitSquareHorizontal,
+                    },
                   ] as const
                 ).map(({ key, label, Icon }) => (
                   <button
@@ -226,7 +265,18 @@ export function EditDailyRegisterEntryDialog({
             </div>
           </div>
 
-          {paymentStatus !== "nil" && (
+          {paymentStatus === "split" && (
+            <SplitPaymentBlock
+              feeAmount={feeAmount}
+              cash={splitCash}
+              digital={splitDigital}
+              setCash={setSplitCash}
+              setDigital={setSplitDigital}
+              idPrefix="edit-split"
+            />
+          )}
+
+          {paymentStatus !== "nil" && paymentStatus !== "split" && (
             <div className="space-y-2">
               <Label className="md:text-base">Payment Mode *</Label>
               <div className="grid grid-cols-2 gap-2 md:gap-3">

@@ -167,17 +167,28 @@ export default function DailyRegisterPage() {
                   ? "Paid"
                   : entry.paymentStatus === "due"
                     ? "Due"
-                    : "Nil";
+                    : entry.paymentStatus === "split"
+                      ? "Split"
+                      : "Nil";
               const feesUnrecorded =
                 entry.paymentStatus !== "nil" &&
                 Number(entry.feeAmount ?? 0) === 0;
+              // Show payment mode for paid/due entries; for split the
+              // breakdown is the per-entry detail, surfaced as e.g.
+              // "Cash ₹300 + UPI ₹200 + Balance ₹100".
+              const splitDetail =
+                entry.paymentStatus === "split"
+                  ? `Cash ${formatINR(Number(entry.cashAmount ?? 0))} + UPI ${formatINR(Number(entry.digitalAmount ?? 0))} + Bal ${formatINR(Number(entry.balanceAmount ?? 0))}`
+                  : null;
               const meta = [
                 entry.serviceType || null,
-                entry.paymentStatus !== "nil"
-                  ? entry.paymentMode === "cash"
-                    ? "Cash"
-                    : "Digital / UPI"
-                  : null,
+                entry.paymentStatus === "split"
+                  ? splitDetail
+                  : entry.paymentStatus !== "nil"
+                    ? entry.paymentMode === "cash"
+                      ? "Cash"
+                      : "Digital / UPI"
+                    : null,
                 entry.diagnosis || null,
               ].filter((s): s is string => Boolean(s));
               return (
@@ -220,7 +231,9 @@ export default function DailyRegisterPage() {
                             ? "default"
                             : entry.paymentStatus === "due"
                               ? "outline"
-                              : "secondary"
+                              : entry.paymentStatus === "split"
+                                ? "warning"
+                                : "secondary"
                         }
                       >
                         {statusLabel}
@@ -307,7 +320,9 @@ export default function DailyRegisterPage() {
                             ? "Paid"
                             : entry.paymentStatus === "due"
                               ? "Due"
-                              : "Nil"}
+                              : entry.paymentStatus === "split"
+                                ? "Split"
+                                : "Nil"}
                         </Badge>
                         {entry.paymentStatus !== "nil" &&
                           Number(entry.feeAmount ?? 0) === 0 && (
@@ -320,6 +335,12 @@ export default function DailyRegisterPage() {
                     <TableCell className="hidden sm:table-cell md:py-4">
                       {entry.paymentStatus === "nil" ? (
                         <span className="text-muted-foreground">—</span>
+                      ) : entry.paymentStatus === "split" ? (
+                        <span className="font-mono text-xs">
+                          {formatINR(Number(entry.cashAmount ?? 0))} +{" "}
+                          {formatINR(Number(entry.digitalAmount ?? 0))} +{" "}
+                          {formatINR(Number(entry.balanceAmount ?? 0))} bal
+                        </span>
                       ) : (
                         <Badge
                           variant={

@@ -13,6 +13,7 @@ import {
   Save,
   Pencil,
   X,
+  SplitSquareHorizontal,
 } from "lucide-react";
 import { SERVICE_TYPES, type Gender } from "@docnotes/shared";
 import { trpc, trpcClient } from "@/lib/trpc";
@@ -37,6 +38,7 @@ import {
   ResponsiveDialogFooter as DialogFooter,
   ResponsiveDialogClose as DialogClose,
 } from "@/components/ui/responsive-dialog";
+import { SplitPaymentBlock } from "./split-payment-block";
 
 interface NewEntryDialogProps {
   open: boolean;
@@ -44,7 +46,7 @@ interface NewEntryDialogProps {
   visitDate: string;
 }
 
-type PaymentStatus = "paid" | "due" | "nil";
+type PaymentStatus = "paid" | "due" | "nil" | "split";
 type PaymentMode = "cash" | "digital";
 
 type BloodType = "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-" | "";
@@ -129,6 +131,12 @@ export function NewDailyRegisterEntryDialog({
   const [feeAmount, setFeeAmount] = useState("");
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("paid");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("cash");
+  // Split-payment breakdown (Manoj msg 1926). Only shown when
+  // paymentStatus === "split". Balance is computed = max(0, fee - cash -
+  // digital); we still hold it in state so the value persists into the
+  // create payload.
+  const [splitCash, setSplitCash] = useState("");
+  const [splitDigital, setSplitDigital] = useState("");
   const [receiptDate, setReceiptDate] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
   const [notes, setNotes] = useState("");
@@ -191,6 +199,8 @@ export function NewDailyRegisterEntryDialog({
       setFeeAmount("");
       setPaymentStatus("paid");
       setPaymentMode("cash");
+      setSplitCash("");
+      setSplitDigital("");
       // Default to today so a reopened dialog with default Paid status
       // shows a populated receipt date instead of an empty field. The
       // [paymentStatus] effect alone wasn't sufficient because deps don't
@@ -219,7 +229,9 @@ export function NewDailyRegisterEntryDialog({
   // typed). Switching to Due clears it so the field reads blank as a
   // visual reminder that fees haven't come in yet.
   useEffect(() => {
-    if (paymentStatus === "paid") {
+    if (paymentStatus === "paid" || paymentStatus === "split") {
+      // Split payments still record a partial receipt today, so the
+      // receipt date defaults to today (preserves prior typing).
       setReceiptDate((current) => current || todayLocalIsoDate());
     } else if (paymentStatus === "due") {
       setReceiptDate("");
@@ -446,6 +458,19 @@ export function NewDailyRegisterEntryDialog({
       // send vitals along with the entry so the same-date visit row
       // gets populated.
       const newPatientPath = patient === null;
+      // Compute the split breakdown so the server-side Zod refine sees
+      // a clean cash + digital + balance triple summing to fee.
+      const cashNum = Number(splitCash) || 0;
+      const digitalNum = Number(splitDigital) || 0;
+      const balanceNum = Math.max(0, fee - cashNum - digitalNum);
+      const splitFields =
+        paymentStatus === "split"
+          ? {
+              cashAmount: cashNum,
+              digitalAmount: digitalNum,
+              balanceAmount: balanceNum,
+            }
+          : {};
       const entry = await trpcClient.dailyRegister.create.mutate({
         patientId: resolved.id,
         visitDate: entryDate,
@@ -453,6 +478,7 @@ export function NewDailyRegisterEntryDialog({
         feeAmount: fee,
         paymentMode,
         paymentStatus,
+        ...splitFields,
         feeReceivedAt: receiptDate || null,
         diagnosis: diagnosis.trim() || null,
         notes: notes.trim() || null,
@@ -488,6 +514,14 @@ export function NewDailyRegisterEntryDialog({
   const receiptDateOk =
     receiptDate === "" || /^\d{4}-\d{2}-\d{2}$/.test(receiptDate);
   const entryDateOk = /^\d{4}-\d{2}-\d{2}$/.test(entryDate);
+  // Split-payment must have a non-zero fee and cash + digital must not
+  // exceed it. Balance is computed, so only cash + digital can violate
+  // the sum invariant.
+  const splitOk =
+    paymentStatus !== "split" ||
+    (Number(feeAmount) > 0 &&
+      (Number(splitCash) || 0) + (Number(splitDigital) || 0) <=
+        Number(feeAmount) + 0.005);
   // A patient is "available" if one is selected OR the doctor has typed a
   // name with no exact match (we'll auto-create on save).
   const patientResolvable =
@@ -497,6 +531,7 @@ export function NewDailyRegisterEntryDialog({
     entryDateOk &&
     serviceType !== "" &&
     feeOk &&
+    splitOk &&
     receiptDateOk &&
     dobError === null;
 
@@ -701,12 +736,17 @@ export function NewDailyRegisterEntryDialog({
                 disabled={paymentStatus === "nil"}
                 className="h-10 min-w-0 flex-1 md:h-11 md:text-base"
               />
-              <div className="flex flex-none gap-0.5 rounded-md border p-0.5">
+              <div className="flex flex-none flex-wrap gap-0.5 rounded-md border p-0.5">
                 {(
                   [
                     { key: "paid", label: "Paid", Icon: Check },
                     { key: "due", label: "Due", Icon: Clock },
                     { key: "nil", label: "Nil", Icon: Ban },
+                    {
+                      key: "split",
+                      label: "Split",
+                      Icon: SplitSquareHorizontal,
+                    },
                   ] as const
                 ).map(({ key, label, Icon }) => (
                   <button
@@ -727,7 +767,17 @@ export function NewDailyRegisterEntryDialog({
             </div>
           </div>
 
-          {paymentStatus !== "nil" && (
+          {paymentStatus === "split" && (
+            <SplitPaymentBlock
+              feeAmount={feeAmount}
+              cash={splitCash}
+              digital={splitDigital}
+              setCash={setSplitCash}
+              setDigital={setSplitDigital}
+            />
+          )}
+
+          {paymentStatus !== "nil" && paymentStatus !== "split" && (
             <div className="space-y-2">
               <Label className="md:text-base">Payment Mode *</Label>
               <div className="grid grid-cols-2 gap-2 md:gap-3">
