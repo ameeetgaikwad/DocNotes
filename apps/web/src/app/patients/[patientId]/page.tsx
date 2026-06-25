@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -52,19 +52,38 @@ export default function PatientProfilePage({
   const [editOpen, setEditOpen] = useState(false);
   // Honour ?tab=<value> so the Patients list can deep-link to a specific
   // tab (Manoj msg 983: "Review" should open History, not Summary).
+  // Controlled — derived from searchParams every render so in-page
+  // navigation (e.g. tapping the pending-dues badge) actually switches
+  // the visible tab (Amit code review msg 1952 P2).
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const initialTab = (() => {
-    const raw = searchParams.get("tab");
-    const allowed = [
-      "summary",
-      "history",
-      "documents",
-      "diet",
-      "pending-dues",
-      "appointments",
-    ];
-    return raw && allowed.includes(raw) ? raw : "summary";
-  })();
+  const allowedTabs = [
+    "summary",
+    "history",
+    "documents",
+    "diet",
+    "pending-dues",
+    "appointments",
+  ];
+  const rawTab = searchParams.get("tab");
+  const currentTab =
+    rawTab && allowedTabs.includes(rawTab) ? rawTab : "summary";
+
+  function buildHrefForTab(tab: string): string {
+    // Preserve every existing query param (e.g. from=register so the
+    // Back link stays correct — Amit code review msg 1952 P3) while
+    // swapping tab.
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("tab", tab);
+    const qs = next.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }
+
+  function handleTabChange(tab: string): void {
+    router.replace(buildHrefForTab(tab), { scroll: false });
+  }
+
   // Manoj msg 1931: back link should reflect entry point. Register links
   // pass ?from=register; everything else falls back to the Patients list.
   const backTarget = (() => {
@@ -231,7 +250,7 @@ export default function PatientProfilePage({
         <div className="flex shrink-0 items-center gap-2">
           {pendingDuesTotal > 0 && (
             <Link
-              href={`/patients/${patientId}?tab=pending-dues`}
+              href={buildHrefForTab("pending-dues")}
               aria-label={`Pending dues ${formatINR(pendingDuesTotal)}`}
             >
               <Badge
@@ -291,7 +310,7 @@ export default function PatientProfilePage({
         </div>
       </div>
 
-      <Tabs defaultValue={initialTab}>
+      <Tabs value={currentTab} onValueChange={handleTabChange}>
         <div className="relative">
           <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 [&::-webkit-scrollbar]:hidden">
             {[
