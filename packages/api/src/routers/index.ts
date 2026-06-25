@@ -16,8 +16,10 @@ import { homeopathicMedicineRouter } from "./homeopathic-medicine.js";
 import { clinicExpenseRouter } from "./clinic-expense.js";
 import { homeVisitRouter } from "./home-visit.js";
 import { customTodoRouter } from "./custom-todo.js";
+import { adminRouter } from "./admin.js";
 
 export const appRouter = router({
+  admin: adminRouter,
   dashboard: dashboardRouter,
   patient: patientRouter,
   medicalRecord: medicalRecordRouter,
