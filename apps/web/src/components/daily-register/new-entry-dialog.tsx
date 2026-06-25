@@ -7,7 +7,6 @@ import {
   UserPlus,
   Check,
   Clock,
-  Ban,
   Banknote,
   Smartphone,
   Save,
@@ -46,7 +45,14 @@ interface NewEntryDialogProps {
   visitDate: string;
 }
 
-type PaymentStatus = "paid" | "due" | "nil" | "split";
+// UI-facing payment statuses. "nil" is dropped from the picker per
+// Manoj msg 1962 — the dialog only shows Paid / Due / Split. On save
+// we auto-promote Paid+₹0 and Due+₹0 to the DB's "nil" status so
+// existing reports + the register list keep treating zero-fee visits
+// the same way as before.
+type PaymentStatus = "paid" | "due" | "split";
+// Server-side enum (still includes "nil" — UI just hides the button).
+type ServerPaymentStatus = PaymentStatus | "nil";
 type PaymentMode = "cash" | "digital";
 
 type BloodType = "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-" | "";
@@ -450,8 +456,15 @@ export function NewDailyRegisterEntryDialog({
       // Fees Received is now optional (Manoj msg 767 #2). Blank amount
       // saves as 0 so the doctor can record the visit fast and update
       // fees later by reopening.
-      const fee =
-        paymentStatus === "nil" || feeAmount === "" ? 0 : Number(feeAmount);
+      const fee = feeAmount === "" ? 0 : Number(feeAmount);
+      // Auto-promote Paid+₹0 and Due+₹0 to "nil" (Manoj msg 1962). The
+      // UI hides the Nil button — zero-fee visits are still represented
+      // as paymentStatus = "nil" in the DB so all existing reports keep
+      // working unchanged.
+      const persistedStatus: ServerPaymentStatus =
+        (paymentStatus === "paid" || paymentStatus === "due") && fee === 0
+          ? "nil"
+          : paymentStatus;
       // For NEW patients we already wrote vitals via patient.create's
       // initialVitals, so don't re-send here (would overwrite with the
       // same values, harmless but wasteful). For EXISTING patients,
@@ -464,7 +477,7 @@ export function NewDailyRegisterEntryDialog({
       const digitalNum = Number(splitDigital) || 0;
       const balanceNum = Math.max(0, fee - cashNum - digitalNum);
       const splitFields =
-        paymentStatus === "split"
+        persistedStatus === "split"
           ? {
               cashAmount: cashNum,
               digitalAmount: digitalNum,
@@ -477,7 +490,7 @@ export function NewDailyRegisterEntryDialog({
         serviceType: serviceType || null,
         feeAmount: fee,
         paymentMode,
-        paymentStatus,
+        paymentStatus: persistedStatus,
         ...splitFields,
         feeReceivedAt: receiptDate || null,
         diagnosis: diagnosis.trim() || null,
@@ -509,8 +522,7 @@ export function NewDailyRegisterEntryDialog({
   const canQuickCreate =
     typedName.length > 0 && !exactMatchQuery.isLoading && !exactMatchExists;
 
-  const feeOk =
-    paymentStatus === "nil" || feeAmount === "" || Number(feeAmount) >= 0;
+  const feeOk = feeAmount === "" || Number(feeAmount) >= 0;
   const receiptDateOk =
     receiptDate === "" || /^\d{4}-\d{2}-\d{2}$/.test(receiptDate);
   const entryDateOk = /^\d{4}-\d{2}-\d{2}$/.test(entryDate);
@@ -719,51 +731,58 @@ export function NewDailyRegisterEntryDialog({
             </Select>
           </div>
 
+          {/* Fees Received block restructured per Manoj msg 1962:
+               - Fee input gets its own full-width row with bigger digits
+               - Status picker drops to row 2 with 3 buttons (Nil removed)
+               - Paid/Due with ₹0 auto-promotes to Nil on save */}
           <div className="space-y-2">
             <Label htmlFor="fee" className="md:text-base">
               Fees Received (₹)
             </Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="fee"
-                type="number"
-                min="0"
-                step="0.01"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={paymentStatus === "nil" ? "" : feeAmount}
-                onChange={(e) => setFeeAmount(e.target.value)}
-                disabled={paymentStatus === "nil"}
-                className="h-10 min-w-0 flex-1 md:h-11 md:text-base"
-              />
-              <div className="flex flex-none flex-wrap gap-0.5 rounded-md border p-0.5">
-                {(
-                  [
-                    { key: "paid", label: "Paid", Icon: Check },
-                    { key: "due", label: "Due", Icon: Clock },
-                    { key: "nil", label: "Nil", Icon: Ban },
-                    {
-                      key: "split",
-                      label: "Split",
-                      Icon: SplitSquareHorizontal,
-                    },
-                  ] as const
-                ).map(({ key, label, Icon }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setPaymentStatus(key)}
-                    className={`flex items-center gap-1 rounded-sm px-2 py-1.5 text-xs font-medium transition md:px-2.5 md:py-2 md:text-sm ${
-                      paymentStatus === key
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent"
-                    }`}
-                  >
-                    <Icon className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                    {label}
-                  </button>
-                ))}
-              </div>
+            <Input
+              id="fee"
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={feeAmount}
+              onChange={(e) => setFeeAmount(e.target.value)}
+              className="h-12 text-lg font-medium tabular-nums md:h-12 md:text-xl"
+            />
+            <p className="text-xs text-muted-foreground md:text-sm">
+              Leave 0 if no fees charged for this visit.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="md:text-base">Payment Status</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  { key: "paid", label: "Paid", Icon: Check },
+                  { key: "due", label: "Due", Icon: Clock },
+                  {
+                    key: "split",
+                    label: "Split",
+                    Icon: SplitSquareHorizontal,
+                  },
+                ] as const
+              ).map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setPaymentStatus(key)}
+                  className={`flex items-center justify-center gap-2 rounded-md border px-3 py-3 text-sm font-medium transition md:py-3.5 md:text-base ${
+                    paymentStatus === key
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent"
+                  }`}
+                >
+                  <Icon className="h-4 w-4 md:h-5 md:w-5" />
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -777,7 +796,7 @@ export function NewDailyRegisterEntryDialog({
             />
           )}
 
-          {paymentStatus !== "nil" && paymentStatus !== "split" && (
+          {paymentStatus !== "split" && (
             <div className="space-y-2">
               <Label className="md:text-base">Payment Mode *</Label>
               <div className="grid grid-cols-2 gap-2 md:gap-3">
@@ -809,40 +828,38 @@ export function NewDailyRegisterEntryDialog({
             </div>
           )}
 
-          {paymentStatus !== "nil" && (
-            <div className="space-y-2">
-              <Label htmlFor="receipt-date" className="md:text-base">
-                Date of Receipt of Fees
-              </Label>
-              <div className="flex items-center gap-2">
-                <CalendarInput
-                  id="receipt-date"
-                  value={receiptDate}
-                  onChange={setReceiptDate}
-                  onFocus={() => {
-                    if (!receiptDate) setReceiptDate(todayLocalIsoDate());
-                  }}
-                  max={todayLocalIsoDate()}
-                  className="md:h-12 md:text-base"
-                />
-                {receiptDate && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setReceiptDate("")}
-                    className="md:h-12 md:px-3"
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground md:text-sm">
-                Leave blank if fees haven&apos;t been received yet (e.g. when
-                marked Due).
-              </p>
+          <div className="space-y-2">
+            <Label htmlFor="receipt-date" className="md:text-base">
+              Date of Receipt of Fees
+            </Label>
+            <div className="flex items-center gap-2">
+              <CalendarInput
+                id="receipt-date"
+                value={receiptDate}
+                onChange={setReceiptDate}
+                onFocus={() => {
+                  if (!receiptDate) setReceiptDate(todayLocalIsoDate());
+                }}
+                max={todayLocalIsoDate()}
+                className="md:h-12 md:text-base"
+              />
+              {receiptDate && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setReceiptDate("")}
+                  className="md:h-12 md:px-3"
+                >
+                  Clear
+                </Button>
+              )}
             </div>
-          )}
+            <p className="text-xs text-muted-foreground md:text-sm">
+              Leave blank if fees haven&apos;t been received yet (e.g. when
+              marked Due).
+            </p>
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="diagnosis" className="md:text-base">

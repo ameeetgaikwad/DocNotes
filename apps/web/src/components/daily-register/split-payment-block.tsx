@@ -27,12 +27,20 @@ export function SplitPaymentBlock({
   const d = Number(digital) || 0;
   const balance = Math.max(0, fee - c - d);
   const exceeded = c + d > fee + 0.005;
+  // Stacked rows on mobile, 3-up on tablet+. Stacking keeps the digit
+  // inputs full-width so large system font settings can't crush the
+  // numbers (Manoj msg 1962 accessibility ask).
   return (
-    <div className="space-y-2 rounded-md border border-dashed bg-muted/30 p-3 md:p-4">
-      <Label className="md:text-base">Split Payment</Label>
-      <div className="grid grid-cols-3 gap-2 md:gap-3">
+    <div className="space-y-3 rounded-md border border-dashed bg-muted/30 p-3 md:p-4">
+      <Label className="text-base font-semibold md:text-lg">
+        Split Payment
+      </Label>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-3">
         <div className="space-y-1">
-          <Label htmlFor={`${idPrefix}-cash`} className="text-xs md:text-sm">
+          <Label
+            htmlFor={`${idPrefix}-cash`}
+            className="text-sm font-medium md:text-base"
+          >
             Cash (₹)
           </Label>
           <Input
@@ -44,11 +52,14 @@ export function SplitPaymentBlock({
             placeholder="0.00"
             value={cash}
             onChange={(e) => setCash(e.target.value)}
-            className="h-10 md:h-11 md:text-base"
+            className="h-12 text-lg font-medium tabular-nums md:h-12 md:text-xl"
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor={`${idPrefix}-digital`} className="text-xs md:text-sm">
+          <Label
+            htmlFor={`${idPrefix}-digital`}
+            className="text-sm font-medium md:text-base"
+          >
             Digital / UPI (₹)
           </Label>
           <Input
@@ -60,12 +71,15 @@ export function SplitPaymentBlock({
             placeholder="0.00"
             value={digital}
             onChange={(e) => setDigital(e.target.value)}
-            className="h-10 md:h-11 md:text-base"
+            className="h-12 text-lg font-medium tabular-nums md:h-12 md:text-xl"
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor={`${idPrefix}-balance`} className="text-xs md:text-sm">
-            Balance (₹)
+          <Label
+            htmlFor={`${idPrefix}-balance`}
+            className="text-sm font-medium md:text-base"
+          >
+            Balance (₹) — auto
           </Label>
           <Input
             id={`${idPrefix}-balance`}
@@ -73,12 +87,12 @@ export function SplitPaymentBlock({
             value={balance.toFixed(2)}
             readOnly
             tabIndex={-1}
-            className="h-10 bg-muted/60 font-medium md:h-11 md:text-base"
+            className="h-12 bg-muted/60 text-lg font-semibold tabular-nums md:h-12 md:text-xl"
           />
         </div>
       </div>
       {exceeded ? (
-        <p className="text-xs text-destructive md:text-sm">
+        <p className="text-sm text-destructive">
           Cash + Digital (₹{(c + d).toFixed(2)}) exceed the Fee Amount (₹
           {fee.toFixed(2)}). Reduce one of them or raise the fee.
         </p>
