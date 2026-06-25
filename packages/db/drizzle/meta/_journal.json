@@ -162,6 +162,20 @@
       "when": 1781163600000,
       "tag": "0022_actions_center",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1782446400000,
+      "tag": "0023_split_payment",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1782446460000,
+      "tag": "0024_prescription_lines",
+      "breakpoints": true
     }
   ]
 }

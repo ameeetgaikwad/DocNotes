@@ -5,11 +5,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   Clock,
-  Ban,
   Banknote,
   Smartphone,
   Save,
   Loader2,
+  SplitSquareHorizontal,
 } from "lucide-react";
 import { SERVICE_TYPES } from "@docnotes/shared";
 import { trpcClient } from "@/lib/trpc";
@@ -29,8 +29,14 @@ import {
   ResponsiveDialogFooter as DialogFooter,
   ResponsiveDialogClose as DialogClose,
 } from "@/components/ui/responsive-dialog";
+import { SplitPaymentBlock } from "./split-payment-block";
 
-type PaymentStatus = "paid" | "due" | "nil";
+// UI-facing payment statuses. "nil" is hidden from the picker per
+// Manoj msg 1962 — Paid/Due with ₹0 auto-promotes to "nil" on save.
+// Existing entries that come in as status="nil" are mapped to "paid"
+// + empty fee in the form so the doctor can still see/edit them.
+type PaymentStatus = "paid" | "due" | "split";
+type ServerPaymentStatus = PaymentStatus | "nil";
 type PaymentMode = "cash" | "digital";
 
 export interface RegisterEntryForEdit {
@@ -40,6 +46,9 @@ export interface RegisterEntryForEdit {
   feeAmount: string | number | null;
   paymentMode: string | null;
   paymentStatus: string | null;
+  cashAmount?: string | number | null;
+  digitalAmount?: string | number | null;
+  balanceAmount?: string | number | null;
   feeReceivedAt: string | null;
   diagnosis: string | null;
   notes: string | null;
@@ -66,6 +75,8 @@ export function EditDailyRegisterEntryDialog({
   const [feeAmount, setFeeAmount] = useState("");
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("paid");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("cash");
+  const [splitCash, setSplitCash] = useState("");
+  const [splitDigital, setSplitDigital] = useState("");
   const [receiptDate, setReceiptDate] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
   const [notes, setNotes] = useState("");
@@ -79,18 +90,32 @@ export function EditDailyRegisterEntryDialog({
         ? String(Number(entry.feeAmount))
         : "",
     );
-    setPaymentStatus((entry.paymentStatus as PaymentStatus) || "paid");
+    // Map server "nil" rows to "paid" in the UI so the doctor sees a
+    // valid status (Nil button is gone). The fee stays empty/0 so a
+    // straight Save round-trips back to "nil" via auto-promote.
+    const srvStatus = (entry.paymentStatus as ServerPaymentStatus) || "paid";
+    setPaymentStatus(srvStatus === "nil" ? "paid" : srvStatus);
     setPaymentMode((entry.paymentMode as PaymentMode) || "cash");
+    setSplitCash(
+      entry.cashAmount != null && Number(entry.cashAmount) > 0
+        ? String(Number(entry.cashAmount))
+        : "",
+    );
+    setSplitDigital(
+      entry.digitalAmount != null && Number(entry.digitalAmount) > 0
+        ? String(Number(entry.digitalAmount))
+        : "",
+    );
     setReceiptDate(entry.feeReceivedAt ?? "");
     setDiagnosis(entry.diagnosis ?? "");
     setNotes(entry.notes ?? "");
     setServerError(null);
   }, [open, entry]);
 
-  // Mirror the create-dialog behaviour: switching to Paid auto-fills
-  // today if the receipt date is blank; switching to Due clears it.
+  // Mirror the create-dialog behaviour: switching to Paid or Split
+  // auto-fills today if blank; switching to Due clears it.
   useEffect(() => {
-    if (paymentStatus === "paid") {
+    if (paymentStatus === "paid" || paymentStatus === "split") {
       setReceiptDate((current) => current || todayLocalIsoDate());
     } else if (paymentStatus === "due") {
       setReceiptDate("");
@@ -100,15 +125,31 @@ export function EditDailyRegisterEntryDialog({
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!entry) throw new Error("Nothing to update");
-      const fee =
-        paymentStatus === "nil" || feeAmount === "" ? 0 : Number(feeAmount);
+      const fee = feeAmount === "" ? 0 : Number(feeAmount);
+      // Auto-promote Paid+₹0 / Due+₹0 to "nil" (Manoj msg 1962).
+      const persistedStatus: ServerPaymentStatus =
+        (paymentStatus === "paid" || paymentStatus === "due") && fee === 0
+          ? "nil"
+          : paymentStatus;
+      const cashNum = Number(splitCash) || 0;
+      const digitalNum = Number(splitDigital) || 0;
+      const balanceNum = Math.max(0, fee - cashNum - digitalNum);
+      const splitFields =
+        persistedStatus === "split"
+          ? {
+              cashAmount: cashNum,
+              digitalAmount: digitalNum,
+              balanceAmount: balanceNum,
+            }
+          : {};
       return trpcClient.dailyRegister.update.mutate({
         id: entry.id,
         data: {
           serviceType: serviceType || null,
           feeAmount: fee,
           paymentMode,
-          paymentStatus,
+          paymentStatus: persistedStatus,
+          ...splitFields,
           feeReceivedAt: receiptDate || null,
           diagnosis: diagnosis.trim() || null,
           notes: notes.trim() || null,
@@ -122,12 +163,16 @@ export function EditDailyRegisterEntryDialog({
     onError: (e) => setServerError(e.message),
   });
 
-  const feeOk =
-    paymentStatus === "nil" || feeAmount === "" || Number(feeAmount) >= 0;
+  const feeOk = feeAmount === "" || Number(feeAmount) >= 0;
   const receiptDateOk =
     receiptDate === "" || /^\d{4}-\d{2}-\d{2}$/.test(receiptDate);
+  const splitOk =
+    paymentStatus !== "split" ||
+    (Number(feeAmount) > 0 &&
+      (Number(splitCash) || 0) + (Number(splitDigital) || 0) <=
+        Number(feeAmount) + 0.005);
   const canSubmit =
-    entry !== null && serviceType !== "" && feeOk && receiptDateOk;
+    entry !== null && serviceType !== "" && feeOk && splitOk && receiptDateOk;
 
   if (!entry) return null;
 
@@ -183,50 +228,72 @@ export function EditDailyRegisterEntryDialog({
             </Select>
           </div>
 
+          {/* Fees Received block restructured per Manoj msg 1962:
+               full-width fee input with bigger digits + 3-status picker
+               on its own row (Nil removed). */}
           <div className="space-y-2">
             <Label htmlFor="edit-fee" className="md:text-base">
               Fees Received (₹)
             </Label>
-            <div className="flex flex-wrap items-stretch gap-2 md:gap-3">
-              <Input
-                id="edit-fee"
-                type="number"
-                min="0"
-                step="0.01"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={paymentStatus === "nil" ? "" : feeAmount}
-                onChange={(e) => setFeeAmount(e.target.value)}
-                disabled={paymentStatus === "nil"}
-                className="min-w-[8rem] flex-1 md:h-12 md:text-base"
-              />
-              <div className="flex gap-1 rounded-md border p-1 md:gap-2 md:p-1.5">
-                {(
-                  [
-                    { key: "paid", label: "Paid", Icon: Check },
-                    { key: "due", label: "Due", Icon: Clock },
-                    { key: "nil", label: "Nil", Icon: Ban },
-                  ] as const
-                ).map(({ key, label, Icon }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setPaymentStatus(key)}
-                    className={`flex flex-col items-center rounded-sm px-3 py-1.5 text-xs transition md:min-w-[4rem] md:px-4 md:py-2 md:text-sm ${
-                      paymentStatus === key
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent"
-                    }`}
-                  >
-                    <Icon className="h-4 w-4 md:h-5 md:w-5" />
-                    <span className="mt-0.5">{label}</span>
-                  </button>
-                ))}
-              </div>
+            <Input
+              id="edit-fee"
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={feeAmount}
+              onChange={(e) => setFeeAmount(e.target.value)}
+              className="h-12 text-lg font-medium tabular-nums md:h-12 md:text-xl"
+            />
+            <p className="text-xs text-muted-foreground md:text-sm">
+              Leave 0 if no fees charged for this visit.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="md:text-base">Payment Status</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  { key: "paid", label: "Paid", Icon: Check },
+                  { key: "due", label: "Due", Icon: Clock },
+                  {
+                    key: "split",
+                    label: "Split",
+                    Icon: SplitSquareHorizontal,
+                  },
+                ] as const
+              ).map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setPaymentStatus(key)}
+                  className={`flex items-center justify-center gap-2 rounded-md border px-3 py-3 text-sm font-medium transition md:py-3.5 md:text-base ${
+                    paymentStatus === key
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent"
+                  }`}
+                >
+                  <Icon className="h-4 w-4 md:h-5 md:w-5" />
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {paymentStatus !== "nil" && (
+          {paymentStatus === "split" && (
+            <SplitPaymentBlock
+              feeAmount={feeAmount}
+              cash={splitCash}
+              digital={splitDigital}
+              setCash={setSplitCash}
+              setDigital={setSplitDigital}
+              idPrefix="edit-split"
+            />
+          )}
+
+          {paymentStatus !== "split" && (
             <div className="space-y-2">
               <Label className="md:text-base">Payment Mode *</Label>
               <div className="grid grid-cols-2 gap-2 md:gap-3">
@@ -258,33 +325,31 @@ export function EditDailyRegisterEntryDialog({
             </div>
           )}
 
-          {paymentStatus !== "nil" && (
-            <div className="space-y-2">
-              <Label htmlFor="edit-receipt-date" className="md:text-base">
-                Date of Receipt of Fees
-              </Label>
-              <div className="flex items-center gap-2">
-                <CalendarInput
-                  id="edit-receipt-date"
-                  value={receiptDate}
-                  onChange={setReceiptDate}
-                  max={todayLocalIsoDate()}
-                  className="md:h-12 md:text-base"
-                />
-                {receiptDate && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setReceiptDate("")}
-                    className="md:h-12 md:px-3"
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-receipt-date" className="md:text-base">
+              Date of Receipt of Fees
+            </Label>
+            <div className="flex items-center gap-2">
+              <CalendarInput
+                id="edit-receipt-date"
+                value={receiptDate}
+                onChange={setReceiptDate}
+                max={todayLocalIsoDate()}
+                className="md:h-12 md:text-base"
+              />
+              {receiptDate && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setReceiptDate("")}
+                  className="md:h-12 md:px-3"
+                >
+                  Clear
+                </Button>
+              )}
             </div>
-          )}
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="edit-diagnosis" className="md:text-base">

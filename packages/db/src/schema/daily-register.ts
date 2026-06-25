@@ -31,6 +31,12 @@ export const dailyRegisterEntries = pgTable(
     paymentStatus: varchar("payment_status", { length: 16 })
       .notNull()
       .default("paid"),
+    // Split-payment breakdown (Manoj msg 1926). Only populated when
+    // paymentStatus = "split"; null otherwise. App-layer Zod enforces
+    // cash + digital + balance === fee.
+    cashAmount: numeric("cash_amount", { precision: 10, scale: 2 }),
+    digitalAmount: numeric("digital_amount", { precision: 10, scale: 2 }),
+    balanceAmount: numeric("balance_amount", { precision: 10, scale: 2 }),
     feeReceivedAt: date("fee_received_at"),
     diagnosis: text("diagnosis"),
     notes: text("notes"),

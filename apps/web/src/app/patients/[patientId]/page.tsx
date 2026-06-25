@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -20,6 +20,7 @@ import {
   formatGender,
   formatPatientName,
   formatPatientAgeDob,
+  formatINR,
 } from "@/lib/format";
 import { downloadBase64File, printBase64Pdf } from "@/lib/download";
 import { Button } from "@/components/ui/button";
@@ -51,18 +52,45 @@ export default function PatientProfilePage({
   const [editOpen, setEditOpen] = useState(false);
   // Honour ?tab=<value> so the Patients list can deep-link to a specific
   // tab (Manoj msg 983: "Review" should open History, not Summary).
+  // Controlled — derived from searchParams every render so in-page
+  // navigation (e.g. tapping the pending-dues badge) actually switches
+  // the visible tab (Amit code review msg 1952 P2).
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const initialTab = (() => {
-    const raw = searchParams.get("tab");
-    const allowed = [
-      "summary",
-      "history",
-      "documents",
-      "diet",
-      "pending-dues",
-      "appointments",
-    ];
-    return raw && allowed.includes(raw) ? raw : "summary";
+  const allowedTabs = [
+    "summary",
+    "history",
+    "documents",
+    "diet",
+    "pending-dues",
+    "appointments",
+  ];
+  const rawTab = searchParams.get("tab");
+  const currentTab =
+    rawTab && allowedTabs.includes(rawTab) ? rawTab : "summary";
+
+  function buildHrefForTab(tab: string): string {
+    // Preserve every existing query param (e.g. from=register so the
+    // Back link stays correct — Amit code review msg 1952 P3) while
+    // swapping tab.
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("tab", tab);
+    const qs = next.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }
+
+  function handleTabChange(tab: string): void {
+    router.replace(buildHrefForTab(tab), { scroll: false });
+  }
+
+  // Manoj msg 1931: back link should reflect entry point. Register links
+  // pass ?from=register; everything else falls back to the Patients list.
+  const backTarget = (() => {
+    if (searchParams.get("from") === "register") {
+      return { href: "/daily-register", label: "Back to Register" };
+    }
+    return { href: "/patients", label: "Back to Patients" };
   })();
 
   const {
@@ -70,6 +98,15 @@ export default function PatientProfilePage({
     isLoading,
     error,
   } = useQuery(trpc.patient.getById.queryOptions({ id: patientId }));
+
+  // Manoj msg 1927: at-a-glance pending dues badge in the header.
+  // Hide when total === 0; render as a warning-toned pill alongside the
+  // action icons so the doctor sees the financial status without
+  // opening the Pending Dues tab.
+  const duesQuery = useQuery(
+    trpc.dailyRegister.pendingDuesByPatient.queryOptions({ patientId }),
+  );
+  const pendingDuesTotal = duesQuery.data?.total ?? 0;
 
   const exportMutation = useMutation({
     mutationFn: (action: "download" | "print") =>
@@ -97,11 +134,11 @@ export default function PatientProfilePage({
     return (
       <div className="p-4 sm:p-6">
         <Link
-          href="/patients"
+          href={backTarget.href}
           className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Patients
+          {backTarget.label}
         </Link>
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <AlertCircle className="mb-3 h-12 w-12 text-destructive/60" />
@@ -120,11 +157,11 @@ export default function PatientProfilePage({
     return (
       <div className="p-4 sm:p-6">
         <Link
-          href="/patients"
+          href={backTarget.href}
           className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Patients
+          {backTarget.label}
         </Link>
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <p className="text-lg font-medium">Patient not found</p>
@@ -149,11 +186,11 @@ export default function PatientProfilePage({
   return (
     <div className="p-4 sm:p-6">
       <Link
-        href="/patients"
+        href={backTarget.href}
         className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to Patients
+        {backTarget.label}
       </Link>
 
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -210,7 +247,20 @@ export default function PatientProfilePage({
           </div>
         </div>
 
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 items-center gap-2">
+          {pendingDuesTotal > 0 && (
+            <Link
+              href={buildHrefForTab("pending-dues")}
+              aria-label={`Pending dues ${formatINR(pendingDuesTotal)}`}
+            >
+              <Badge
+                variant="warning"
+                className="px-3 py-1 text-sm sm:text-base"
+              >
+                Pending Dues: {formatINR(pendingDuesTotal)}
+              </Badge>
+            </Link>
+          )}
           <Button
             variant="outline"
             size="icon"
@@ -260,7 +310,7 @@ export default function PatientProfilePage({
         </div>
       </div>
 
-      <Tabs defaultValue={initialTab}>
+      <Tabs value={currentTab} onValueChange={handleTabChange}>
         <div className="relative">
           <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 [&::-webkit-scrollbar]:hidden">
             {[
