@@ -453,16 +453,22 @@ export function NewDailyRegisterEntryDialog({
         }
       }
 
-      // Fees Received is now optional (Manoj msg 767 #2). Blank amount
-      // saves as 0 so the doctor can record the visit fast and update
-      // fees later by reopening.
-      const fee = feeAmount === "" ? 0 : Number(feeAmount);
-      // Auto-promote Paid+₹0 and Due+₹0 to "nil" (Manoj msg 1962). The
-      // UI hides the Nil button — zero-fee visits are still represented
-      // as paymentStatus = "nil" in the DB so all existing reports keep
-      // working unchanged.
+      // Fees Received is optional (Manoj msg 767 #2). The submit
+      // distinguishes three states (Manoj msg 2001 restores the
+      // "Fees not recorded" reminder that the earlier auto-promote
+      // had killed):
+      //   - feeAmount === ""          → "not recorded yet"; fee saves
+      //                                  as 0 but paymentStatus stays
+      //                                  paid/due so the daily-register
+      //                                  banner can flag it for follow-up
+      //   - feeAmount === "0" or "0.00" → doctor explicitly said no fee;
+      //                                  auto-promote to "nil"
+      //   - feeAmount > 0             → normal paid/due/split flow
+      const feeBlank = feeAmount.trim() === "";
+      const fee = feeBlank ? 0 : Number(feeAmount);
+      const explicitlyZero = !feeBlank && fee === 0;
       const persistedStatus: ServerPaymentStatus =
-        (paymentStatus === "paid" || paymentStatus === "due") && fee === 0
+        (paymentStatus === "paid" || paymentStatus === "due") && explicitlyZero
           ? "nil"
           : paymentStatus;
       // For NEW patients we already wrote vitals via patient.create's
@@ -745,13 +751,14 @@ export function NewDailyRegisterEntryDialog({
               min="0"
               step="0.01"
               inputMode="decimal"
-              placeholder="0.00"
+              placeholder="Leave blank if not recorded yet"
               value={feeAmount}
               onChange={(e) => setFeeAmount(e.target.value)}
               className="h-12 text-lg font-medium tabular-nums md:h-12 md:text-xl"
             />
             <p className="text-xs text-muted-foreground md:text-sm">
-              Leave 0 if no fees charged for this visit.
+              Leave blank if you&apos;ll record fees later; enter 0 only when no
+              fee was charged for this visit.
             </p>
           </div>
 

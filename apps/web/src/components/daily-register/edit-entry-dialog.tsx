@@ -85,16 +85,22 @@ export function EditDailyRegisterEntryDialog({
   useEffect(() => {
     if (!open || !entry) return;
     setServiceType(entry.serviceType ?? "");
-    setFeeAmount(
-      entry.feeAmount != null && Number(entry.feeAmount) > 0
-        ? String(Number(entry.feeAmount))
-        : "",
-    );
-    // Map server "nil" rows to "paid" in the UI so the doctor sees a
-    // valid status (Nil button is gone). The fee stays empty/0 so a
-    // straight Save round-trips back to "nil" via auto-promote.
     const srvStatus = (entry.paymentStatus as ServerPaymentStatus) || "paid";
+    // Map server "nil" rows to "paid" in the UI (Nil button is gone),
+    // and prefill the fee with explicit "0" so a Save without changes
+    // re-triggers the auto-promote and keeps the row as nil. For any
+    // other status, a stored fee of 0 means "not recorded yet" (Manoj
+    // msg 2001), so the field stays blank to preserve that state.
     setPaymentStatus(srvStatus === "nil" ? "paid" : srvStatus);
+    if (srvStatus === "nil") {
+      setFeeAmount("0");
+    } else {
+      setFeeAmount(
+        entry.feeAmount != null && Number(entry.feeAmount) > 0
+          ? String(Number(entry.feeAmount))
+          : "",
+      );
+    }
     setPaymentMode((entry.paymentMode as PaymentMode) || "cash");
     setSplitCash(
       entry.cashAmount != null && Number(entry.cashAmount) > 0
@@ -125,10 +131,14 @@ export function EditDailyRegisterEntryDialog({
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!entry) throw new Error("Nothing to update");
-      const fee = feeAmount === "" ? 0 : Number(feeAmount);
-      // Auto-promote Paid+₹0 / Due+₹0 to "nil" (Manoj msg 1962).
+      // Three states (Manoj msg 2001): blank field = "not recorded
+      // yet" (fee=0, status stays paid/due so the banner can flag it),
+      // explicit 0 = no fee charged (auto-promote to nil), >0 = normal.
+      const feeBlank = feeAmount.trim() === "";
+      const fee = feeBlank ? 0 : Number(feeAmount);
+      const explicitlyZero = !feeBlank && fee === 0;
       const persistedStatus: ServerPaymentStatus =
-        (paymentStatus === "paid" || paymentStatus === "due") && fee === 0
+        (paymentStatus === "paid" || paymentStatus === "due") && explicitlyZero
           ? "nil"
           : paymentStatus;
       const cashNum = Number(splitCash) || 0;
@@ -241,13 +251,14 @@ export function EditDailyRegisterEntryDialog({
               min="0"
               step="0.01"
               inputMode="decimal"
-              placeholder="0.00"
+              placeholder="Leave blank if not recorded yet"
               value={feeAmount}
               onChange={(e) => setFeeAmount(e.target.value)}
               className="h-12 text-lg font-medium tabular-nums md:h-12 md:text-xl"
             />
             <p className="text-xs text-muted-foreground md:text-sm">
-              Leave 0 if no fees charged for this visit.
+              Leave blank if you&apos;ll record fees later; enter 0 only when no
+              fee was charged for this visit.
             </p>
           </div>
 
