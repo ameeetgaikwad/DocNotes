@@ -138,6 +138,13 @@ interface PatientData {
   firstName: string;
   lastName: string;
   dateOfBirth: Date | string | null;
+  // Partial DOB fields — Manoj msg 1993. Some patients are saved as
+  // year-only (or month+year), so the full dateOfBirth is null but the
+  // discrete parts are set. The Patient Summary PDF falls back to these
+  // when dateOfBirth is absent so the row isn't a useless em-dash.
+  dobDay?: number | null;
+  dobMonth?: number | null;
+  dobYear?: number | null;
   gender: string | null;
   email?: string | null;
   phone?: string | null;
@@ -148,6 +155,42 @@ interface PatientData {
   allergies?: Array<{ name: string; severity: string; reaction?: string }>;
   activeConditions?: string[];
   notes?: string | null;
+}
+
+// Returns a renderable DOB + age pair, mirroring the web's
+// formatPatientAgeDob: full DOB → "21/06/1972 (53 years)"; partial
+// month+year → "06/1972 (53 years)"; year-only → "1972 (53 years)";
+// nothing → "—".
+function formatPatientDobForPdf(p: {
+  dateOfBirth: Date | string | null;
+  dobDay?: number | null;
+  dobMonth?: number | null;
+  dobYear?: number | null;
+}): string {
+  if (p.dateOfBirth) {
+    return `${formatDateDDMMYYYY(p.dateOfBirth)} (${calculateAge(p.dateOfBirth)} years)`;
+  }
+  const d = p.dobDay ?? null;
+  const m = p.dobMonth ?? null;
+  const y = p.dobYear ?? null;
+  if (d && m && y) {
+    const age = calculateAge(new Date(y, m - 1, d));
+    const dd = String(d).padStart(2, "0");
+    const mm = String(m).padStart(2, "0");
+    return `${dd}/${mm}/${y} (${age} years)`;
+  }
+  if (m && y) {
+    const now = new Date();
+    let age = now.getFullYear() - y;
+    if (now.getMonth() + 1 < m) age -= 1;
+    const mm = String(m).padStart(2, "0");
+    return age >= 0 ? `${mm}/${y} (${age} years)` : `${mm}/${y}`;
+  }
+  if (y) {
+    const age = new Date().getFullYear() - y;
+    return age >= 0 ? `${y} (${age} years)` : `${y}`;
+  }
+  return "—";
 }
 
 interface RecordData {
@@ -239,13 +282,7 @@ export async function renderPatientSummaryPdf(
           View,
           { style: styles.row },
           e(Text, { style: styles.label }, "Date of Birth:"),
-          e(
-            Text,
-            { style: styles.value },
-            patient.dateOfBirth
-              ? `${formatDateDDMMYYYY(patient.dateOfBirth)} (${calculateAge(patient.dateOfBirth)} years)`
-              : "—",
-          ),
+          e(Text, { style: styles.value }, formatPatientDobForPdf(patient)),
         ),
         e(
           View,
