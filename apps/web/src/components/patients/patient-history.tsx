@@ -754,12 +754,17 @@ function VisitCard({
                     disabled={!fuDays}
                     onClick={() => {
                       const reason = fuReason.trim();
-                      // Trailing "!" is what detectFollowUp keys on to
-                      // schedule the appointment; the optional reason
-                      // rides as the appointment's reason text.
+                      // Trailing "!" inside the braces is what
+                      // detectFollowUp keys on to schedule the
+                      // appointment; the optional reason rides as the
+                      // appointment's reason text. Braces (Manoj msg
+                      // 1999) visually fence the follow-up off from
+                      // the rest of the clinical notes; the regex
+                      // doesn't anchor to braces so older un-braced
+                      // lines still parse.
                       const line = reason
-                        ? `Follow up after ${fuDays} days! ${reason}`
-                        : `Follow up after ${fuDays} days!`;
+                        ? `{Follow up after ${fuDays} days! ${reason}}`
+                        : `{Follow up after ${fuDays} days!}`;
                       setForm((prev) => {
                         const current = prev.clinicalNotes;
                         const next =
