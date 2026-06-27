@@ -251,7 +251,6 @@ export function EditDailyRegisterEntryDialog({
               min="0"
               step="0.01"
               inputMode="decimal"
-              placeholder="Leave blank if not recorded yet"
               value={feeAmount}
               onChange={(e) => setFeeAmount(e.target.value)}
               className="h-12 text-lg font-medium tabular-nums md:h-12 md:text-xl"
