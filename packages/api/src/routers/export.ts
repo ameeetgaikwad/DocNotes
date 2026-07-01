@@ -5,6 +5,7 @@ import {
   patientVisits,
   doctorProfiles,
   dailyRegisterEntries,
+  prescriptionLines,
 } from "@docnotes/db";
 import {
   exportPatientSummarySchema,
@@ -252,6 +253,27 @@ export const exportRouter = router({
         });
       }
 
+      // Fetch structured Rx lines for this visit (Manoj msg 1949 P2).
+      // Falls back to legacy clinical-notes-only render inside the PDF
+      // renderer when no lines exist.
+      const rxLines = await ctx.db
+        .select({
+          medicineName: prescriptionLines.medicineName,
+          dosage: prescriptionLines.dosage,
+          frequency: prescriptionLines.frequency,
+          duration: prescriptionLines.duration,
+          quantity: prescriptionLines.quantity,
+          instructions: prescriptionLines.instructions,
+        })
+        .from(prescriptionLines)
+        .where(
+          and(
+            eq(prescriptionLines.visitId, visit.id),
+            eq(prescriptionLines.providerId, ctx.session.userId),
+          ),
+        )
+        .orderBy(asc(prescriptionLines.position));
+
       const pdfBuffer = await renderPrescriptionPdf(
         {
           firstName: patient.firstName,
@@ -283,6 +305,7 @@ export const exportRouter = router({
           spO2Percent: visit.spO2Percent,
           clinicalNotes: visit.clinicalNotes,
         },
+        rxLines,
       );
 
       logAudit(ctx, {

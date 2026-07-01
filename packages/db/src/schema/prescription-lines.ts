@@ -23,9 +23,16 @@ export const prescriptionLines = pgTable(
     position: integer("position").notNull().default(0),
     medicineName: varchar("medicine_name", { length: 200 }).notNull(),
     tabletsCount: integer("tablets_count"),
+    // Structured Rx fields shaped for Manoj's reference format (msg 2032):
+    // dosage stored as "1-0-1" style presets or free text; frequency
+    // is repurposed as the meal timing ("before" / "after" / null);
+    // duration keeps the combined "3 days" string; quantity is total
+    // tablets/doses across the duration (auto-computed but overrideable);
+    // instructions serves as the "Note" free-text field.
     dosage: varchar("dosage", { length: 100 }),
     frequency: varchar("frequency", { length: 100 }),
     duration: varchar("duration", { length: 50 }),
+    quantity: integer("quantity"),
     instructions: text("instructions"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

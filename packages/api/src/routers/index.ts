@@ -17,6 +17,7 @@ import { clinicExpenseRouter } from "./clinic-expense.js";
 import { homeVisitRouter } from "./home-visit.js";
 import { customTodoRouter } from "./custom-todo.js";
 import { adminRouter } from "./admin.js";
+import { prescriptionLineRouter } from "./prescription-line.js";
 
 export const appRouter = router({
   admin: adminRouter,
@@ -37,6 +38,7 @@ export const appRouter = router({
   clinicExpense: clinicExpenseRouter,
   homeVisit: homeVisitRouter,
   customTodo: customTodoRouter,
+  prescriptionLine: prescriptionLineRouter,
 });
 
 export type AppRouter = typeof appRouter;
