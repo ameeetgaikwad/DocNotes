@@ -7,7 +7,6 @@ import {
   Calendar,
   Users,
   ClipboardList,
-  Activity,
   Loader2,
   Receipt,
   IndianRupee,
@@ -26,6 +25,7 @@ import {
   EditDailyRegisterEntryDialog,
   type RegisterEntryForEdit,
 } from "@/components/daily-register/edit-entry-dialog";
+import { WriteRxCallout } from "@/components/dashboard/write-rx-callout";
 
 function StatCard({
   label,
@@ -930,26 +930,14 @@ export function Dashboard() {
           active={registerSummaryOpen}
           onClick={() => setRegisterSummaryOpen((v) => !v)}
         />
-        {!registerSummaryOpen && (
-          <StatCard
-            label="Records This Week"
-            value={data?.recordsThisWeek ?? 0}
-            icon={Activity}
-            isLoading={isLoading}
-          />
-        )}
+        {!registerSummaryOpen && <WriteRxCallout />}
       </div>
 
       {registerSummaryOpen && (
         <>
           <RegisterSummaryPanel />
           <div className="mb-8">
-            <StatCard
-              label="Records This Week"
-              value={data?.recordsThisWeek ?? 0}
-              icon={Activity}
-              isLoading={isLoading}
-            />
+            <WriteRxCallout />
           </div>
         </>
       )}

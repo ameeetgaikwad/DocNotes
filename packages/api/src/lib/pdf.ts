@@ -138,6 +138,13 @@ interface PatientData {
   firstName: string;
   lastName: string;
   dateOfBirth: Date | string | null;
+  // Partial DOB fields — Manoj msg 1993. Some patients are saved as
+  // year-only (or month+year), so the full dateOfBirth is null but the
+  // discrete parts are set. The Patient Summary PDF falls back to these
+  // when dateOfBirth is absent so the row isn't a useless em-dash.
+  dobDay?: number | null;
+  dobMonth?: number | null;
+  dobYear?: number | null;
   gender: string | null;
   email?: string | null;
   phone?: string | null;
@@ -148,6 +155,42 @@ interface PatientData {
   allergies?: Array<{ name: string; severity: string; reaction?: string }>;
   activeConditions?: string[];
   notes?: string | null;
+}
+
+// Returns a renderable DOB + age pair, mirroring the web's
+// formatPatientAgeDob: full DOB → "21/06/1972 (53 years)"; partial
+// month+year → "06/1972 (53 years)"; year-only → "1972 (53 years)";
+// nothing → "—".
+function formatPatientDobForPdf(p: {
+  dateOfBirth: Date | string | null;
+  dobDay?: number | null;
+  dobMonth?: number | null;
+  dobYear?: number | null;
+}): string {
+  if (p.dateOfBirth) {
+    return `${formatDateDDMMYYYY(p.dateOfBirth)} (${calculateAge(p.dateOfBirth)} years)`;
+  }
+  const d = p.dobDay ?? null;
+  const m = p.dobMonth ?? null;
+  const y = p.dobYear ?? null;
+  if (d && m && y) {
+    const age = calculateAge(new Date(y, m - 1, d));
+    const dd = String(d).padStart(2, "0");
+    const mm = String(m).padStart(2, "0");
+    return `${dd}/${mm}/${y} (${age} years)`;
+  }
+  if (m && y) {
+    const now = new Date();
+    let age = now.getFullYear() - y;
+    if (now.getMonth() + 1 < m) age -= 1;
+    const mm = String(m).padStart(2, "0");
+    return age >= 0 ? `${mm}/${y} (${age} years)` : `${mm}/${y}`;
+  }
+  if (y) {
+    const age = new Date().getFullYear() - y;
+    return age >= 0 ? `${y} (${age} years)` : `${y}`;
+  }
+  return "—";
 }
 
 interface RecordData {
@@ -239,13 +282,7 @@ export async function renderPatientSummaryPdf(
           View,
           { style: styles.row },
           e(Text, { style: styles.label }, "Date of Birth:"),
-          e(
-            Text,
-            { style: styles.value },
-            patient.dateOfBirth
-              ? `${formatDateDDMMYYYY(patient.dateOfBirth)} (${calculateAge(patient.dateOfBirth)} years)`
-              : "—",
-          ),
+          e(Text, { style: styles.value }, formatPatientDobForPdf(patient)),
         ),
         e(
           View,
@@ -719,10 +756,50 @@ function prescriptionVitalsLine(v: PrescriptionVisitData): string {
   return parts.join(" · ");
 }
 
+// Manoj msg 1949: printed Rx renders the full structured line rather
+// than the shortened Clinical Notes summary. Each line prints as e.g.
+//   1. Triphala Churna   1-0-1 after meals × 3 days     (Qty 6)
+//      Note: with warm water
+export interface PrescriptionLineForPdf {
+  medicineName: string;
+  dosage: string | null;
+  frequency: string | null; // meal timing: "before" | "after" | null
+  duration: string | null;
+  quantity: number | null;
+  instructions: string | null;
+}
+
+function renderRxLineText(l: PrescriptionLineForPdf): string {
+  const bits: string[] = [];
+  if (l.dosage) bits.push(l.dosage);
+  if (l.frequency) bits.push(`${l.frequency} meals`);
+  if (l.duration) bits.push(`× ${l.duration}`);
+  const summary = bits.join(" ");
+  const qty = l.quantity ? `  (Qty ${l.quantity})` : "";
+  return `${l.medicineName}${summary ? "   " + summary : ""}${qty}`;
+}
+
+// Remove the auto-appended Rx block from Clinical Notes when the PDF
+// is rendering structured lines separately — otherwise the printout
+// shows the same medicines twice (once structured, once as short lines).
+function stripRxBlockFromNotes(notes: string | null): string | null {
+  if (!notes) return notes;
+  const startIdx = notes.indexOf("{rx: begin}");
+  const endIdx = notes.indexOf("{rx: end}");
+  if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) return notes;
+  const cleaned = (
+    notes.slice(0, startIdx).trimEnd() +
+    "\n" +
+    notes.slice(endIdx + "{rx: end}".length).trimStart()
+  ).trim();
+  return cleaned || null;
+}
+
 export async function renderPrescriptionPdf(
   patient: PrescriptionPatientData,
   doctor: DoctorProfileData,
   visit: PrescriptionVisitData,
+  lines: PrescriptionLineForPdf[] = [],
 ): Promise<Buffer> {
   const patientName = [patient.firstName, patient.middleName, patient.lastName]
     .filter(Boolean)
@@ -795,9 +872,46 @@ export async function renderPrescriptionPdf(
       ),
       e(Text, { style: rxStyles.bodyHeading }, "Rx"),
       vitalsLine ? e(Text, { style: rxStyles.vitalsLine }, vitalsLine) : null,
-      visit.clinicalNotes
-        ? e(Text, { style: rxStyles.rxBody }, visit.clinicalNotes)
-        : e(Text, { style: rxStyles.rxBody }, "—"),
+      lines.length > 0
+        ? e(
+            View,
+            { style: { marginTop: 8 } },
+            ...lines.flatMap((l, i) => {
+              const parts: React.ReactElement[] = [
+                e(
+                  Text,
+                  { style: rxStyles.rxBody, key: `line-${i}` },
+                  `${i + 1}. ${renderRxLineText(l)}`,
+                ),
+              ];
+              if (l.instructions?.trim()) {
+                parts.push(
+                  e(
+                    Text,
+                    {
+                      style: {
+                        fontSize: 10,
+                        color: "#475569",
+                        marginTop: 1,
+                        marginLeft: 14,
+                      },
+                      key: `note-${i}`,
+                    },
+                    `Note: ${l.instructions.trim()}`,
+                  ),
+                );
+              }
+              return parts;
+            }),
+          )
+        : (() => {
+            // No structured Rx — fall back to raw clinical notes for
+            // legacy prescriptions written before Write Rx shipped.
+            const notes = stripRxBlockFromNotes(visit.clinicalNotes);
+            return notes
+              ? e(Text, { style: rxStyles.rxBody }, notes)
+              : e(Text, { style: rxStyles.rxBody }, "—");
+          })(),
       e(Text, { style: rxStyles.signatureLine }, `Dr. ${doctor.fullName}`),
     ),
   );
