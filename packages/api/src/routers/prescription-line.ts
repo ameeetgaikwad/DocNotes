@@ -1,7 +1,12 @@
 import { z } from "zod";
 import { and, eq, sql, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { prescriptionLines, patientVisits, patients } from "@docnotes/db";
+import {
+  prescriptionLines,
+  patientVisits,
+  patients,
+  dailyRegisterEntries,
+} from "@docnotes/db";
 import { upsertPrescriptionSchema } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
@@ -182,6 +187,83 @@ export const prescriptionLineRouter = router({
           .update(patientVisits)
           .set({ clinicalNotes: nextNotes })
           .where(eq(patientVisits.id, visit.id));
+      }
+
+      // Manoj msg 2062 option (iii): if there's no Register entry for
+      // this patient+date yet and we're saving a real Rx (>=1 medicine),
+      // auto-create one with fee blank so it shows on Today's Register
+      // and picks up the "Fees not recorded" flag. Skips silently when
+      // an entry already exists (msg 2062 follow-up: don't clobber or
+      // duplicate an existing entry).
+      if (input.lines.length > 0) {
+        const existing = await ctx.db
+          .select({ id: dailyRegisterEntries.id })
+          .from(dailyRegisterEntries)
+          .where(
+            and(
+              eq(dailyRegisterEntries.providerId, ctx.session.userId),
+              eq(dailyRegisterEntries.patientId, input.patientId),
+              eq(dailyRegisterEntries.visitDate, visitDate),
+            ),
+          )
+          .limit(1);
+        if (existing.length === 0) {
+          await ctx.db.insert(dailyRegisterEntries).values({
+            providerId: ctx.session.userId,
+            visitDate,
+            patientId: input.patientId,
+            serviceType: "Consultation",
+            feeAmount: "0",
+            paidAmount: "0",
+            paymentMode: "cash",
+            // Paid + fee 0 = "Fees not recorded yet" (Manoj msg 2001).
+            paymentStatus: "paid",
+          });
+        }
+      }
+
+      // Cleanup (Manoj msg 2062): if the save yielded no Rx lines AND
+      // the visit has no clinical notes / vitals / co-existing Register
+      // entry, delete the auto-created visit row so it doesn't clutter
+      // History. Same pattern as the daily-register.delete cleanup.
+      if (input.lines.length === 0) {
+        const [full] = await ctx.db
+          .select()
+          .from(patientVisits)
+          .where(eq(patientVisits.id, visit.id))
+          .limit(1);
+        const noVitals =
+          full &&
+          full.bpSystolic === null &&
+          full.bpDiastolic === null &&
+          full.heartRate === null &&
+          full.spO2Percent === null &&
+          !full.bslFasting &&
+          !full.bslPostprandial &&
+          !full.bslRandom &&
+          !full.temperatureCelsius &&
+          !full.weightKg &&
+          !full.heightCm;
+        const noNotes = !full?.clinicalNotes?.trim();
+        if (noVitals && noNotes) {
+          const [entryPresent] = await ctx.db
+            .select({ id: dailyRegisterEntries.id })
+            .from(dailyRegisterEntries)
+            .where(
+              and(
+                eq(dailyRegisterEntries.providerId, ctx.session.userId),
+                eq(dailyRegisterEntries.patientId, input.patientId),
+                eq(dailyRegisterEntries.visitDate, visitDate),
+              ),
+            )
+            .limit(1);
+          if (!entryPresent) {
+            await ctx.db
+              .delete(patientVisits)
+              .where(eq(patientVisits.id, visit.id));
+            return { visitId: null, lineCount: 0 };
+          }
+        }
       }
 
       logAudit(ctx, {

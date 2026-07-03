@@ -219,6 +219,12 @@ export default function PrescribePage({
             instructions: r.note.trim() || null,
           })),
       });
+      if (!saved.visitId) {
+        // Nothing was saved — skip the print. This should only fire if
+        // the doctor tapped Save & Print with all rows empty, in which
+        // case the disabled state has already gated the button.
+        return;
+      }
       const pdf = await trpcClient.export.prescription.mutate({
         visitId: saved.visitId,
       });
