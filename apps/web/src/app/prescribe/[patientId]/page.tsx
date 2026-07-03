@@ -60,7 +60,17 @@ function emptyRow(): RxRow {
   };
 }
 
+// Manoj msg 2075: for suspensions/syrups/drops/injections/creams the
+// dosage × duration math doesn't produce a meaningful tablet count.
+// Skip auto-compute for these; the doctor fills in bottles/ml manually
+// (or leaves blank so nothing prints as "Qty" on the Rx PDF).
+const NON_TABLET_MEDICINE = new RegExp(
+  "\\b(susp|suspension|syr|syrup|drops?|inj|injection|cream|ointment|oint|gel|lotion|spray|liquid|solution|ml)\\b",
+  "i",
+);
+
 function autoQuantity(row: RxRow): number | null {
+  if (NON_TABLET_MEDICINE.test(row.medicineName)) return null;
   // Sum the dosage parts (e.g. "1-0-1" → 2) and multiply by duration
   // in days. Falls back to null on any parse issue.
   const parts = row.dosage
@@ -159,11 +169,13 @@ export default function PrescribePage({
       prev.map((r) => {
         if (r.id !== id) return r;
         const next = { ...r, ...patch };
-        // Auto-recompute quantity when dosage or duration changes and
-        // the doctor hasn't manually overridden it.
+        // Auto-recompute quantity when the name, dosage, or duration
+        // changes (name matters because syrups/injections/creams skip
+        // the tablet math per Manoj msg 2075). Manual edits stick.
         if (
           !next.quantityManuallyEdited &&
-          ("dosage" in patch ||
+          ("medicineName" in patch ||
+            "dosage" in patch ||
             "durationValue" in patch ||
             "durationUnit" in patch)
         ) {
