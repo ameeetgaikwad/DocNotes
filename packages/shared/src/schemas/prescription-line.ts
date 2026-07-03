@@ -30,6 +30,12 @@ export const MEAL_TIMINGS = ["before", "after"] as const;
 export type MealTiming = (typeof MEAL_TIMINGS)[number];
 
 export const prescriptionLineInputSchema = z.object({
+  // Server row id — present when the doctor is editing an existing
+  // line, absent when they're adding a new one. Manoj msg 2081: the
+  // backend uses this to diff (update/insert/delete) instead of
+  // wiping the visit's Rx wholesale, so a second Rx session on the
+  // same day accumulates instead of clobbering the first.
+  id: z.string().uuid().optional(),
   medicineName: z.string().trim().min(1).max(200),
   dosage: z.string().trim().max(100).nullable().optional(),
   // Meal timing rides on the existing "frequency" column so we don't

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, eq, sql, desc } from "drizzle-orm";
+import { and, eq, sql, desc, notInArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
   prescriptionLines,
@@ -139,18 +139,80 @@ export const prescriptionLineRouter = router({
         });
       }
 
-      // Replace the visit's Rx wholesale — simpler than diffing each
-      // line, and preserves position ordering trivially.
-      await ctx.db
-        .delete(prescriptionLines)
-        .where(eq(prescriptionLines.visitId, visit.id));
+      // Diff-based upsert (Manoj msg 2081): the earlier wholesale-
+      // replace approach clobbered the first Rx when the doctor
+      // wrote a second Rx later the same day and the page didn't
+      // pre-load the earlier lines. Now we key off input.lines[].id
+      // (server row ids the frontend saved from listByVisit):
+      //   - lines with id → update in place, keep the row
+      //   - lines with no id → insert new
+      //   - existing DB rows whose id is NOT in the incoming set → delete
+      const incomingIds = input.lines
+        .map((l) => l.id)
+        .filter((id): id is string => !!id);
 
-      if (input.lines.length > 0) {
+      // Delete rows the doctor explicitly removed (they came from a
+      // prior save but aren't in this input). When incomingIds is
+      // empty AND input.lines is empty, this drops everything (used
+      // by the "explicit clear" flow). When incomingIds is empty but
+      // input.lines has entries (all fresh, no ids), we preserve
+      // untouched existing rows — that's the multi-session case.
+      if (input.lines.length === 0) {
+        await ctx.db
+          .delete(prescriptionLines)
+          .where(eq(prescriptionLines.visitId, visit.id));
+      } else if (incomingIds.length > 0) {
+        await ctx.db
+          .delete(prescriptionLines)
+          .where(
+            and(
+              eq(prescriptionLines.visitId, visit.id),
+              notInArray(prescriptionLines.id, incomingIds),
+            ),
+          );
+      }
+
+      // Split into updates and inserts.
+      const updates = input.lines.filter(
+        (l): l is typeof l & { id: string } => !!l.id,
+      );
+      const inserts = input.lines.filter((l) => !l.id);
+
+      // Fetch the current max position so new rows land at the end
+      // rather than colliding with existing positions.
+      const [maxRow] = await ctx.db
+        .select({
+          max: sql<number | null>`max(${prescriptionLines.position})`,
+        })
+        .from(prescriptionLines)
+        .where(eq(prescriptionLines.visitId, visit.id));
+      let nextPos = (maxRow?.max ?? -1) + 1;
+
+      for (const l of updates) {
+        await ctx.db
+          .update(prescriptionLines)
+          .set({
+            medicineName: l.medicineName,
+            dosage: l.dosage ?? null,
+            frequency: l.frequency ?? null,
+            duration: l.duration ?? null,
+            quantity: l.quantity ?? null,
+            instructions: l.instructions ?? null,
+          })
+          .where(
+            and(
+              eq(prescriptionLines.id, l.id),
+              eq(prescriptionLines.visitId, visit.id),
+              eq(prescriptionLines.providerId, ctx.session.userId),
+            ),
+          );
+      }
+      if (inserts.length > 0) {
         await ctx.db.insert(prescriptionLines).values(
-          input.lines.map((l, i) => ({
+          inserts.map((l) => ({
             visitId: visit.id,
             providerId: ctx.session.userId,
-            position: i,
+            position: nextPos++,
             medicineName: l.medicineName,
             dosage: l.dosage ?? null,
             frequency: l.frequency ?? null,
@@ -161,12 +223,21 @@ export const prescriptionLineRouter = router({
         );
       }
 
-      // Append short "medicine - N tabs" lines to clinical_notes. This
-      // is one-way per Manoj msg 1947 — the doctor editing Clinical
-      // Notes later doesn't reflect back into the Rx, but a subsequent
-      // Rx save will re-append (idempotent within a single Save cycle
-      // via the clean-slate delete above and the append below).
-      const shortText = input.lines
+      // Rebuild the short Rx block from the AUTHORITATIVE current
+      // prescription_lines (Manoj msg 2081 fix — input.lines may only
+      // be the subset the doctor typed in this session; there could
+      // be earlier rows we preserved via the diff logic above). Read
+      // fresh from DB after all inserts/updates so the notes reflect
+      // the full Rx.
+      const currentLines = await ctx.db
+        .select({
+          medicineName: prescriptionLines.medicineName,
+          quantity: prescriptionLines.quantity,
+        })
+        .from(prescriptionLines)
+        .where(eq(prescriptionLines.visitId, visit.id))
+        .orderBy(prescriptionLines.position);
+      const shortText = currentLines
         .map((l) =>
           shortLineForNotes({
             medicineName: l.medicineName,
@@ -219,12 +290,12 @@ export const prescriptionLineRouter = router({
       }
 
       // Manoj msg 2062 option (iii): if there's no Register entry for
-      // this patient+date yet and we're saving a real Rx (>=1 medicine),
-      // auto-create one with fee blank so it shows on Today's Register
-      // and picks up the "Fees not recorded" flag. Skips silently when
-      // an entry already exists (msg 2062 follow-up: don't clobber or
-      // duplicate an existing entry).
-      if (input.lines.length > 0) {
+      // this patient+date yet and the visit now has at least one
+      // medicine, auto-create one with fee blank so it shows on
+      // Today's Register and picks up the "Fees not recorded" flag.
+      // Skips silently when an entry already exists (msg 2062
+      // follow-up: don't clobber or duplicate an existing entry).
+      if (currentLines.length > 0) {
         const existing = await ctx.db
           .select({ id: dailyRegisterEntries.id })
           .from(dailyRegisterEntries)
@@ -255,7 +326,7 @@ export const prescriptionLineRouter = router({
       // the visit has no clinical notes / vitals / co-existing Register
       // entry, delete the auto-created visit row so it doesn't clutter
       // History. Same pattern as the daily-register.delete cleanup.
-      if (input.lines.length === 0) {
+      if (currentLines.length === 0) {
         const [full] = await ctx.db
           .select()
           .from(patientVisits)

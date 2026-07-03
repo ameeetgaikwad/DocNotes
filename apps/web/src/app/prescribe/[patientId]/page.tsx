@@ -34,7 +34,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 interface RxRow {
-  id: string;
+  id: string; // client key for React list rendering
+  // Server row id when this row was loaded from the DB; undefined for
+  // rows the doctor added in this session. Sent to the backend so the
+  // upsert can diff instead of wiping the visit's Rx (Manoj msg 2081).
+  serverId?: string;
   medicineName: string;
   dosage: string;
   customDosage: boolean;
@@ -49,6 +53,7 @@ interface RxRow {
 function emptyRow(): RxRow {
   return {
     id: crypto.randomUUID(),
+    serverId: undefined,
     medicineName: "",
     dosage: "",
     customDosage: false,
@@ -103,9 +108,13 @@ export default function PrescribePage({
   const patientQuery = useQuery(
     trpc.patient.getById.queryOptions({ id: patientId }),
   );
-  const visitsQuery = useQuery(
-    trpc.patientVisit.listByPatient.queryOptions({ patientId }),
-  );
+  // Force fresh fetches on mount so a doctor reopening the Rx page
+  // for a second Rx session on the same day always sees the earlier
+  // saved lines instead of stale cache (Manoj msg 2081).
+  const visitsQuery = useQuery({
+    ...trpc.patientVisit.listByPatient.queryOptions({ patientId }),
+    refetchOnMount: "always",
+  });
   const frequentlyUsedQuery = useQuery(
     trpc.prescriptionLine.frequentlyUsed.queryOptions(),
   );
@@ -121,6 +130,7 @@ export default function PrescribePage({
       visitId: todaysVisit?.id ?? "",
     }),
     enabled: !!todaysVisit?.id,
+    refetchOnMount: "always",
   });
 
   const [rows, setRows] = useState<RxRow[]>(() => [emptyRow()]);
@@ -143,6 +153,7 @@ export default function PrescribePage({
           isNonTabletMedicine(l.medicineName) && (l.quantity ?? 0) > 0;
         return {
           id: l.id,
+          serverId: l.id,
           medicineName: l.medicineName,
           dosage: l.dosage ?? "",
           customDosage: !isPreset && (l.dosage ?? "") !== "",
@@ -196,6 +207,7 @@ export default function PrescribePage({
       const lines = rows
         .filter((r) => r.medicineName.trim().length > 0)
         .map((r) => ({
+          id: r.serverId,
           medicineName: r.medicineName.trim(),
           dosage: r.dosage.trim() || null,
           frequency: r.meal || null,
