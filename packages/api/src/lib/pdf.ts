@@ -781,18 +781,28 @@ function renderRxLineText(l: PrescriptionLineForPdf): string {
 
 // Remove the auto-appended Rx block from Clinical Notes when the PDF
 // is rendering structured lines separately — otherwise the printout
-// shows the same medicines twice (once structured, once as short lines).
+// shows the same medicines twice (once structured, once as short
+// lines). Handles both the legacy {rx: begin}/{rx: end} format and
+// the current "Rx" trailing-block format (Manoj msg 2078).
 function stripRxBlockFromNotes(notes: string | null): string | null {
   if (!notes) return notes;
-  const startIdx = notes.indexOf("{rx: begin}");
-  const endIdx = notes.indexOf("{rx: end}");
-  if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) return notes;
-  const cleaned = (
-    notes.slice(0, startIdx).trimEnd() +
-    "\n" +
-    notes.slice(endIdx + "{rx: end}".length).trimStart()
-  ).trim();
-  return cleaned || null;
+  let out = notes;
+  const legacyStart = out.indexOf("{rx: begin}");
+  const legacyEnd = out.indexOf("{rx: end}");
+  if (legacyStart !== -1 && legacyEnd !== -1 && legacyEnd > legacyStart) {
+    out = (
+      out.slice(0, legacyStart).trimEnd() +
+      "\n" +
+      out.slice(legacyEnd + "{rx: end}".length).trimStart()
+    ).trim();
+  }
+  const lastRxIdx = out.lastIndexOf("\nRx\n");
+  if (lastRxIdx !== -1) {
+    out = out.slice(0, lastRxIdx).trimEnd();
+  } else if (out.startsWith("Rx\n")) {
+    out = "";
+  }
+  return out || null;
 }
 
 export async function renderPrescriptionPdf(

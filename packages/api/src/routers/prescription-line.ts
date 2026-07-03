@@ -166,23 +166,42 @@ export const prescriptionLineRouter = router({
         .join("\n");
       if (shortText) {
         const previousNotes = visit.clinicalNotes?.trim() ?? "";
-        // Strip any lines that came from a PRIOR Rx save on this visit
-        // so re-saving doesn't accumulate duplicates. Marker: {rx: N} lines
-        // block delimited on both ends.
-        const RX_MARKER_START = "{rx: begin}";
-        const RX_MARKER_END = "{rx: end}";
-        const startIdx = previousNotes.indexOf(RX_MARKER_START);
-        const endIdx = previousNotes.indexOf(RX_MARKER_END);
+        // Strip any prior auto-appended Rx block so re-saving doesn't
+        // accumulate duplicates. The block is always appended at the
+        // END of notes with a leading "Rx" header (Manoj msg 2078 —
+        // drop the {rx: begin}/{rx: end} scaffolding, keep a clean
+        // "Rx" heading), so re-save reliably finds and removes it by
+        // truncating from the last standalone "Rx" line to end-of-text.
+        // Also strips the legacy {rx: begin}/{rx: end} format for old
+        // entries created before this change.
         let cleaned = previousNotes;
-        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+        const LEGACY_START = "{rx: begin}";
+        const LEGACY_END = "{rx: end}";
+        const legacyStartIdx = cleaned.indexOf(LEGACY_START);
+        const legacyEndIdx = cleaned.indexOf(LEGACY_END);
+        if (
+          legacyStartIdx !== -1 &&
+          legacyEndIdx !== -1 &&
+          legacyEndIdx > legacyStartIdx
+        ) {
           cleaned = (
-            previousNotes.slice(0, startIdx).trimEnd() +
+            cleaned.slice(0, legacyStartIdx).trimEnd() +
             "\n" +
-            previousNotes.slice(endIdx + RX_MARKER_END.length).trimStart()
+            cleaned.slice(legacyEndIdx + LEGACY_END.length).trimStart()
           ).trim();
         }
-        const rxBlock = [RX_MARKER_START, shortText, RX_MARKER_END].join("\n");
-        const nextNotes = cleaned ? `${cleaned}\n${rxBlock}` : rxBlock;
+        // Find the last standalone "Rx" line (case-sensitive, exact,
+        // to reduce false positives against doctor-typed "Rx:" notes).
+        const rxHeaderMatch = /(^|\n)Rx\n/.exec(cleaned);
+        if (rxHeaderMatch) {
+          // Prefer the LAST occurrence in case the doctor also typed
+          // "Rx" elsewhere; scan backwards.
+          const lastIdx = cleaned.lastIndexOf("\nRx\n");
+          const cutIdx = lastIdx === -1 ? 0 : lastIdx;
+          cleaned = cleaned.slice(0, cutIdx).trimEnd();
+        }
+        const rxBlock = `Rx\n${shortText}`;
+        const nextNotes = cleaned ? `${cleaned}\n\n${rxBlock}` : rxBlock;
         await ctx.db
           .update(patientVisits)
           .set({ clinicalNotes: nextNotes })
