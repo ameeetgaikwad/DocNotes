@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  Check,
   Loader2,
   Plus,
   Trash2,
@@ -135,6 +136,7 @@ export default function PrescribePage({
 
   const [rows, setRows] = useState<RxRow[]>(() => [emptyRow()]);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
   // The server hydration must only happen ONCE per page load; otherwise
   // a background refetch (after Save, cache-invalidation, etc.) would
   // clobber whatever the doctor is currently typing (Manoj msg 2083
@@ -242,6 +244,10 @@ export default function PrescribePage({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [["patientVisit"]] });
       queryClient.invalidateQueries({ queryKey: [["prescriptionLine"]] });
+      // Manoj msg 2085: give the Save button visible feedback that the
+      // action landed — swap in a "Saved ✓" state briefly.
+      setJustSaved(true);
+      window.setTimeout(() => setJustSaved(false), 2500);
     },
     onError: (e) => setSaveError(e.message),
   });
@@ -409,11 +415,21 @@ export default function PrescribePage({
         <Button
           type="button"
           onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending}
+          disabled={saveMutation.isPending || justSaved}
+          // Manoj msg 2085: the button changes to a "Saved" state for
+          // 2.5s after a successful write so it's obvious the action
+          // landed, then reverts to the normal Save affordance.
+          className={
+            justSaved ? "bg-success text-success-foreground" : undefined
+          }
         >
           {saveMutation.isPending ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" /> Saving
+            </>
+          ) : justSaved ? (
+            <>
+              <Check className="h-4 w-4" /> Saved
             </>
           ) : (
             <>
@@ -438,11 +454,6 @@ export default function PrescribePage({
           Download PDF
         </Button>
       </div>
-      {saveMutation.isSuccess && !saveMutation.isPending && (
-        <p className="mt-3 text-xs text-success md:text-sm">
-          Prescription saved.
-        </p>
-      )}
     </div>
   );
 }
