@@ -1,5 +1,18 @@
 import { z } from "zod";
 
+// Detects medicine names that aren't tablets/capsules — used to
+// suppress the misleading "N tabs" suffix in Clinical Notes and the
+// "(Qty N)" suffix on the printed Rx (Manoj msg 2075 + 2080). Falls
+// back to the tablet default when the name is ambiguous.
+export const NON_TABLET_MEDICINE_REGEX = new RegExp(
+  "\\b(susp|suspension|syr|syrup|drops?|inj|injection|cream|ointment|oint|gel|lotion|spray|liquid|solution|ml)\\b",
+  "i",
+);
+
+export function isNonTabletMedicine(name: string): boolean {
+  return NON_TABLET_MEDICINE_REGEX.test(name);
+}
+
 export const DOSAGE_PRESETS = [
   "1-0-0",
   "1-1-0",

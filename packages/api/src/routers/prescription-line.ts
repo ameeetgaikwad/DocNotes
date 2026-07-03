@@ -7,19 +7,29 @@ import {
   patients,
   dailyRegisterEntries,
 } from "@docnotes/db";
-import { upsertPrescriptionSchema } from "@docnotes/shared";
+import {
+  upsertPrescriptionSchema,
+  isNonTabletMedicine,
+} from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
 import { ensureVisitForDate } from "./patient-visit.js";
 
 // Format a prescription line as the short "medicine name - N tabs" text
 // that gets appended to the visit's clinical notes (Manoj msg 1947).
-// Falls back to just the medicine name when we don't have a total count.
+// Suppresses the "N tabs" suffix for suspensions, syrups, drops,
+// injections, creams, etc. — those aren't measured in tablets (Manoj
+// msg 2080). Falls back to just the medicine name when quantity is
+// absent or the medicine isn't a tablet.
 function shortLineForNotes(line: {
   medicineName: string;
   quantity: number | null;
 }): string {
-  if (line.quantity && line.quantity > 0) {
+  if (
+    line.quantity &&
+    line.quantity > 0 &&
+    !isNonTabletMedicine(line.medicineName)
+  ) {
     return `${line.medicineName} - ${line.quantity} tab${line.quantity === 1 ? "" : "s"}`;
   }
   return line.medicineName;

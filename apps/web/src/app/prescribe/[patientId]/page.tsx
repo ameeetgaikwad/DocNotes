@@ -17,6 +17,7 @@ import {
   DOSAGE_PRESETS,
   DURATION_UNITS,
   MEAL_TIMINGS,
+  isNonTabletMedicine,
   type DurationUnit,
   type MealTiming,
 } from "@docnotes/shared";
@@ -60,17 +61,12 @@ function emptyRow(): RxRow {
   };
 }
 
-// Manoj msg 2075: for suspensions/syrups/drops/injections/creams the
-// dosage × duration math doesn't produce a meaningful tablet count.
-// Skip auto-compute for these; the doctor fills in bottles/ml manually
-// (or leaves blank so nothing prints as "Qty" on the Rx PDF).
-const NON_TABLET_MEDICINE = new RegExp(
-  "\\b(susp|suspension|syr|syrup|drops?|inj|injection|cream|ointment|oint|gel|lotion|spray|liquid|solution|ml)\\b",
-  "i",
-);
-
 function autoQuantity(row: RxRow): number | null {
-  if (NON_TABLET_MEDICINE.test(row.medicineName)) return null;
+  // Manoj msg 2075 + 2080: for suspensions/syrups/drops/injections/
+  // creams the dosage × duration math doesn't produce a meaningful
+  // tablet count. Skip auto-compute for these; the doctor fills in
+  // bottles/ml manually (or leaves blank).
+  if (isNonTabletMedicine(row.medicineName)) return null;
   // Sum the dosage parts (e.g. "1-0-1" → 2) and multiply by duration
   // in days. Falls back to null on any parse issue.
   const parts = row.dosage
@@ -139,6 +135,12 @@ export default function PrescribePage({
         const isPreset = DOSAGE_PRESETS.includes(
           l.dosage as (typeof DOSAGE_PRESETS)[number],
         );
+        // Manoj msg 2080: wipe stale wrong quantities on non-tablet
+        // medicines that were auto-populated before the syrup-detection
+        // fix landed. Doctors who need to record "1 bottle" can retype
+        // the number after the row loads.
+        const stalePillCount =
+          isNonTabletMedicine(l.medicineName) && (l.quantity ?? 0) > 0;
         return {
           id: l.id,
           medicineName: l.medicineName,
@@ -156,8 +158,9 @@ export default function PrescribePage({
               : l.duration && l.duration.includes("months")
                 ? "months"
                 : "days",
-          quantity: l.quantity != null ? String(l.quantity) : "",
-          quantityManuallyEdited: true,
+          quantity:
+            stalePillCount || l.quantity == null ? "" : String(l.quantity),
+          quantityManuallyEdited: !stalePillCount,
           note: l.instructions ?? "",
         };
       }),

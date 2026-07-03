@@ -1,5 +1,6 @@
 import ReactPDF, { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
+import { isNonTabletMedicine } from "@docnotes/shared";
 
 // renderToBuffer is a named export on @react-pdf/renderer@4.3.2 — the
 // default-export object only carries renderToStream/renderToFile/etc.
@@ -775,7 +776,14 @@ function renderRxLineText(l: PrescriptionLineForPdf): string {
   if (l.frequency) bits.push(`${l.frequency} meals`);
   if (l.duration) bits.push(`× ${l.duration}`);
   const summary = bits.join(" ");
-  const qty = l.quantity ? `  (Qty ${l.quantity})` : "";
+  // Only surface the (Qty N) trailer for tablet-style medicines
+  // (Manoj msg 2080). For syrups/injections/creams the stored quantity
+  // — even if a stale value from before the auto-compute fix — would
+  // read as a wrong tablet count on the printed Rx.
+  const qty =
+    l.quantity && !isNonTabletMedicine(l.medicineName)
+      ? `  (Qty ${l.quantity})`
+      : "";
   return `${l.medicineName}${summary ? "   " + summary : ""}${qty}`;
 }
 
