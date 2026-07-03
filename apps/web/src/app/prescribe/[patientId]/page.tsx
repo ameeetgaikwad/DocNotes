@@ -135,13 +135,27 @@ export default function PrescribePage({
 
   const [rows, setRows] = useState<RxRow[]>(() => [emptyRow()]);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // The server hydration must only happen ONCE per page load; otherwise
+  // a background refetch (after Save, cache-invalidation, etc.) would
+  // clobber whatever the doctor is currently typing (Manoj msg 2083
+  // root cause). Any user typing that happened before the initial
+  // hydration is preserved by prepending it before the server rows.
+  const [hasHydrated, setHasHydrated] = useState(false);
 
   useEffect(() => {
-    if (!existingLinesQuery.data || existingLinesQuery.data.length === 0) {
+    if (hasHydrated) return;
+    if (!existingLinesQuery.data) return;
+    if (existingLinesQuery.data.length === 0) {
+      setHasHydrated(true);
       return;
     }
-    setRows(
-      existingLinesQuery.data.map((l) => {
+    // Preserve any typing the doctor started before server data arrived
+    // (fast typers on slow connections). Non-empty user rows go FIRST,
+    // then the server-loaded existing rows follow.
+    const dirtyUserRows = rows.filter((r) => r.medicineName.trim() !== "");
+    setRows([
+      ...dirtyUserRows,
+      ...existingLinesQuery.data.map((l) => {
         const isPreset = DOSAGE_PRESETS.includes(
           l.dosage as (typeof DOSAGE_PRESETS)[number],
         );
@@ -151,7 +165,7 @@ export default function PrescribePage({
         // the number after the row loads.
         const stalePillCount =
           isNonTabletMedicine(l.medicineName) && (l.quantity ?? 0) > 0;
-        return {
+        const row: RxRow = {
           id: l.id,
           serverId: l.id,
           medicineName: l.medicineName,
@@ -174,9 +188,12 @@ export default function PrescribePage({
           quantityManuallyEdited: !stalePillCount,
           note: l.instructions ?? "",
         };
+        return row;
       }),
-    );
-  }, [existingLinesQuery.data]);
+    ]);
+    setHasHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingLinesQuery.data, hasHydrated]);
 
   function updateRow(id: string, patch: Partial<RxRow>) {
     setRows((prev) =>
