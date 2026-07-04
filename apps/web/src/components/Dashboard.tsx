@@ -915,13 +915,9 @@ export function Dashboard() {
           isLoading={isLoading}
           href="/schedule"
         />
-        <StatCard
-          label="Total Patients"
-          value={data?.totalPatients ?? 0}
-          icon={Users}
-          isLoading={isLoading}
-          href="/patients"
-        />
+        {/* Total Patients dropped from Home per Manoj msg 2094 —
+             count now surfaced at the top-right of the Patients list
+             instead so the same info lives on the page it belongs to. */}
         <StatCard
           label="Register Summary"
           value={todayRegister.data?.totalCases ?? 0}

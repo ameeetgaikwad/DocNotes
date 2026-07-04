@@ -67,9 +67,15 @@ export default function PatientsPage() {
   return (
     <div className="p-4 sm:p-6">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <div className="flex items-baseline gap-3">
           <h1 className="text-2xl font-semibold">Patients</h1>
-          <p className="text-muted-foreground">Manage your patient records</p>
+          {/* Total count surfaced next to the title per Manoj msg 2094
+              (the Home dashboard's Total Patients tile was retired). */}
+          {data && (
+            <span className="text-sm text-muted-foreground">
+              {data.total} {data.total === 1 ? "patient" : "patients"}
+            </span>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link
