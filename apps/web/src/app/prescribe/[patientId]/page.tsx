@@ -219,30 +219,90 @@ export default function PrescribePage({
     );
   }
 
+  // Build the wire payload from the current rows array. Extracted so
+  // Save and Save-and-Print share the same shape (including sending
+  // r.serverId in the id field — Manoj msg 2098 fix). Without the id,
+  // the backend upsert treats every row as new and stacks duplicates.
+  function buildPayload() {
+    return rows
+      .filter((r) => r.medicineName.trim().length > 0)
+      .map((r) => ({
+        id: r.serverId,
+        medicineName: r.medicineName.trim(),
+        dosage: r.dosage.trim() || null,
+        frequency: r.meal || null,
+        duration: combineDuration(r),
+        quantity: r.quantity ? Number(r.quantity) : null,
+        instructions: r.note.trim() || null,
+      }));
+  }
+
+  // Sync rows with the authoritative list the server sent back so newly
+  // inserted rows adopt their DB ids. Any typing the doctor started
+  // after the save fires would be included in the next save's payload,
+  // so replacing the rows with the server view is safe here.
+  function adoptServerLines(
+    lines: Array<{
+      id: string;
+      medicineName: string;
+      dosage: string | null;
+      frequency: string | null;
+      duration: string | null;
+      quantity: number | null;
+      instructions: string | null;
+    }>,
+  ) {
+    if (lines.length === 0) return;
+    setRows(
+      lines.map((l) => {
+        const isPreset = DOSAGE_PRESETS.includes(
+          l.dosage as (typeof DOSAGE_PRESETS)[number],
+        );
+        const stalePillCount =
+          isNonTabletMedicine(l.medicineName) && (l.quantity ?? 0) > 0;
+        const row: RxRow = {
+          id: l.id,
+          serverId: l.id,
+          medicineName: l.medicineName,
+          dosage: l.dosage ?? "",
+          customDosage: !isPreset && (l.dosage ?? "") !== "",
+          meal:
+            l.frequency &&
+            MEAL_TIMINGS.includes(l.frequency as (typeof MEAL_TIMINGS)[number])
+              ? (l.frequency as MealTiming)
+              : "",
+          durationValue: l.duration ? (l.duration.split(" ")[0] ?? "") : "",
+          durationUnit:
+            l.duration && l.duration.includes("weeks")
+              ? "weeks"
+              : l.duration && l.duration.includes("months")
+                ? "months"
+                : "days",
+          quantity:
+            stalePillCount || l.quantity == null ? "" : String(l.quantity),
+          quantityManuallyEdited: !stalePillCount,
+          note: l.instructions ?? "",
+        };
+        return row;
+      }),
+    );
+  }
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       setSaveError(null);
-      const lines = rows
-        .filter((r) => r.medicineName.trim().length > 0)
-        .map((r) => ({
-          id: r.serverId,
-          medicineName: r.medicineName.trim(),
-          dosage: r.dosage.trim() || null,
-          frequency: r.meal || null,
-          duration: combineDuration(r),
-          quantity: r.quantity ? Number(r.quantity) : null,
-          instructions: r.note.trim() || null,
-        }));
       const result = await trpcClient.prescriptionLine.upsert.mutate({
         patientId,
         visitDate: visitDateParam,
-        lines,
+        lines: buildPayload(),
       });
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: [["patientVisit"]] });
       queryClient.invalidateQueries({ queryKey: [["prescriptionLine"]] });
+      // Adopt server ids so the next Save/Print doesn't duplicate.
+      if (result.lines) adoptServerLines(result.lines);
       // Manoj msg 2085: give the Save button visible feedback that the
       // action landed — swap in a "Saved ✓" state briefly.
       setJustSaved(true);
@@ -257,17 +317,10 @@ export default function PrescribePage({
       const saved = await trpcClient.prescriptionLine.upsert.mutate({
         patientId,
         visitDate: visitDateParam,
-        lines: rows
-          .filter((r) => r.medicineName.trim().length > 0)
-          .map((r) => ({
-            medicineName: r.medicineName.trim(),
-            dosage: r.dosage.trim() || null,
-            frequency: r.meal || null,
-            duration: combineDuration(r),
-            quantity: r.quantity ? Number(r.quantity) : null,
-            instructions: r.note.trim() || null,
-          })),
+        lines: buildPayload(),
       });
+      // Adopt server ids so a subsequent Save/Print doesn't duplicate.
+      if (saved.lines) adoptServerLines(saved.lines);
       if (!saved.visitId) {
         // Nothing was saved — skip the print. This should only fire if
         // the doctor tapped Save & Print with all rows empty, in which

@@ -361,7 +361,7 @@ export const prescriptionLineRouter = router({
             await ctx.db
               .delete(patientVisits)
               .where(eq(patientVisits.id, visit.id));
-            return { visitId: null, lineCount: 0 };
+            return { visitId: null, lineCount: 0, lines: [] };
           }
         }
       }
@@ -372,6 +372,21 @@ export const prescriptionLineRouter = router({
         resourceId: visit.id,
       });
 
-      return { visitId: visit.id, lineCount: input.lines.length };
+      // Return the fresh, authoritative list of prescription lines so
+      // the frontend can adopt the server-side ids for rows that were
+      // just inserted (Manoj msg 2098 fix — without this, a subsequent
+      // save/print would treat the same rows as brand-new and stack
+      // duplicates in the DB).
+      const savedLines = await ctx.db
+        .select()
+        .from(prescriptionLines)
+        .where(eq(prescriptionLines.visitId, visit.id))
+        .orderBy(prescriptionLines.position);
+
+      return {
+        visitId: visit.id,
+        lineCount: input.lines.length,
+        lines: savedLines,
+      };
     }),
 });
