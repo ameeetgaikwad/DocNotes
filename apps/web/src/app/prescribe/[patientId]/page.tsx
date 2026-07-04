@@ -32,7 +32,6 @@ import {
 import { downloadBase64File, printBase64Pdf } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 interface RxRow {
   id: string; // client key for React list rendering
@@ -310,14 +309,33 @@ export default function PrescribePage({
 
   const patient = patientQuery.data;
   const { age, display: dobDisplay } = formatPatientAgeDob(patient);
-  const patientHeader = [
-    formatPatientName(patient),
+  const patientMeta = [
     formatGender(patient.gender),
     age != null ? `${age} y` : null,
     dobDisplay,
   ]
     .filter(Boolean)
     .join(" · ");
+
+  // Vitals block — Manoj msg 2092 wants them in the header. Pull from
+  // today's visit row when present so the prescription writer has the
+  // BP / weight / SpO2 in view without hopping to History.
+  const vitals: string[] = [];
+  if (todaysVisit) {
+    if (todaysVisit.bpSystolic != null && todaysVisit.bpDiastolic != null) {
+      vitals.push(`BP ${todaysVisit.bpSystolic}/${todaysVisit.bpDiastolic}`);
+    }
+    if (todaysVisit.heartRate != null) {
+      vitals.push(`HR ${todaysVisit.heartRate}`);
+    }
+    if (todaysVisit.spO2Percent != null) {
+      vitals.push(`SpO2 ${todaysVisit.spO2Percent}%`);
+    }
+    if (todaysVisit.weightKg) vitals.push(`Wt ${todaysVisit.weightKg}kg`);
+    if (todaysVisit.temperatureCelsius) {
+      vitals.push(`Temp ${todaysVisit.temperatureCelsius}°C`);
+    }
+  }
 
   const chips = frequentlyUsedQuery.data ?? [];
   const canPrint =
@@ -335,53 +353,63 @@ export default function PrescribePage({
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
         <div className="text-xs text-muted-foreground sm:text-sm">
-          Date: <span className="font-medium">{visitDateParam}</span>
+          {visitDateParam}
         </div>
       </div>
 
-      <div className="mb-6 rounded-xl border bg-card p-4 sm:p-5">
-        <h1 className="text-lg font-semibold sm:text-xl">Write Prescription</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{patientHeader}</p>
+      {/* Paper-style header: name at top, meta underneath, vitals row,
+          then a horizontal rule and an "Rx" heading — Manoj msg 2092. */}
+      <div className="mb-4 rounded-xl border bg-card p-4 sm:p-5">
+        <h1 className="text-lg font-semibold sm:text-xl">
+          {formatPatientName(patient)}
+        </h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">{patientMeta}</p>
+        {vitals.length > 0 && (
+          <p className="mt-1 font-mono text-xs text-muted-foreground sm:text-sm">
+            {vitals.join(" · ")}
+          </p>
+        )}
+        <div className="mt-3 border-t pt-2 text-lg font-semibold italic text-primary">
+          Rx
+        </div>
       </div>
 
       {chips.length > 0 && (
-        <div className="mb-4 rounded-xl border border-dashed bg-muted/40 p-3">
-          <div className="mb-2 flex items-center gap-1 text-xs font-semibold text-muted-foreground">
-            <Sparkles className="h-3.5 w-3.5" /> Frequently used — tap to add
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {chips.map((c) => (
-              <button
-                key={c.medicineName}
-                type="button"
-                onClick={() =>
-                  setRows((prev) => {
-                    const empty = prev.find(
-                      (r) => r.medicineName.trim().length === 0,
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+            <Sparkles className="h-3 w-3" /> Frequently used
+          </span>
+          {chips.map((c) => (
+            <button
+              key={c.medicineName}
+              type="button"
+              onClick={() =>
+                setRows((prev) => {
+                  const empty = prev.find(
+                    (r) => r.medicineName.trim().length === 0,
+                  );
+                  if (empty) {
+                    return prev.map((r) =>
+                      r.id === empty.id
+                        ? { ...r, medicineName: c.medicineName }
+                        : r,
                     );
-                    if (empty) {
-                      return prev.map((r) =>
-                        r.id === empty.id
-                          ? { ...r, medicineName: c.medicineName }
-                          : r,
-                      );
-                    }
-                    return [
-                      ...prev,
-                      { ...emptyRow(), medicineName: c.medicineName },
-                    ];
-                  })
-                }
-                className="rounded-full border bg-card px-3 py-1 text-xs hover:bg-accent"
-              >
-                {c.medicineName}
-              </button>
-            ))}
-          </div>
+                  }
+                  return [
+                    ...prev,
+                    { ...emptyRow(), medicineName: c.medicineName },
+                  ];
+                })
+              }
+              className="rounded-full border bg-card px-2.5 py-0.5 text-xs hover:bg-accent"
+            >
+              {c.medicineName}
+            </button>
+          ))}
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className="space-y-2">
         {rows.map((row, idx) => (
           <RxRowEditor
             key={row.id}
@@ -398,9 +426,9 @@ export default function PrescribePage({
 
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         onClick={() => setRows((prev) => [...prev, emptyRow()])}
-        className="mt-4"
+        className="mt-2 text-primary hover:text-primary"
       >
         <Plus className="h-4 w-4" /> Add medicine
       </Button>
@@ -458,6 +486,10 @@ export default function PrescribePage({
   );
 }
 
+// Paper-style compact row (Manoj msg 2092). Each medicine is a
+// numbered entry with the name on the top line + Qty box, and dosage
+// controls flowing across the next line — Dosage chips, Before/After,
+// × N days. Note stays as a small trailing input.
 function RxRowEditor({
   row,
   index,
@@ -472,157 +504,146 @@ function RxRowEditor({
   onRemove: () => void;
 }) {
   return (
-    <div className="rounded-xl border bg-card p-4 sm:p-5">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-semibold text-muted-foreground">
-          Medicine {index + 1}
+    <div className="rounded-lg border bg-card p-3">
+      {/* Line 1: N. [Medicine name.......]  Qty [__]  🗑 */}
+      <div className="flex items-center gap-2">
+        <span className="w-6 shrink-0 text-sm font-semibold text-muted-foreground">
+          {index + 1}.
         </span>
+        <Input
+          id={`med-${row.id}`}
+          value={row.medicineName}
+          onChange={(e) => onChange({ medicineName: e.target.value })}
+          placeholder="Medicine name"
+          className="h-9 min-w-0 flex-1 text-base"
+        />
+        <div className="flex shrink-0 items-center gap-1">
+          <span className="text-xs text-muted-foreground">Qty</span>
+          <Input
+            id={`qty-${row.id}`}
+            type="number"
+            min="0"
+            max="1000"
+            value={row.quantity}
+            onChange={(e) =>
+              onChange({
+                quantity: e.target.value,
+                quantityManuallyEdited: true,
+              })
+            }
+            placeholder={isNonTabletMedicine(row.medicineName) ? "—" : "auto"}
+            className="h-9 w-16 text-center text-base"
+          />
+        </div>
         {canRemove && (
           <button
             type="button"
             onClick={onRemove}
-            className="text-muted-foreground hover:text-destructive"
+            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
             aria-label="Remove medicine"
           >
             <Trash2 className="h-4 w-4" />
           </button>
         )}
       </div>
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <Label htmlFor={`med-${row.id}`}>Medicine name</Label>
-          <Input
-            id={`med-${row.id}`}
-            value={row.medicineName}
-            onChange={(e) => onChange({ medicineName: e.target.value })}
-            placeholder="e.g. Triphala Churna"
-            className="text-base"
-          />
-        </div>
 
-        <div className="space-y-1">
-          <Label>Dosage</Label>
-          <div className="flex flex-wrap gap-1.5">
-            {DOSAGE_PRESETS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => onChange({ dosage: p, customDosage: false })}
-                className={`rounded-md border px-2.5 py-1 text-xs font-mono ${
-                  row.dosage === p && !row.customDosage
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent"
-                }`}
-              >
-                {p}
-              </button>
-            ))}
+      {/* Line 2: dosage chips + meal toggle + × N days — wraps on
+          narrow screens; sits on one line on tablets and up. */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 pl-8">
+        <div className="flex flex-wrap gap-1">
+          {DOSAGE_PRESETS.map((p) => (
             <button
+              key={p}
               type="button"
-              onClick={() =>
-                onChange({
-                  customDosage: !row.customDosage,
-                  dosage: row.customDosage ? "" : row.dosage,
-                })
-              }
-              className={`rounded-md border px-2.5 py-1 text-xs ${
-                row.customDosage
+              onClick={() => onChange({ dosage: p, customDosage: false })}
+              className={`rounded border px-1.5 py-0.5 font-mono text-xs ${
+                row.dosage === p && !row.customDosage
                   ? "border-primary bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-accent"
               }`}
             >
-              + custom
+              {p}
             </button>
-          </div>
-          {row.customDosage && (
-            <Input
-              value={row.dosage}
-              onChange={(e) => onChange({ dosage: e.target.value })}
-              placeholder="e.g. 2-1-2"
-              className="mt-1.5 max-w-[10rem] font-mono text-base"
-            />
-          )}
+          ))}
+          <button
+            type="button"
+            onClick={() =>
+              onChange({
+                customDosage: !row.customDosage,
+                dosage: row.customDosage ? "" : row.dosage,
+              })
+            }
+            className={`rounded border px-1.5 py-0.5 text-xs ${
+              row.customDosage
+                ? "border-primary bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            +
+          </button>
         </div>
-
-        <div className="space-y-1">
-          <Label>Meal</Label>
-          <div className="flex gap-2">
-            {(["before", "after"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => onChange({ meal: row.meal === m ? "" : m })}
-                className={`rounded-md border px-3 py-1.5 text-sm ${
-                  row.meal === m
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent"
-                }`}
-              >
-                {m === "before" ? "Before meals" : "After meals"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label htmlFor={`dur-${row.id}`}>Duration</Label>
-            <div className="flex gap-1.5">
-              <Input
-                id={`dur-${row.id}`}
-                type="number"
-                min="1"
-                max="365"
-                value={row.durationValue}
-                onChange={(e) => onChange({ durationValue: e.target.value })}
-                placeholder="3"
-                className="text-base"
-              />
-              <select
-                value={row.durationUnit}
-                onChange={(e) =>
-                  onChange({ durationUnit: e.target.value as DurationUnit })
-                }
-                className="rounded-md border bg-card px-2 py-1 text-sm"
-              >
-                {DURATION_UNITS.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor={`qty-${row.id}`}>Quantity</Label>
-            <Input
-              id={`qty-${row.id}`}
-              type="number"
-              min="0"
-              max="1000"
-              value={row.quantity}
-              onChange={(e) =>
-                onChange({
-                  quantity: e.target.value,
-                  quantityManuallyEdited: true,
-                })
-              }
-              placeholder="auto"
-              className="text-base"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <Label htmlFor={`note-${row.id}`}>Note (optional)</Label>
+        {(["before", "after"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => onChange({ meal: row.meal === m ? "" : m })}
+            className={`rounded border px-2 py-0.5 text-xs ${
+              row.meal === m
+                ? "border-primary bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            {m === "before" ? "Bfr" : "Aft"}
+          </button>
+        ))}
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <span>×</span>
           <Input
-            id={`note-${row.id}`}
-            value={row.note}
-            onChange={(e) => onChange({ note: e.target.value })}
-            placeholder="e.g. With warm water"
-            className="text-base"
+            id={`dur-${row.id}`}
+            type="number"
+            min="1"
+            max="365"
+            value={row.durationValue}
+            onChange={(e) => onChange({ durationValue: e.target.value })}
+            placeholder="3"
+            className="h-7 w-12 text-center text-sm"
+          />
+          <select
+            value={row.durationUnit}
+            onChange={(e) =>
+              onChange({ durationUnit: e.target.value as DurationUnit })
+            }
+            className="h-7 rounded border bg-card px-1 text-xs"
+          >
+            {DURATION_UNITS.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {row.customDosage && (
+        <div className="mt-1.5 pl-8">
+          <Input
+            value={row.dosage}
+            onChange={(e) => onChange({ dosage: e.target.value })}
+            placeholder="Custom dosage e.g. 2-1-2"
+            className="h-8 max-w-[12rem] font-mono text-sm"
           />
         </div>
+      )}
+
+      {/* Optional note — small trailing input, shown always but small. */}
+      <div className="mt-1.5 pl-8">
+        <Input
+          id={`note-${row.id}`}
+          value={row.note}
+          onChange={(e) => onChange({ note: e.target.value })}
+          placeholder="Note (optional) — e.g. with warm water"
+          className="h-8 text-sm text-muted-foreground"
+        />
       </div>
     </div>
   );
