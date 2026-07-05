@@ -1,6 +1,6 @@
 import ReactPDF, { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
-import { isNonTabletMedicine } from "@docnotes/shared";
+import { isNonTabletMedicine, parseDurationWithMl } from "@docnotes/shared";
 
 // renderToBuffer is a named export on @react-pdf/renderer@4.3.2 — the
 // default-export object only carries renderToStream/renderToFile/etc.
@@ -771,20 +771,25 @@ export interface PrescriptionLineForPdf {
 }
 
 function renderRxLineText(l: PrescriptionLineForPdf): string {
+  // Manoj msg 2112: strip the ml suffix out of the duration string so
+  // "3 days · 60 ml" prints as "× 3 days   (60 ml)" instead of the
+  // compound blob. Ml-only rows print just "(60 ml)" (no × duration).
+  const { duration: durationText, mlValue } = parseDurationWithMl(l.duration);
   const bits: string[] = [];
   if (l.dosage) bits.push(l.dosage);
   if (l.frequency) bits.push(`${l.frequency} meals`);
-  if (l.duration) bits.push(`× ${l.duration}`);
+  if (durationText) bits.push(`× ${durationText}`);
   const summary = bits.join(" ");
-  // Only surface the (Qty N) trailer for tablet-style medicines
-  // (Manoj msg 2080). For syrups/injections/creams the stored quantity
-  // — even if a stale value from before the auto-compute fix — would
-  // read as a wrong tablet count on the printed Rx.
-  const qty =
-    l.quantity && !isNonTabletMedicine(l.medicineName)
-      ? `  (Qty ${l.quantity})`
-      : "";
-  return `${l.medicineName}${summary ? "   " + summary : ""}${qty}`;
+  // Prefer the ml trailer for liquid meds; fall back to tablet Qty
+  // for solid meds. Suppress the (Qty N) trailer on syrups/injections/
+  // creams (Manoj msg 2080) — stale values would misread as tabs.
+  const trailer =
+    mlValue != null && mlValue > 0
+      ? `  (${mlValue} ml)`
+      : l.quantity && !isNonTabletMedicine(l.medicineName)
+        ? `  (Qty ${l.quantity})`
+        : "";
+  return `${l.medicineName}${summary ? "   " + summary : ""}${trailer}`;
 }
 
 // Remove the auto-appended Rx block from Clinical Notes when the PDF

@@ -29,6 +29,50 @@ export type DurationUnit = (typeof DURATION_UNITS)[number];
 export const MEAL_TIMINGS = ["before", "after"] as const;
 export type MealTiming = (typeof MEAL_TIMINGS)[number];
 
+// Manoj msg 2112: ml volume for liquid meds ships without a schema
+// change — we encode it into the existing duration varchar. Format:
+//   "60 ml"                     — ml only, no treatment length
+//   "3 days · 60 ml"            — both duration and ml
+//   "3 days"                    — no ml (unchanged, back-compat)
+// The " · Nml" suffix is the machine-parseable marker. Both the web
+// editor and the PDF/notes renderer round-trip through these helpers.
+const ML_SUFFIX_RE = /\s*·\s*(\d+)\s*ml\s*$/i;
+
+export function parseDurationWithMl(duration: string | null | undefined): {
+  duration: string | null;
+  mlValue: number | null;
+} {
+  if (!duration) return { duration: null, mlValue: null };
+  const trimmed = duration.trim();
+  if (!trimmed) return { duration: null, mlValue: null };
+  const suffix = ML_SUFFIX_RE.exec(trimmed);
+  if (suffix) {
+    const remaining = trimmed.slice(0, suffix.index).trim();
+    return {
+      duration: remaining || null,
+      mlValue: Number(suffix[1]),
+    };
+  }
+  // Ml-only rows are stored as "60 ml" (no "· " prefix, since there's
+  // no days text to separate from). Detect that shape too.
+  const mlOnly = /^(\d+)\s*ml$/i.exec(trimmed);
+  if (mlOnly) {
+    return { duration: null, mlValue: Number(mlOnly[1]) };
+  }
+  return { duration: trimmed, mlValue: null };
+}
+
+export function encodeDurationWithMl(
+  duration: string | null | undefined,
+  mlValue: number | null | undefined,
+): string | null {
+  const d = duration?.trim() || null;
+  const ml = mlValue != null && Number.isFinite(mlValue) ? mlValue : null;
+  if (d && ml != null) return `${d} · ${ml} ml`;
+  if (ml != null) return `${ml} ml`;
+  return d;
+}
+
 export const prescriptionLineInputSchema = z.object({
   // Server row id — present when the doctor is editing an existing
   // line, absent when they're adding a new one. Manoj msg 2081: the

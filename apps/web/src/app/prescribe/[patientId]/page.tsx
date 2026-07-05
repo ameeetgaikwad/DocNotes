@@ -18,7 +18,9 @@ import {
   DOSAGE_PRESETS,
   DURATION_UNITS,
   MEAL_TIMINGS,
+  encodeDurationWithMl,
   isNonTabletMedicine,
+  parseDurationWithMl,
   type DurationUnit,
   type MealTiming,
 } from "@docnotes/shared";
@@ -47,6 +49,11 @@ interface RxRow {
   durationUnit: DurationUnit;
   quantity: string;
   quantityManuallyEdited: boolean;
+  // Manoj msg 2112: ml is an alternative to tablet count for liquid
+  // meds. Only one per row (tabs OR ml); the editor auto-disables the
+  // other input. Persisted inside the `duration` DB column via the
+  // shared encode/parseDurationWithMl helpers.
+  mlQuantity: string;
   note: string;
 }
 
@@ -62,6 +69,7 @@ function emptyRow(): RxRow {
     durationUnit: "days",
     quantity: "",
     quantityManuallyEdited: false,
+    mlQuantity: "",
     note: "",
   };
 }
@@ -92,6 +100,52 @@ function combineDuration(row: RxRow): string | null {
   const d = row.durationValue.trim();
   if (!d) return null;
   return `${d} ${row.durationUnit}`;
+}
+
+// Shared hydration builder — used by both the initial listByVisit
+// hydration and the post-save adoptServerLines. Parses the compound
+// duration string (which may carry an "· N ml" suffix per Manoj
+// msg 2112) and reconstructs the individual editor fields.
+function rowFromServerLine(l: {
+  id: string;
+  medicineName: string;
+  dosage: string | null;
+  frequency: string | null;
+  duration: string | null;
+  quantity: number | null;
+  instructions: string | null;
+}): RxRow {
+  const isPreset = DOSAGE_PRESETS.includes(
+    l.dosage as (typeof DOSAGE_PRESETS)[number],
+  );
+  // Manoj msg 2080: wipe stale wrong quantities on non-tablet meds
+  // that were auto-populated before the syrup-detection fix landed.
+  const stalePillCount =
+    isNonTabletMedicine(l.medicineName) && (l.quantity ?? 0) > 0;
+  const parsed = parseDurationWithMl(l.duration);
+  const durationText = parsed.duration ?? "";
+  return {
+    id: l.id,
+    serverId: l.id,
+    medicineName: l.medicineName,
+    dosage: l.dosage ?? "",
+    customDosage: !isPreset && (l.dosage ?? "") !== "",
+    meal:
+      l.frequency &&
+      MEAL_TIMINGS.includes(l.frequency as (typeof MEAL_TIMINGS)[number])
+        ? (l.frequency as MealTiming)
+        : "",
+    durationValue: durationText ? (durationText.split(" ")[0] ?? "") : "",
+    durationUnit: durationText.includes("weeks")
+      ? "weeks"
+      : durationText.includes("months")
+        ? "months"
+        : "days",
+    quantity: stalePillCount || l.quantity == null ? "" : String(l.quantity),
+    quantityManuallyEdited: !stalePillCount,
+    mlQuantity: parsed.mlValue != null ? String(parsed.mlValue) : "",
+    note: l.instructions ?? "",
+  };
 }
 
 export default function PrescribePage({
@@ -156,41 +210,7 @@ export default function PrescribePage({
     const dirtyUserRows = rows.filter((r) => r.medicineName.trim() !== "");
     setRows([
       ...dirtyUserRows,
-      ...existingLinesQuery.data.map((l) => {
-        const isPreset = DOSAGE_PRESETS.includes(
-          l.dosage as (typeof DOSAGE_PRESETS)[number],
-        );
-        // Manoj msg 2080: wipe stale wrong quantities on non-tablet
-        // medicines that were auto-populated before the syrup-detection
-        // fix landed. Doctors who need to record "1 bottle" can retype
-        // the number after the row loads.
-        const stalePillCount =
-          isNonTabletMedicine(l.medicineName) && (l.quantity ?? 0) > 0;
-        const row: RxRow = {
-          id: l.id,
-          serverId: l.id,
-          medicineName: l.medicineName,
-          dosage: l.dosage ?? "",
-          customDosage: !isPreset && (l.dosage ?? "") !== "",
-          meal:
-            l.frequency &&
-            MEAL_TIMINGS.includes(l.frequency as (typeof MEAL_TIMINGS)[number])
-              ? (l.frequency as MealTiming)
-              : "",
-          durationValue: l.duration ? (l.duration.split(" ")[0] ?? "") : "",
-          durationUnit:
-            l.duration && l.duration.includes("weeks")
-              ? "weeks"
-              : l.duration && l.duration.includes("months")
-                ? "months"
-                : "days",
-          quantity:
-            stalePillCount || l.quantity == null ? "" : String(l.quantity),
-          quantityManuallyEdited: !stalePillCount,
-          note: l.instructions ?? "",
-        };
-        return row;
-      }),
+      ...existingLinesQuery.data.map((l) => rowFromServerLine(l)),
     ]);
     setHasHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -226,15 +246,21 @@ export default function PrescribePage({
   function buildPayload() {
     return rows
       .filter((r) => r.medicineName.trim().length > 0)
-      .map((r) => ({
-        id: r.serverId,
-        medicineName: r.medicineName.trim(),
-        dosage: r.dosage.trim() || null,
-        frequency: r.meal || null,
-        duration: combineDuration(r),
-        quantity: r.quantity ? Number(r.quantity) : null,
-        instructions: r.note.trim() || null,
-      }));
+      .map((r) => {
+        const ml =
+          r.mlQuantity.trim() && Number.isFinite(Number(r.mlQuantity))
+            ? Number(r.mlQuantity)
+            : null;
+        return {
+          id: r.serverId,
+          medicineName: r.medicineName.trim(),
+          dosage: r.dosage.trim() || null,
+          frequency: r.meal || null,
+          duration: encodeDurationWithMl(combineDuration(r), ml),
+          quantity: r.quantity ? Number(r.quantity) : null,
+          instructions: r.note.trim() || null,
+        };
+      });
   }
 
   // Sync rows with the authoritative list the server sent back so newly
@@ -253,39 +279,7 @@ export default function PrescribePage({
     }>,
   ) {
     if (lines.length === 0) return;
-    setRows(
-      lines.map((l) => {
-        const isPreset = DOSAGE_PRESETS.includes(
-          l.dosage as (typeof DOSAGE_PRESETS)[number],
-        );
-        const stalePillCount =
-          isNonTabletMedicine(l.medicineName) && (l.quantity ?? 0) > 0;
-        const row: RxRow = {
-          id: l.id,
-          serverId: l.id,
-          medicineName: l.medicineName,
-          dosage: l.dosage ?? "",
-          customDosage: !isPreset && (l.dosage ?? "") !== "",
-          meal:
-            l.frequency &&
-            MEAL_TIMINGS.includes(l.frequency as (typeof MEAL_TIMINGS)[number])
-              ? (l.frequency as MealTiming)
-              : "",
-          durationValue: l.duration ? (l.duration.split(" ")[0] ?? "") : "",
-          durationUnit:
-            l.duration && l.duration.includes("weeks")
-              ? "weeks"
-              : l.duration && l.duration.includes("months")
-                ? "months"
-                : "days",
-          quantity:
-            stalePillCount || l.quantity == null ? "" : String(l.quantity),
-          quantityManuallyEdited: !stalePillCount,
-          note: l.instructions ?? "",
-        };
-        return row;
-      }),
-    );
+    setRows(lines.map((l) => rowFromServerLine(l)));
   }
 
   const saveMutation = useMutation({
@@ -558,47 +552,95 @@ function RxRowEditor({
 }) {
   return (
     <div className="rounded-lg border bg-card p-3">
-      {/* Line 1: N. [Medicine name.......]  Qty [__]  🗑 */}
-      <div className="flex items-center gap-2">
-        <span className="w-6 shrink-0 text-sm font-semibold text-muted-foreground">
-          {index + 1}.
-        </span>
-        <Input
-          id={`med-${row.id}`}
-          value={row.medicineName}
-          onChange={(e) => onChange({ medicineName: e.target.value })}
-          placeholder="Medicine name"
-          className="h-9 min-w-0 flex-1 text-base"
-        />
-        <div className="flex shrink-0 items-center gap-1">
-          <span className="text-xs text-muted-foreground">Qty</span>
-          <Input
-            id={`qty-${row.id}`}
-            type="number"
-            min="0"
-            max="1000"
-            value={row.quantity}
-            onChange={(e) =>
-              onChange({
-                quantity: e.target.value,
-                quantityManuallyEdited: true,
-              })
-            }
-            placeholder={isNonTabletMedicine(row.medicineName) ? "—" : "auto"}
-            className="h-9 w-16 text-center text-base"
-          />
-        </div>
-        {canRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
-            aria-label="Remove medicine"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
-      </div>
+      {/* Line 1: N. [Medicine name.......]  Qty [__]  ml [__]  🗑
+          Manoj msg 2112: two quantity inputs — tablets and ml. Only
+          one usable per row; filling one auto-disables the other. */}
+      {(() => {
+        const hasTabs = row.quantity.trim() !== "";
+        const hasMl = row.mlQuantity.trim() !== "";
+        const disableTabs = hasMl && !hasTabs;
+        const disableMl = hasTabs && !hasMl;
+        return (
+          <div className="flex items-center gap-2">
+            <span className="w-6 shrink-0 text-sm font-semibold text-muted-foreground">
+              {index + 1}.
+            </span>
+            <Input
+              id={`med-${row.id}`}
+              value={row.medicineName}
+              onChange={(e) => onChange({ medicineName: e.target.value })}
+              placeholder="Medicine name"
+              className="h-9 min-w-0 flex-1 text-base"
+            />
+            <div className="flex shrink-0 items-center gap-1">
+              <span
+                className={`text-xs ${
+                  disableTabs
+                    ? "text-muted-foreground/40"
+                    : "text-muted-foreground"
+                }`}
+              >
+                Qty
+              </span>
+              <Input
+                id={`qty-${row.id}`}
+                type="number"
+                min="0"
+                max="1000"
+                value={row.quantity}
+                disabled={disableTabs}
+                onChange={(e) =>
+                  onChange({
+                    quantity: e.target.value,
+                    quantityManuallyEdited: true,
+                  })
+                }
+                placeholder={
+                  disableTabs
+                    ? "—"
+                    : isNonTabletMedicine(row.medicineName)
+                      ? "—"
+                      : "auto"
+                }
+                className="h-9 w-14 text-center text-base disabled:opacity-40"
+              />
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <Input
+                id={`ml-${row.id}`}
+                type="number"
+                min="0"
+                max="2000"
+                value={row.mlQuantity}
+                disabled={disableMl}
+                onChange={(e) => onChange({ mlQuantity: e.target.value })}
+                placeholder="—"
+                className="h-9 w-14 text-center text-base disabled:opacity-40"
+                aria-label="ml"
+              />
+              <span
+                className={`text-xs ${
+                  disableMl
+                    ? "text-muted-foreground/40"
+                    : "text-muted-foreground"
+                }`}
+              >
+                ml
+              </span>
+            </div>
+            {canRemove && (
+              <button
+                type="button"
+                onClick={onRemove}
+                className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
+                aria-label="Remove medicine"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Line 2: dosage chips + meal toggle + × N days — wraps on
           narrow screens; sits on one line on tablets and up. */}

@@ -10,6 +10,7 @@ import {
 import {
   upsertPrescriptionSchema,
   isNonTabletMedicine,
+  parseDurationWithMl,
 } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
@@ -24,7 +25,16 @@ import { ensureVisitForDate } from "./patient-visit.js";
 function shortLineForNotes(line: {
   medicineName: string;
   quantity: number | null;
+  duration: string | null;
 }): string {
+  // Manoj msg 2112: liquid meds may carry an ml value encoded inside
+  // the duration string. Prefer it over the (tablet) quantity for the
+  // Clinical-Notes summary — a syrup entry reads "Calpol - 60 ml" not
+  // "Calpol - 6 tabs".
+  const { mlValue } = parseDurationWithMl(line.duration);
+  if (mlValue != null && mlValue > 0) {
+    return `${line.medicineName} - ${mlValue} ml`;
+  }
   if (
     line.quantity &&
     line.quantity > 0 &&
@@ -233,6 +243,7 @@ export const prescriptionLineRouter = router({
         .select({
           medicineName: prescriptionLines.medicineName,
           quantity: prescriptionLines.quantity,
+          duration: prescriptionLines.duration,
         })
         .from(prescriptionLines)
         .where(eq(prescriptionLines.visitId, visit.id))
@@ -242,6 +253,7 @@ export const prescriptionLineRouter = router({
           shortLineForNotes({
             medicineName: l.medicineName,
             quantity: l.quantity ?? null,
+            duration: l.duration ?? null,
           }),
         )
         .join("\n");
