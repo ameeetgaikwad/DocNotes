@@ -943,6 +943,302 @@ export async function renderPrescriptionPdf(
   return renderToBuffer(doc as any);
 }
 
+// ---------- Medical Fitness Certificate for Food Handlers ----------
+// Manoj msg 2119. Layout: doctor block header (matches Rx letterhead),
+// centered title, business + employee blocks with labels + values,
+// blank underlined line for employee signature/thumb impression, the
+// certification paragraph, then date/place, then a blank line for the
+// doctor's ink signature + seal.
+
+const certStyles = StyleSheet.create({
+  page: {
+    paddingHorizontal: 40,
+    paddingVertical: 34,
+    fontSize: 11,
+    fontFamily: "Helvetica",
+    lineHeight: 1.4,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  doctorBlock: { flexDirection: "column" },
+  doctorName: {
+    fontSize: 16,
+    fontFamily: "Helvetica-Bold",
+    color: "#7f1d1d",
+  },
+  doctorLine: { fontSize: 10, color: "#7f1d1d" },
+  doctorRightLine: { fontSize: 10, color: "#7f1d1d", textAlign: "right" },
+  hrThick: {
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#7f1d1d",
+    marginTop: 6,
+  },
+  clinicLine: {
+    fontSize: 10,
+    color: "#7f1d1d",
+    textAlign: "center",
+    marginTop: 4,
+  },
+  hrThin: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#7f1d1d",
+    marginTop: 4,
+  },
+  title: {
+    fontSize: 14,
+    fontFamily: "Helvetica-Bold",
+    textAlign: "center",
+    marginTop: 18,
+    marginBottom: 12,
+    textDecoration: "underline",
+    color: "#0f172a",
+  },
+  fieldRow: {
+    flexDirection: "row",
+    marginTop: 6,
+    fontSize: 11,
+    color: "#0f172a",
+  },
+  fieldLabel: { fontFamily: "Helvetica-Bold", marginRight: 4 },
+  underline: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#0f172a",
+    minWidth: 220,
+    paddingBottom: 1,
+    flexGrow: 1,
+  },
+  sectionHeading: {
+    marginTop: 14,
+    fontFamily: "Helvetica-Bold",
+    fontSize: 12,
+    color: "#0f172a",
+  },
+  certBody: {
+    marginTop: 18,
+    fontSize: 11,
+    color: "#0f172a",
+    lineHeight: 1.5,
+    textAlign: "justify",
+  },
+  footerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 28,
+  },
+  footerCol: { flexDirection: "column", flexGrow: 1 },
+  footerColRight: {
+    flexDirection: "column",
+    flexGrow: 1,
+    alignItems: "flex-end",
+  },
+  signatureLine: {
+    marginTop: 42,
+    borderTopWidth: 0.5,
+    borderTopColor: "#0f172a",
+    paddingTop: 4,
+    width: 220,
+    textAlign: "center",
+    fontSize: 9,
+    color: "#475569",
+  },
+});
+
+interface FoodHandlerCertPatient {
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  dateOfBirth: Date | string | null;
+  dobYear: number | null;
+  gender: string | null;
+}
+
+interface FoodHandlerCertInputs {
+  businessName: string;
+  employerName: string;
+  examDate: string; // YYYY-MM-DD
+  place: string;
+  honorific: "Shri" | "Smt." | "Miss" | ""; // "" → print "Shri/Smt./Miss"
+}
+
+function fullPatientName(p: FoodHandlerCertPatient): string {
+  return [p.firstName, p.middleName, p.lastName].filter(Boolean).join(" ");
+}
+
+function sexLabel(g: string | null): string {
+  if (!g) return "—";
+  const s = g.toLowerCase();
+  if (s.startsWith("m")) return "Male";
+  if (s.startsWith("f")) return "Female";
+  return g;
+}
+
+// Renders an inline "Label: <value>" row where the value sits on an
+// underlined baseline that fills remaining width — mimics the printed
+// blank the doctor would otherwise write on.
+function labeledUnderline(
+  key: string,
+  label: string,
+  value: string,
+): React.ReactElement {
+  return e(
+    View,
+    { style: certStyles.fieldRow, key },
+    e(Text, { style: certStyles.fieldLabel }, label),
+    e(Text, { style: certStyles.underline }, value || " "),
+  );
+}
+
+export async function renderFoodHandlerCertificatePdf(
+  patient: FoodHandlerCertPatient,
+  doctor: DoctorProfileData,
+  inputs: FoodHandlerCertInputs,
+): Promise<Buffer> {
+  const patientName = fullPatientName(patient);
+  const age = calcAgeFromYear(patient.dobYear, patient.dateOfBirth);
+  const clinicLine = [
+    doctor.clinicName,
+    doctor.taluka,
+    doctor.district,
+    doctor.state,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  const honorific = inputs.honorific || "Shri/Smt./Miss";
+  const certParagraph =
+    `This is to certify that ${honorific} ${patientName}, employed with ` +
+    `M/s ${inputs.employerName} and engaged in direct handling / ` +
+    `preparation / serving of food, has been medically examined by me on ` +
+    `${formatDateDDMMYYYY(inputs.examDate)}. Based on the examination ` +
+    `conducted, the employee is found free from any apparent ` +
+    `communicable / infectious disease and medically fit to work in a ` +
+    `food establishment on the date of examination.`;
+
+  const doc = e(
+    Document,
+    null,
+    e(
+      Page,
+      { size: "A4", style: certStyles.page },
+      // Doctor letterhead — same styling as the Rx PDF header so the
+      // certificate reads as coming from the same clinic.
+      e(
+        View,
+        { style: certStyles.headerRow },
+        e(
+          View,
+          { style: certStyles.doctorBlock },
+          e(Text, { style: certStyles.doctorName }, `Dr. ${doctor.fullName}`),
+          e(Text, { style: certStyles.doctorLine }, doctor.qualification),
+          e(
+            Text,
+            { style: certStyles.doctorLine },
+            `Reg. No. ${doctor.registrationNumber}`,
+          ),
+          e(
+            Text,
+            { style: certStyles.doctorLine },
+            `Mob.: ${doctor.mobileNumber}`,
+          ),
+        ),
+        e(
+          View,
+          null,
+          e(
+            Text,
+            { style: certStyles.doctorRightLine },
+            doctor.specialization ?? "",
+          ),
+          e(
+            Text,
+            { style: certStyles.doctorRightLine },
+            `Date: ${formatDateDDMMYYYY(inputs.examDate)}`,
+          ),
+        ),
+      ),
+      e(View, { style: certStyles.hrThick }),
+      clinicLine ? e(Text, { style: certStyles.clinicLine }, clinicLine) : null,
+      e(View, { style: certStyles.hrThin }),
+
+      e(
+        Text,
+        { style: certStyles.title },
+        "MEDICAL FITNESS CERTIFICATE FOR FOOD HANDLERS",
+      ),
+
+      // Business + Employee fields — each rendered with a printed
+      // baseline so the layout looks like a form even though the
+      // values are pre-filled.
+      labeledUnderline(
+        "biz",
+        "Name of Food Business (Hotel/Restaurant):",
+        inputs.businessName,
+      ),
+
+      e(Text, { style: certStyles.sectionHeading }, "Employee Details"),
+      labeledUnderline("emp-name", "Name:", patientName),
+      labeledUnderline("emp-age", "Age:", age != null ? `${age} years` : "—"),
+      labeledUnderline("emp-sex", "Sex:", sexLabel(patient.gender)),
+
+      // Blank underlined line for the patient's ink signature or thumb
+      // impression — filled after printing.
+      labeledUnderline(
+        "emp-sig",
+        "Signature / Thumb Impression of Employee:",
+        "",
+      ),
+
+      // Certification paragraph.
+      e(Text, { style: certStyles.certBody }, certParagraph),
+
+      // Date + Place block (left column), doctor signature (right col).
+      e(
+        View,
+        { style: certStyles.footerRow },
+        e(
+          View,
+          { style: certStyles.footerCol },
+          e(
+            View,
+            { style: certStyles.fieldRow },
+            e(Text, { style: certStyles.fieldLabel }, "Date:"),
+            e(
+              Text,
+              { style: [certStyles.underline, { minWidth: 130 }] },
+              formatDateDDMMYYYY(inputs.examDate),
+            ),
+          ),
+          e(
+            View,
+            { style: certStyles.fieldRow },
+            e(Text, { style: certStyles.fieldLabel }, "Place:"),
+            e(
+              Text,
+              { style: [certStyles.underline, { minWidth: 130 }] },
+              inputs.place,
+            ),
+          ),
+        ),
+        e(
+          View,
+          { style: certStyles.footerColRight },
+          e(
+            Text,
+            { style: certStyles.signatureLine },
+            "Signature & Seal of Registered Medical Practitioner",
+          ),
+        ),
+      ),
+    ),
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return renderToBuffer(doc as any);
+}
+
 // ---------- Daily Case Register export (Manoj msg 1105) ----------
 
 const dcrStyles = StyleSheet.create({

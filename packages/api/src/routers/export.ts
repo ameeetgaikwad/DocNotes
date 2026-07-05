@@ -12,6 +12,7 @@ import {
   exportMedicalRecordSchema,
   exportPrescriptionSchema,
   exportDailyRegisterSchema,
+  exportFoodHandlerCertificateSchema,
 } from "@docnotes/shared";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../trpc.js";
@@ -21,6 +22,7 @@ import {
   renderMedicalRecordPdf,
   renderPrescriptionPdf,
   renderDailyRegisterExportPdf,
+  renderFoodHandlerCertificatePdf,
 } from "../lib/pdf.js";
 
 export const exportRouter = router({
@@ -317,6 +319,92 @@ export const exportRouter = router({
       return {
         base64: pdfBuffer.toString("base64"),
         filename: `${patient.firstName}_${patient.lastName}_Rx_${visit.visitDate}.pdf`,
+      };
+    }),
+
+  // Medical Fitness Certificate for Food Handlers (Manoj msg 2119).
+  // v1 ships this one template; the picker also lists Fitness Cert
+  // and Medical Leave Cert as disabled placeholders. Fire-and-forget
+  // like the Rx PDF — no persistence beyond the audit log entry.
+  medicalCertificateFoodHandler: protectedProcedure
+    .input(exportFoodHandlerCertificateSchema)
+    .mutation(async ({ ctx, input }) => {
+      const [patient, doctor] = await Promise.all([
+        ctx.db
+          .select()
+          .from(patients)
+          .where(
+            and(
+              eq(patients.id, input.patientId),
+              eq(patients.createdBy, ctx.session.userId),
+            ),
+          )
+          .limit(1)
+          .then((rows) => rows[0]),
+        ctx.db
+          .select()
+          .from(doctorProfiles)
+          .where(eq(doctorProfiles.userId, ctx.session.userId))
+          .limit(1)
+          .then((rows) => rows[0]),
+      ]);
+      if (!patient) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Patient not found",
+        });
+      }
+      if (!doctor) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Doctor profile is incomplete — set it up in Settings before printing certificates.",
+        });
+      }
+
+      const pdfBuffer = await renderFoodHandlerCertificatePdf(
+        {
+          firstName: patient.firstName,
+          middleName: patient.middleName,
+          lastName: patient.lastName,
+          dateOfBirth: patient.dateOfBirth,
+          dobYear: patient.dobYear,
+          gender: patient.gender,
+        },
+        {
+          fullName: doctor.fullName,
+          qualification: doctor.qualification,
+          specialization: doctor.specialization,
+          registrationNumber: doctor.registrationNumber,
+          mobileNumber: doctor.mobileNumber,
+          email: doctor.email,
+          clinicName: doctor.clinicName,
+          taluka: doctor.taluka,
+          district: doctor.district,
+          state: doctor.state,
+        },
+        {
+          businessName: input.businessName,
+          employerName: input.employerName,
+          examDate: input.examDate,
+          place: input.place,
+          honorific: input.honorific,
+        },
+      );
+
+      logAudit(ctx, {
+        action: "export",
+        resource: "medical_certificate_food_handler",
+        resourceId: input.patientId,
+        metadata: {
+          businessName: input.businessName,
+          examDate: input.examDate,
+        },
+      });
+
+      return {
+        base64: pdfBuffer.toString("base64"),
+        filename: `${patient.firstName}_${patient.lastName}_FoodHandler_Cert_${input.examDate}.pdf`,
       };
     }),
 

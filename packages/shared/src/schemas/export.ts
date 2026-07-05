@@ -33,3 +33,35 @@ export const exportDailyRegisterSchema = z
   });
 
 export type ExportDailyRegister = z.infer<typeof exportDailyRegisterSchema>;
+
+// Medical Fitness Certificate for Food Handlers (Manoj msg 2119). v1
+// ships with this one template; the picker also lists Fitness Cert /
+// Medical Leave Cert as disabled "coming soon" placeholders. Patient
+// name / age / sex and doctor name / registration / clinic all
+// pre-fill from the record + profile; the doctor only supplies the
+// business-specific fields.
+export const exportFoodHandlerCertificateSchema = z.object({
+  patientId: z.string().uuid(),
+  // Food establishment name — "Hotel/Restaurant Name" on the printed
+  // form. Required.
+  businessName: z.string().trim().min(1).max(200),
+  // "M/s <employer>" — usually the same as the business name; the
+  // client pre-fills it and lets the doctor override. Required so the
+  // certificate paragraph isn't left with a blank slot.
+  employerName: z.string().trim().min(1).max(200),
+  // Examination date (YYYY-MM-DD). Defaults to today on the client.
+  examDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "examDate must be YYYY-MM-DD"),
+  // Place of examination — defaults to the doctor's clinic taluka on
+  // the client so most certs need zero edits.
+  place: z.string().trim().min(1).max(120),
+  // Optional honorific override. Empty string on the wire → renders
+  // the neutral "Shri/Smt./Miss" string on the PDF so the doctor can
+  // circle in ink.
+  honorific: z.enum(["Shri", "Smt.", "Miss", ""]).default(""),
+});
+
+export type ExportFoodHandlerCertificate = z.infer<
+  typeof exportFoodHandlerCertificateSchema
+>;
