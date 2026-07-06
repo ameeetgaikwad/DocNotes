@@ -11,6 +11,7 @@ import {
   MoreHorizontal,
   ClipboardList,
   FileText,
+  MessageSquare,
   Settings,
   LogOut,
   X,
@@ -56,6 +57,7 @@ const MORE_ITEMS: NavItem[] = [
   { to: "/reports", label: "Reports", icon: FileText },
   { to: "/tasks", label: "Actions", icon: ClipboardList },
   { to: "/patients/archived", label: "Recently Deleted", icon: Archive },
+  { to: "/feedback", label: "Send Feedback", icon: MessageSquare },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 

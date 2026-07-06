@@ -18,6 +18,7 @@ import { homeVisitRouter } from "./home-visit.js";
 import { customTodoRouter } from "./custom-todo.js";
 import { adminRouter } from "./admin.js";
 import { prescriptionLineRouter } from "./prescription-line.js";
+import { feedbackRouter } from "./feedback.js";
 
 export const appRouter = router({
   admin: adminRouter,
@@ -39,6 +40,7 @@ export const appRouter = router({
   homeVisit: homeVisitRouter,
   customTodo: customTodoRouter,
   prescriptionLine: prescriptionLineRouter,
+  feedback: feedbackRouter,
 });
 
 export type AppRouter = typeof appRouter;
