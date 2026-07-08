@@ -537,11 +537,14 @@ export default function PrescribePage({
           type="button"
           onClick={() => saveMutation.mutate()}
           disabled={saveMutation.isPending || justSaved}
-          // Manoj msg 2085: the button changes to a "Saved" state for
-          // 2.5s after a successful write so it's obvious the action
-          // landed, then reverts to the normal Save affordance.
+          // Manoj msg 2192: the earlier bg-success class rendered as a
+          // dark green, indistinguishable from the primary teal. Swap
+          // for a pale green pill so the "Saved ✓" state is obviously
+          // different — dark green text on a very light green field.
           className={
-            justSaved ? "bg-success text-success-foreground" : undefined
+            justSaved
+              ? "border-emerald-300 bg-emerald-100 text-emerald-900 hover:bg-emerald-100 hover:text-emerald-900"
+              : undefined
           }
         >
           {saveMutation.isPending ? (
