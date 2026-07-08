@@ -552,95 +552,61 @@ function RxRowEditor({
 }) {
   return (
     <div className="rounded-lg border bg-card p-3">
-      {/* Line 1: N. [Medicine name.......]  Qty [__]  ml [__]  🗑
-          Manoj msg 2112: two quantity inputs — tablets and ml. Only
-          one usable per row; filling one auto-disables the other. */}
-      {(() => {
-        const hasTabs = row.quantity.trim() !== "";
-        const hasMl = row.mlQuantity.trim() !== "";
-        const disableTabs = hasMl && !hasTabs;
-        const disableMl = hasTabs && !hasMl;
-        return (
-          <div className="flex items-center gap-2">
-            <span className="w-6 shrink-0 text-sm font-semibold text-muted-foreground">
-              {index + 1}.
-            </span>
-            <Input
-              id={`med-${row.id}`}
-              value={row.medicineName}
-              onChange={(e) => onChange({ medicineName: e.target.value })}
-              placeholder="Medicine name"
-              className="h-9 min-w-0 flex-1 text-base"
-            />
-            <div className="flex shrink-0 items-center gap-1">
-              <span
-                className={`text-xs ${
-                  disableTabs
-                    ? "text-muted-foreground/40"
-                    : "text-muted-foreground"
-                }`}
-              >
-                Qty
-              </span>
-              <Input
-                id={`qty-${row.id}`}
-                type="number"
-                min="0"
-                max="1000"
-                value={row.quantity}
-                disabled={disableTabs}
-                onChange={(e) =>
-                  onChange({
-                    quantity: e.target.value,
-                    quantityManuallyEdited: true,
-                  })
-                }
-                placeholder={
-                  disableTabs
-                    ? "—"
-                    : isNonTabletMedicine(row.medicineName)
-                      ? "—"
-                      : "auto"
-                }
-                className="h-9 w-14 text-center text-base disabled:opacity-40"
-              />
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <Input
-                id={`ml-${row.id}`}
-                type="number"
-                min="0"
-                max="2000"
-                value={row.mlQuantity}
-                disabled={disableMl}
-                onChange={(e) => onChange({ mlQuantity: e.target.value })}
-                placeholder="—"
-                className="h-9 w-14 text-center text-base disabled:opacity-40"
-                aria-label="ml"
-              />
-              <span
-                className={`text-xs ${
-                  disableMl
-                    ? "text-muted-foreground/40"
-                    : "text-muted-foreground"
-                }`}
-              >
-                ml
-              </span>
-            </div>
-            {canRemove && (
-              <button
-                type="button"
-                onClick={onRemove}
-                className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
-                aria-label="Remove medicine"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        );
-      })()}
+      {/* Line 1: N. [Medicine name.......]  [Qty]  [ml]  🗑
+          Manoj msg 2175 (v3): both Qty and ml always stay editable.
+          The earlier mutual-disable behaviour blocked liquid Rx like
+          "1 bottle · 120 ml" where the doctor legitimately wants
+          both. Placeholder inside each box does the labelling now —
+          the standalone label span was redundant with the placeholder
+          (msg 2175 point 3). */}
+      <div className="flex items-center gap-2">
+        <span className="w-6 shrink-0 text-sm font-semibold text-muted-foreground">
+          {index + 1}.
+        </span>
+        <Input
+          id={`med-${row.id}`}
+          value={row.medicineName}
+          onChange={(e) => onChange({ medicineName: e.target.value })}
+          placeholder="Medicine name"
+          className="h-9 min-w-0 flex-1 text-base"
+        />
+        <Input
+          id={`qty-${row.id}`}
+          type="number"
+          min="0"
+          max="1000"
+          value={row.quantity}
+          onChange={(e) =>
+            onChange({
+              quantity: e.target.value,
+              quantityManuallyEdited: true,
+            })
+          }
+          placeholder="Qty"
+          className="h-9 w-14 shrink-0 text-center text-base"
+        />
+        <Input
+          id={`ml-${row.id}`}
+          type="number"
+          min="0"
+          max="2000"
+          value={row.mlQuantity}
+          onChange={(e) => onChange({ mlQuantity: e.target.value })}
+          placeholder="ml"
+          className="h-9 w-14 shrink-0 text-center text-base"
+          aria-label="ml"
+        />
+        {canRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
+            aria-label="Remove medicine"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </div>
 
       {/* Line 2: dosage chips + meal toggle + × N days — wraps on
           narrow screens; sits on one line on tablets and up. */}

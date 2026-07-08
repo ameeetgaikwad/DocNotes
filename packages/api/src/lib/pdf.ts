@@ -771,24 +771,39 @@ export interface PrescriptionLineForPdf {
 }
 
 function renderRxLineText(l: PrescriptionLineForPdf): string {
-  // Manoj msg 2112: strip the ml suffix out of the duration string so
-  // "3 days · 60 ml" prints as "× 3 days   (60 ml)" instead of the
-  // compound blob. Ml-only rows print just "(60 ml)" (no × duration).
+  // Split the compound duration string ("3 days · 60 ml") into its
+  // pieces so the "× 3 days" bit reads cleanly and the ml value can
+  // go in the trailer separately.
   const { duration: durationText, mlValue } = parseDurationWithMl(l.duration);
   const bits: string[] = [];
   if (l.dosage) bits.push(l.dosage);
   if (l.frequency) bits.push(`${l.frequency} meals`);
   if (durationText) bits.push(`× ${durationText}`);
   const summary = bits.join(" ");
-  // Prefer the ml trailer for liquid meds; fall back to tablet Qty
-  // for solid meds. Suppress the (Qty N) trailer on syrups/injections/
-  // creams (Manoj msg 2080) — stale values would misread as tabs.
-  const trailer =
-    mlValue != null && mlValue > 0
-      ? `  (${mlValue} ml)`
-      : l.quantity && !isNonTabletMedicine(l.medicineName)
-        ? `  (Qty ${l.quantity})`
-        : "";
+
+  // Manoj msg 2175 (v3): syrups may carry BOTH a bottle count and a
+  // volume (e.g. "1 bottle · 120 ml"), so we surface Qty and ml
+  // side-by-side when both are present. Tablet meds keep the plain
+  // "(Qty N)" trailer.
+  const hasQty = l.quantity != null && l.quantity > 0;
+  const hasMl = mlValue != null && mlValue > 0;
+  let trailer = "";
+  if (hasQty && hasMl) {
+    trailer = `  (Qty ${l.quantity}, ${mlValue} ml)`;
+  } else if (hasMl) {
+    trailer = `  (${mlValue} ml)`;
+  } else if (hasQty && !isNonTabletMedicine(l.medicineName)) {
+    // Suppress "(Qty N)" on syrups/injections/creams where the value
+    // was auto-populated before the syrup-detection fix landed
+    // (Manoj msg 2080). Liquid meds print Qty only via the combined
+    // "Qty N, N ml" trailer above.
+    trailer = `  (Qty ${l.quantity})`;
+  } else if (hasQty && isNonTabletMedicine(l.medicineName)) {
+    // Liquid med with a Qty but no ml — Manoj msg 2175 example was
+    // "1 bottle · 120 ml", but a doctor might record just the bottle
+    // count without a volume. Print it plain.
+    trailer = `  (Qty ${l.quantity})`;
+  }
   return `${l.medicineName}${summary ? "   " + summary : ""}${trailer}`;
 }
 

@@ -27,19 +27,24 @@ function shortLineForNotes(line: {
   quantity: number | null;
   duration: string | null;
 }): string {
-  // Manoj msg 2112: liquid meds may carry an ml value encoded inside
-  // the duration string. Prefer it over the (tablet) quantity for the
-  // Clinical-Notes summary — a syrup entry reads "Calpol - 60 ml" not
-  // "Calpol - 6 tabs".
+  // Manoj msg 2175 (v3): a syrup may carry BOTH a bottle count and a
+  // volume ("Qty 1, 120 ml"). Render both when set. Fall through to
+  // ml-only or Qty-only shapes when one is missing. Tablets keep the
+  // "N tabs" style so the Clinical-Notes summary reads naturally.
   const { mlValue } = parseDurationWithMl(line.duration);
-  if (mlValue != null && mlValue > 0) {
+  const hasQty = line.quantity != null && line.quantity > 0;
+  const hasMl = mlValue != null && mlValue > 0;
+  if (hasQty && hasMl) {
+    return `${line.medicineName} - Qty ${line.quantity}, ${mlValue} ml`;
+  }
+  if (hasMl) {
     return `${line.medicineName} - ${mlValue} ml`;
   }
-  if (
-    line.quantity &&
-    line.quantity > 0 &&
-    !isNonTabletMedicine(line.medicineName)
-  ) {
+  if (hasQty && isNonTabletMedicine(line.medicineName)) {
+    // Liquid Qty means bottles/units; don't tack "tabs" on.
+    return `${line.medicineName} - Qty ${line.quantity}`;
+  }
+  if (hasQty) {
     return `${line.medicineName} - ${line.quantity} tab${line.quantity === 1 ? "" : "s"}`;
   }
   return line.medicineName;
