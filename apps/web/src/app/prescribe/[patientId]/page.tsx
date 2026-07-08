@@ -102,6 +102,35 @@ function combineDuration(row: RxRow): string | null {
   return `${d} ${row.durationUnit}`;
 }
 
+// Strip invisible Unicode noise from a free-text field before it gets
+// saved. Manoj msg 2181 hit a case where "Glyciphage SR 1gm" rendered
+// as a jumbled string in Clinical Notes — the fingerprint (partial
+// reversals of the original word) is classic bidi override injection,
+// most likely from an Android IME or voice-to-text pipeline that
+// inserted RLE/RLO codepoints. We drop:
+//   - zero-width chars (ZWSP/ZWNJ/ZWJ)
+//   - LRM/RLM directional marks
+//   - bidi override chars (LRE/RLE/PDF/LRO/RLO) and isolate overrides
+//   - the byte-order mark
+//   - other C0 control chars (except space, which is preserved)
+// Legitimate medical text on this app is always plain Latin script;
+// no known workflow needs any of these codepoints.
+function sanitizeFreeText(s: string): string {
+  // Regex source is built as a string then compiled so this file is
+  // free of the literal invisible codepoints we are stripping.
+  // Ranges:
+  //   U+0000..U+0008 + U+000B..U+001F + U+007F  — C0 control chars
+  //     minus tab (U+0009) and newline (U+000A). Medical Rx names
+  //     shouldn't carry NULs or DELs.
+  //   U+200B..U+200F  — zero-width joiner/non-joiner/space + LRM/RLM
+  //   U+202A..U+202E  — LRE / RLE / PDF / LRO / RLO bidi overrides
+  //   U+2066..U+2069  — directional isolate overrides
+  //   U+FEFF          — byte-order mark
+  const NOISE =
+    "[\u0000-\u0008\u000B-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]";
+  return s.replace(new RegExp(NOISE, "g"), "");
+}
+
 // Shared hydration builder — used by both the initial listByVisit
 // hydration and the post-save adoptServerLines. Parses the compound
 // duration string (which may carry an "· N ml" suffix per Manoj
@@ -217,6 +246,9 @@ export default function PrescribePage({
   }, [existingLinesQuery.data, hasHydrated]);
 
   function updateRow(id: string, patch: Partial<RxRow>) {
+    // Any user edit invalidates the "Saved ✓" state so the Save
+    // button flips back to its regular affordance (Manoj msg 2181).
+    setJustSaved(false);
     setRows((prev) =>
       prev.map((r) => {
         if (r.id !== id) return r;
@@ -245,7 +277,7 @@ export default function PrescribePage({
   // the backend upsert treats every row as new and stacks duplicates.
   function buildPayload() {
     return rows
-      .filter((r) => r.medicineName.trim().length > 0)
+      .filter((r) => sanitizeFreeText(r.medicineName).trim().length > 0)
       .map((r) => {
         const ml =
           r.mlQuantity.trim() && Number.isFinite(Number(r.mlQuantity))
@@ -253,12 +285,12 @@ export default function PrescribePage({
             : null;
         return {
           id: r.serverId,
-          medicineName: r.medicineName.trim(),
-          dosage: r.dosage.trim() || null,
+          medicineName: sanitizeFreeText(r.medicineName).trim(),
+          dosage: sanitizeFreeText(r.dosage).trim() || null,
           frequency: r.meal || null,
           duration: encodeDurationWithMl(combineDuration(r), ml),
           quantity: r.quantity ? Number(r.quantity) : null,
-          instructions: r.note.trim() || null,
+          instructions: sanitizeFreeText(r.note).trim() || null,
         };
       });
   }
@@ -298,15 +330,18 @@ export default function PrescribePage({
       // Adopt server ids so the next Save/Print doesn't duplicate.
       if (result.lines) adoptServerLines(result.lines);
       // Manoj msg 2085: give the Save button visible feedback that the
-      // action landed — swap in a "Saved ✓" state briefly.
+      // action landed — swap in a "Saved ✓" state. Manoj msg 2181
+      // update: hold that state until the doctor edits or adds a row,
+      // rather than reverting after 2.5s. The reset happens inside
+      // updateRow / Add / Remove handlers below.
       setJustSaved(true);
-      window.setTimeout(() => setJustSaved(false), 2500);
     },
     onError: (e) => setSaveError(e.message),
   });
 
   const printMutation = useMutation({
     mutationFn: async (action: "print" | "download") => {
+      setSaveError(null);
       // Save first so the PDF picks up the freshest data.
       const saved = await trpcClient.prescriptionLine.upsert.mutate({
         patientId,
@@ -319,7 +354,7 @@ export default function PrescribePage({
         // Nothing was saved — skip the print. This should only fire if
         // the doctor tapped Save & Print with all rows empty, in which
         // case the disabled state has already gated the button.
-        return;
+        return { action };
       }
       const pdf = await trpcClient.export.prescription.mutate({
         visitId: saved.visitId,
@@ -329,6 +364,12 @@ export default function PrescribePage({
       } else {
         downloadBase64File(pdf.base64, pdf.filename, "application/pdf");
       }
+      return { action };
+    },
+    onSuccess: () => {
+      // Save-then-print counts as a save; light up the Saved ✓ state
+      // the same way plain Save does (Manoj msg 2181).
+      setJustSaved(true);
     },
     onError: (e) => setSaveError(e.message),
   });
@@ -430,7 +471,8 @@ export default function PrescribePage({
             <button
               key={c.medicineName}
               type="button"
-              onClick={() =>
+              onClick={() => {
+                setJustSaved(false);
                 setRows((prev) => {
                   const empty = prev.find(
                     (r) => r.medicineName.trim().length === 0,
@@ -446,8 +488,8 @@ export default function PrescribePage({
                     ...prev,
                     { ...emptyRow(), medicineName: c.medicineName },
                   ];
-                })
-              }
+                });
+              }}
               className="rounded-full border bg-card px-2.5 py-0.5 text-xs hover:bg-accent"
             >
               {c.medicineName}
@@ -464,9 +506,10 @@ export default function PrescribePage({
             index={idx}
             canRemove={rows.length > 1}
             onChange={(patch) => updateRow(row.id, patch)}
-            onRemove={() =>
-              setRows((prev) => prev.filter((r) => r.id !== row.id))
-            }
+            onRemove={() => {
+              setJustSaved(false);
+              setRows((prev) => prev.filter((r) => r.id !== row.id));
+            }}
           />
         ))}
       </div>
@@ -474,7 +517,10 @@ export default function PrescribePage({
       <Button
         type="button"
         variant="ghost"
-        onClick={() => setRows((prev) => [...prev, emptyRow()])}
+        onClick={() => {
+          setJustSaved(false);
+          setRows((prev) => [...prev, emptyRow()]);
+        }}
         className="mt-2 text-primary hover:text-primary"
       >
         <Plus className="h-4 w-4" /> Add medicine
@@ -518,7 +564,15 @@ export default function PrescribePage({
           onClick={() => printMutation.mutate("print")}
           disabled={!canPrint || printMutation.isPending}
         >
-          <Printer className="h-4 w-4" /> Save & Print Rx
+          {printMutation.isPending && printMutation.variables === "print" ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Preparing
+            </>
+          ) : (
+            <>
+              <Printer className="h-4 w-4" /> Save & Print Rx
+            </>
+          )}
         </Button>
         <Button
           type="button"
@@ -526,7 +580,13 @@ export default function PrescribePage({
           onClick={() => printMutation.mutate("download")}
           disabled={!canPrint || printMutation.isPending}
         >
-          Download PDF
+          {printMutation.isPending && printMutation.variables === "download" ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Preparing
+            </>
+          ) : (
+            <>Download PDF</>
+          )}
         </Button>
       </div>
     </div>
