@@ -11,6 +11,7 @@ import {
   MoreHorizontal,
   Archive,
   Download,
+  FileText,
   Printer,
   Share2,
   Pencil,
@@ -41,6 +42,7 @@ import { PatientDiet } from "@/components/patients/patient-diet";
 import { PatientPendingDues } from "@/components/patients/patient-pending-dues";
 import { ShareDialog } from "@/components/patients/share-dialog";
 import { EditPatientDialog } from "@/components/patients/edit-patient-dialog";
+import { MedicalCertificatesDialog } from "@/components/patients/medical-certificates-dialog";
 
 export default function PatientProfilePage({
   params,
@@ -50,6 +52,7 @@ export default function PatientProfilePage({
   const { patientId } = use(params);
   const [shareOpen, setShareOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [certOpen, setCertOpen] = useState(false);
   // Honour ?tab=<value> so the Patients list can deep-link to a specific
   // tab (Manoj msg 983: "Review" should open History, not Summary).
   // Controlled — derived from searchParams every render so in-page
@@ -300,6 +303,10 @@ export default function PatientProfilePage({
                 <Share2 className="h-4 w-4" />
                 Share Records
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setCertOpen(true)}>
+                <FileText className="h-4 w-4" />
+                Medical Certificates
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-destructive">
                 <Archive className="h-4 w-4" />
@@ -395,6 +402,13 @@ export default function PatientProfilePage({
         open={editOpen}
         onOpenChange={setEditOpen}
         patient={patient}
+      />
+
+      <MedicalCertificatesDialog
+        open={certOpen}
+        onOpenChange={setCertOpen}
+        patientId={patientId}
+        patientGender={patient.gender ?? null}
       />
     </div>
   );

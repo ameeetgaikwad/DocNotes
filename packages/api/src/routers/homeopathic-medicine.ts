@@ -11,6 +11,7 @@ import { logAudit } from "../lib/audit.js";
 const DEFAULT_MEDICINES: ReadonlyArray<{
   name: string;
   potency: string | null;
+  notes?: string | null;
 }> = [
   { name: "Arnica Montana", potency: "30C" },
   { name: "Arnica Montana", potency: "200C" },
@@ -36,6 +37,9 @@ const DEFAULT_MEDICINES: ReadonlyArray<{
   { name: "Hingvashtak Churna", potency: null },
   { name: "Guduchi (Giloy) Tablets", potency: null },
   { name: "Punarnava Tablets", potency: null },
+  // Allopathic defaults (Manoj msg 2036). Store the salt/generic in
+  // notes so it shows under the name in the picker.
+  { name: "Calpol 500 mg Tab.", potency: null, notes: "paracetamol" },
 ];
 
 export const homeopathicMedicineRouter = router({
@@ -91,6 +95,7 @@ export const homeopathicMedicineRouter = router({
         providerId: ctx.session.userId,
         name: d.name,
         potency: d.potency,
+        notes: d.notes ?? null,
       })),
     );
     logAudit(ctx, {
@@ -134,6 +139,7 @@ export const homeopathicMedicineRouter = router({
         providerId: ctx.session.userId,
         name: d.name,
         potency: d.potency,
+        notes: d.notes ?? null,
       })),
     );
     logAudit(ctx, {

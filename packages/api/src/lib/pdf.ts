@@ -1,5 +1,6 @@
 import ReactPDF, { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
+import { isNonTabletMedicine, parseDurationWithMl } from "@docnotes/shared";
 
 // renderToBuffer is a named export on @react-pdf/renderer@4.3.2 — the
 // default-export object only carries renderToStream/renderToFile/etc.
@@ -138,6 +139,13 @@ interface PatientData {
   firstName: string;
   lastName: string;
   dateOfBirth: Date | string | null;
+  // Partial DOB fields — Manoj msg 1993. Some patients are saved as
+  // year-only (or month+year), so the full dateOfBirth is null but the
+  // discrete parts are set. The Patient Summary PDF falls back to these
+  // when dateOfBirth is absent so the row isn't a useless em-dash.
+  dobDay?: number | null;
+  dobMonth?: number | null;
+  dobYear?: number | null;
   gender: string | null;
   email?: string | null;
   phone?: string | null;
@@ -148,6 +156,42 @@ interface PatientData {
   allergies?: Array<{ name: string; severity: string; reaction?: string }>;
   activeConditions?: string[];
   notes?: string | null;
+}
+
+// Returns a renderable DOB + age pair, mirroring the web's
+// formatPatientAgeDob: full DOB → "21/06/1972 (53 years)"; partial
+// month+year → "06/1972 (53 years)"; year-only → "1972 (53 years)";
+// nothing → "—".
+function formatPatientDobForPdf(p: {
+  dateOfBirth: Date | string | null;
+  dobDay?: number | null;
+  dobMonth?: number | null;
+  dobYear?: number | null;
+}): string {
+  if (p.dateOfBirth) {
+    return `${formatDateDDMMYYYY(p.dateOfBirth)} (${calculateAge(p.dateOfBirth)} years)`;
+  }
+  const d = p.dobDay ?? null;
+  const m = p.dobMonth ?? null;
+  const y = p.dobYear ?? null;
+  if (d && m && y) {
+    const age = calculateAge(new Date(y, m - 1, d));
+    const dd = String(d).padStart(2, "0");
+    const mm = String(m).padStart(2, "0");
+    return `${dd}/${mm}/${y} (${age} years)`;
+  }
+  if (m && y) {
+    const now = new Date();
+    let age = now.getFullYear() - y;
+    if (now.getMonth() + 1 < m) age -= 1;
+    const mm = String(m).padStart(2, "0");
+    return age >= 0 ? `${mm}/${y} (${age} years)` : `${mm}/${y}`;
+  }
+  if (y) {
+    const age = new Date().getFullYear() - y;
+    return age >= 0 ? `${y} (${age} years)` : `${y}`;
+  }
+  return "—";
 }
 
 interface RecordData {
@@ -239,13 +283,7 @@ export async function renderPatientSummaryPdf(
           View,
           { style: styles.row },
           e(Text, { style: styles.label }, "Date of Birth:"),
-          e(
-            Text,
-            { style: styles.value },
-            patient.dateOfBirth
-              ? `${formatDateDDMMYYYY(patient.dateOfBirth)} (${calculateAge(patient.dateOfBirth)} years)`
-              : "—",
-          ),
+          e(Text, { style: styles.value }, formatPatientDobForPdf(patient)),
         ),
         e(
           View,
@@ -719,10 +757,72 @@ function prescriptionVitalsLine(v: PrescriptionVisitData): string {
   return parts.join(" · ");
 }
 
+// Manoj msg 1949: printed Rx renders the full structured line rather
+// than the shortened Clinical Notes summary. Each line prints as e.g.
+//   1. Triphala Churna   1-0-1 after meals × 3 days     (Qty 6)
+//      Note: with warm water
+export interface PrescriptionLineForPdf {
+  medicineName: string;
+  dosage: string | null;
+  frequency: string | null; // meal timing: "before" | "after" | null
+  duration: string | null;
+  quantity: number | null;
+  instructions: string | null;
+}
+
+function renderRxLineText(l: PrescriptionLineForPdf): string {
+  // Manoj msg 2112: strip the ml suffix out of the duration string so
+  // "3 days · 60 ml" prints as "× 3 days   (60 ml)" instead of the
+  // compound blob. Ml-only rows print just "(60 ml)" (no × duration).
+  const { duration: durationText, mlValue } = parseDurationWithMl(l.duration);
+  const bits: string[] = [];
+  if (l.dosage) bits.push(l.dosage);
+  if (l.frequency) bits.push(`${l.frequency} meals`);
+  if (durationText) bits.push(`× ${durationText}`);
+  const summary = bits.join(" ");
+  // Prefer the ml trailer for liquid meds; fall back to tablet Qty
+  // for solid meds. Suppress the (Qty N) trailer on syrups/injections/
+  // creams (Manoj msg 2080) — stale values would misread as tabs.
+  const trailer =
+    mlValue != null && mlValue > 0
+      ? `  (${mlValue} ml)`
+      : l.quantity && !isNonTabletMedicine(l.medicineName)
+        ? `  (Qty ${l.quantity})`
+        : "";
+  return `${l.medicineName}${summary ? "   " + summary : ""}${trailer}`;
+}
+
+// Remove the auto-appended Rx block from Clinical Notes when the PDF
+// is rendering structured lines separately — otherwise the printout
+// shows the same medicines twice (once structured, once as short
+// lines). Handles both the legacy {rx: begin}/{rx: end} format and
+// the current "Rx" trailing-block format (Manoj msg 2078).
+function stripRxBlockFromNotes(notes: string | null): string | null {
+  if (!notes) return notes;
+  let out = notes;
+  const legacyStart = out.indexOf("{rx: begin}");
+  const legacyEnd = out.indexOf("{rx: end}");
+  if (legacyStart !== -1 && legacyEnd !== -1 && legacyEnd > legacyStart) {
+    out = (
+      out.slice(0, legacyStart).trimEnd() +
+      "\n" +
+      out.slice(legacyEnd + "{rx: end}".length).trimStart()
+    ).trim();
+  }
+  const lastRxIdx = out.lastIndexOf("\nRx\n");
+  if (lastRxIdx !== -1) {
+    out = out.slice(0, lastRxIdx).trimEnd();
+  } else if (out.startsWith("Rx\n")) {
+    out = "";
+  }
+  return out || null;
+}
+
 export async function renderPrescriptionPdf(
   patient: PrescriptionPatientData,
   doctor: DoctorProfileData,
   visit: PrescriptionVisitData,
+  lines: PrescriptionLineForPdf[] = [],
 ): Promise<Buffer> {
   const patientName = [patient.firstName, patient.middleName, patient.lastName]
     .filter(Boolean)
@@ -795,10 +895,343 @@ export async function renderPrescriptionPdf(
       ),
       e(Text, { style: rxStyles.bodyHeading }, "Rx"),
       vitalsLine ? e(Text, { style: rxStyles.vitalsLine }, vitalsLine) : null,
-      visit.clinicalNotes
-        ? e(Text, { style: rxStyles.rxBody }, visit.clinicalNotes)
-        : e(Text, { style: rxStyles.rxBody }, "—"),
+      lines.length > 0
+        ? e(
+            View,
+            { style: { marginTop: 8 } },
+            ...lines.flatMap((l, i) => {
+              const parts: React.ReactElement[] = [
+                e(
+                  Text,
+                  { style: rxStyles.rxBody, key: `line-${i}` },
+                  `${i + 1}. ${renderRxLineText(l)}`,
+                ),
+              ];
+              if (l.instructions?.trim()) {
+                parts.push(
+                  e(
+                    Text,
+                    {
+                      style: {
+                        fontSize: 10,
+                        color: "#475569",
+                        marginTop: 1,
+                        marginLeft: 14,
+                      },
+                      key: `note-${i}`,
+                    },
+                    `Note: ${l.instructions.trim()}`,
+                  ),
+                );
+              }
+              return parts;
+            }),
+          )
+        : (() => {
+            // No structured Rx — fall back to raw clinical notes for
+            // legacy prescriptions written before Write Rx shipped.
+            const notes = stripRxBlockFromNotes(visit.clinicalNotes);
+            return notes
+              ? e(Text, { style: rxStyles.rxBody }, notes)
+              : e(Text, { style: rxStyles.rxBody }, "—");
+          })(),
       e(Text, { style: rxStyles.signatureLine }, `Dr. ${doctor.fullName}`),
+    ),
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return renderToBuffer(doc as any);
+}
+
+// ---------- Medical Fitness Certificate for Food Handlers ----------
+// Manoj msg 2119. Layout: doctor block header (matches Rx letterhead),
+// centered title, business + employee blocks with labels + values,
+// blank underlined line for employee signature/thumb impression, the
+// certification paragraph, then date/place, then a blank line for the
+// doctor's ink signature + seal.
+
+const certStyles = StyleSheet.create({
+  page: {
+    paddingHorizontal: 40,
+    paddingVertical: 34,
+    fontSize: 11,
+    fontFamily: "Helvetica",
+    lineHeight: 1.4,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  doctorBlock: { flexDirection: "column" },
+  doctorName: {
+    fontSize: 16,
+    fontFamily: "Helvetica-Bold",
+    color: "#7f1d1d",
+  },
+  doctorLine: { fontSize: 10, color: "#7f1d1d" },
+  doctorRightLine: { fontSize: 10, color: "#7f1d1d", textAlign: "right" },
+  hrThick: {
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#7f1d1d",
+    marginTop: 6,
+  },
+  clinicLine: {
+    fontSize: 10,
+    color: "#7f1d1d",
+    textAlign: "center",
+    marginTop: 4,
+  },
+  hrThin: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#7f1d1d",
+    marginTop: 4,
+  },
+  title: {
+    fontSize: 14,
+    fontFamily: "Helvetica-Bold",
+    textAlign: "center",
+    marginTop: 18,
+    marginBottom: 12,
+    textDecoration: "underline",
+    color: "#0f172a",
+  },
+  fieldRow: {
+    flexDirection: "row",
+    marginTop: 6,
+    fontSize: 11,
+    color: "#0f172a",
+  },
+  fieldLabel: { fontFamily: "Helvetica-Bold", marginRight: 4 },
+  underline: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#0f172a",
+    minWidth: 220,
+    paddingBottom: 1,
+    flexGrow: 1,
+  },
+  sectionHeading: {
+    marginTop: 14,
+    fontFamily: "Helvetica-Bold",
+    fontSize: 12,
+    color: "#0f172a",
+  },
+  certBody: {
+    marginTop: 18,
+    fontSize: 11,
+    color: "#0f172a",
+    lineHeight: 1.5,
+    textAlign: "justify",
+  },
+  footerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 28,
+  },
+  footerCol: { flexDirection: "column", flexGrow: 1 },
+  footerColRight: {
+    flexDirection: "column",
+    flexGrow: 1,
+    alignItems: "flex-end",
+  },
+  signatureLine: {
+    marginTop: 42,
+    borderTopWidth: 0.5,
+    borderTopColor: "#0f172a",
+    paddingTop: 4,
+    width: 220,
+    textAlign: "center",
+    fontSize: 9,
+    color: "#475569",
+  },
+});
+
+interface FoodHandlerCertPatient {
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  dateOfBirth: Date | string | null;
+  dobYear: number | null;
+  gender: string | null;
+}
+
+interface FoodHandlerCertInputs {
+  businessName: string;
+  employerName: string;
+  examDate: string; // YYYY-MM-DD
+  place: string;
+  honorific: "Shri" | "Smt." | "Miss" | ""; // "" → print "Shri/Smt./Miss"
+}
+
+function fullPatientName(p: FoodHandlerCertPatient): string {
+  return [p.firstName, p.middleName, p.lastName].filter(Boolean).join(" ");
+}
+
+function sexLabel(g: string | null): string {
+  if (!g) return "—";
+  const s = g.toLowerCase();
+  if (s.startsWith("m")) return "Male";
+  if (s.startsWith("f")) return "Female";
+  return g;
+}
+
+// Renders an inline "Label: <value>" row where the value sits on an
+// underlined baseline that fills remaining width — mimics the printed
+// blank the doctor would otherwise write on.
+function labeledUnderline(
+  key: string,
+  label: string,
+  value: string,
+): React.ReactElement {
+  return e(
+    View,
+    { style: certStyles.fieldRow, key },
+    e(Text, { style: certStyles.fieldLabel }, label),
+    e(Text, { style: certStyles.underline }, value || " "),
+  );
+}
+
+export async function renderFoodHandlerCertificatePdf(
+  patient: FoodHandlerCertPatient,
+  doctor: DoctorProfileData,
+  inputs: FoodHandlerCertInputs,
+): Promise<Buffer> {
+  const patientName = fullPatientName(patient);
+  const age = calcAgeFromYear(patient.dobYear, patient.dateOfBirth);
+  const clinicLine = [
+    doctor.clinicName,
+    doctor.taluka,
+    doctor.district,
+    doctor.state,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  const honorific = inputs.honorific || "Shri/Smt./Miss";
+  const certParagraph =
+    `This is to certify that ${honorific} ${patientName}, employed with ` +
+    `M/s ${inputs.employerName} and engaged in direct handling / ` +
+    `preparation / serving of food, has been medically examined by me on ` +
+    `${formatDateDDMMYYYY(inputs.examDate)}. Based on the examination ` +
+    `conducted, the employee is found free from any apparent ` +
+    `communicable / infectious disease and medically fit to work in a ` +
+    `food establishment on the date of examination.`;
+
+  const doc = e(
+    Document,
+    null,
+    e(
+      Page,
+      { size: "A4", style: certStyles.page },
+      // Doctor letterhead — same styling as the Rx PDF header so the
+      // certificate reads as coming from the same clinic.
+      e(
+        View,
+        { style: certStyles.headerRow },
+        e(
+          View,
+          { style: certStyles.doctorBlock },
+          e(Text, { style: certStyles.doctorName }, `Dr. ${doctor.fullName}`),
+          e(Text, { style: certStyles.doctorLine }, doctor.qualification),
+          e(
+            Text,
+            { style: certStyles.doctorLine },
+            `Reg. No. ${doctor.registrationNumber}`,
+          ),
+          e(
+            Text,
+            { style: certStyles.doctorLine },
+            `Mob.: ${doctor.mobileNumber}`,
+          ),
+        ),
+        e(
+          View,
+          null,
+          e(
+            Text,
+            { style: certStyles.doctorRightLine },
+            doctor.specialization ?? "",
+          ),
+          e(
+            Text,
+            { style: certStyles.doctorRightLine },
+            `Date: ${formatDateDDMMYYYY(inputs.examDate)}`,
+          ),
+        ),
+      ),
+      e(View, { style: certStyles.hrThick }),
+      clinicLine ? e(Text, { style: certStyles.clinicLine }, clinicLine) : null,
+      e(View, { style: certStyles.hrThin }),
+
+      e(
+        Text,
+        { style: certStyles.title },
+        "MEDICAL FITNESS CERTIFICATE FOR FOOD HANDLERS",
+      ),
+
+      // Business + Employee fields — each rendered with a printed
+      // baseline so the layout looks like a form even though the
+      // values are pre-filled.
+      labeledUnderline(
+        "biz",
+        "Name of Food Business (Hotel/Restaurant):",
+        inputs.businessName,
+      ),
+
+      e(Text, { style: certStyles.sectionHeading }, "Employee Details"),
+      labeledUnderline("emp-name", "Name:", patientName),
+      labeledUnderline("emp-age", "Age:", age != null ? `${age} years` : "—"),
+      labeledUnderline("emp-sex", "Sex:", sexLabel(patient.gender)),
+
+      // Blank underlined line for the patient's ink signature or thumb
+      // impression — filled after printing.
+      labeledUnderline(
+        "emp-sig",
+        "Signature / Thumb Impression of Employee:",
+        "",
+      ),
+
+      // Certification paragraph.
+      e(Text, { style: certStyles.certBody }, certParagraph),
+
+      // Date + Place block (left column), doctor signature (right col).
+      e(
+        View,
+        { style: certStyles.footerRow },
+        e(
+          View,
+          { style: certStyles.footerCol },
+          e(
+            View,
+            { style: certStyles.fieldRow },
+            e(Text, { style: certStyles.fieldLabel }, "Date:"),
+            e(
+              Text,
+              { style: [certStyles.underline, { minWidth: 130 }] },
+              formatDateDDMMYYYY(inputs.examDate),
+            ),
+          ),
+          e(
+            View,
+            { style: certStyles.fieldRow },
+            e(Text, { style: certStyles.fieldLabel }, "Place:"),
+            e(
+              Text,
+              { style: [certStyles.underline, { minWidth: 130 }] },
+              inputs.place,
+            ),
+          ),
+        ),
+        e(
+          View,
+          { style: certStyles.footerColRight },
+          e(
+            Text,
+            { style: certStyles.signatureLine },
+            "Signature & Seal of Registered Medical Practitioner",
+          ),
+        ),
+      ),
     ),
   );
 

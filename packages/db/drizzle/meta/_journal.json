@@ -176,6 +176,13 @@
       "when": 1782446460000,
       "tag": "0024_prescription_lines",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1782888000000,
+      "tag": "0025_prescription_line_quantity",
+      "breakpoints": true
     }
   ]
 }

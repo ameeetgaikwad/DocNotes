@@ -358,12 +358,12 @@ function MedicineDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="medicine-notes">Notes</Label>
+            <Label htmlFor="medicine-notes">Ingredients / Dosage</Label>
             <Textarea
               id="medicine-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional — typical indications, dosage, etc."
+              placeholder="e.g. paracetamol · 500 mg TDS"
               rows={2}
               maxLength={500}
             />

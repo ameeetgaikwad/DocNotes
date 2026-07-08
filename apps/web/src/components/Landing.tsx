@@ -32,7 +32,7 @@ const FEATURES = [
   },
   {
     icon: Pill,
-    title: "Smart Homeopathic Quick Picker",
+    title: "Smart Medicine Quick Picker",
     description: "Fast medicine selection with potencies, built for daily use.",
   },
   {

@@ -7,7 +7,6 @@ import {
   Calendar,
   Users,
   ClipboardList,
-  Activity,
   Loader2,
   Receipt,
   IndianRupee,
@@ -26,6 +25,7 @@ import {
   EditDailyRegisterEntryDialog,
   type RegisterEntryForEdit,
 } from "@/components/daily-register/edit-entry-dialog";
+import { WriteRxCallout } from "@/components/dashboard/write-rx-callout";
 
 function StatCard({
   label,
@@ -915,13 +915,9 @@ export function Dashboard() {
           isLoading={isLoading}
           href="/schedule"
         />
-        <StatCard
-          label="Total Patients"
-          value={data?.totalPatients ?? 0}
-          icon={Users}
-          isLoading={isLoading}
-          href="/patients"
-        />
+        {/* Total Patients dropped from Home per Manoj msg 2094 —
+             count now surfaced at the top-right of the Patients list
+             instead so the same info lives on the page it belongs to. */}
         <StatCard
           label="Register Summary"
           value={todayRegister.data?.totalCases ?? 0}
@@ -930,26 +926,14 @@ export function Dashboard() {
           active={registerSummaryOpen}
           onClick={() => setRegisterSummaryOpen((v) => !v)}
         />
-        {!registerSummaryOpen && (
-          <StatCard
-            label="Records This Week"
-            value={data?.recordsThisWeek ?? 0}
-            icon={Activity}
-            isLoading={isLoading}
-          />
-        )}
+        {!registerSummaryOpen && <WriteRxCallout />}
       </div>
 
       {registerSummaryOpen && (
         <>
           <RegisterSummaryPanel />
           <div className="mb-8">
-            <StatCard
-              label="Records This Week"
-              value={data?.recordsThisWeek ?? 0}
-              icon={Activity}
-              isLoading={isLoading}
-            />
+            <WriteRxCallout />
           </div>
         </>
       )}

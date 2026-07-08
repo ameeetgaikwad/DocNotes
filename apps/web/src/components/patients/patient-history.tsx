@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import Link from "next/link";
 import {
   Loader2,
   AlertCircle,
@@ -9,6 +10,7 @@ import {
   Save,
   Pill,
   Archive,
+  PenLine,
 } from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
 import { formatDate } from "@/lib/format";
@@ -716,6 +718,17 @@ function VisitCard({
                 >
                   F/U
                 </Button>
+                {/* Manoj msg 1947: Rx icon on each visit's Clinical
+                    Notes opens the full-screen prescription editor for
+                    this visit's date. Deep-links so save picks up the
+                    same visit rather than creating today's. */}
+                <Link
+                  href={`/prescribe/${patientId}?date=${visit.visitDate}`}
+                  className="inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs text-muted-foreground hover:bg-accent"
+                  title="Write prescription for this visit"
+                >
+                  <PenLine className="h-3.5 w-3.5" /> Rx
+                </Link>
               </div>
             </div>
             {fuOpen && (
@@ -754,12 +767,17 @@ function VisitCard({
                     disabled={!fuDays}
                     onClick={() => {
                       const reason = fuReason.trim();
-                      // Trailing "!" is what detectFollowUp keys on to
-                      // schedule the appointment; the optional reason
-                      // rides as the appointment's reason text.
+                      // Trailing "!" inside the braces is what
+                      // detectFollowUp keys on to schedule the
+                      // appointment; the optional reason rides as the
+                      // appointment's reason text. Braces (Manoj msg
+                      // 1999) visually fence the follow-up off from
+                      // the rest of the clinical notes; the regex
+                      // doesn't anchor to braces so older un-braced
+                      // lines still parse.
                       const line = reason
-                        ? `Follow up after ${fuDays} days! ${reason}`
-                        : `Follow up after ${fuDays} days!`;
+                        ? `{Follow up after ${fuDays} days! ${reason}}`
+                        : `{Follow up after ${fuDays} days!}`;
                       setForm((prev) => {
                         const current = prev.clinicalNotes;
                         const next =

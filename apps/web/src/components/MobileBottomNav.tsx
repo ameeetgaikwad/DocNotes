@@ -33,10 +33,14 @@ const TABS: NavItem[] = [
   { to: "/dashboard", label: "Home", icon: LayoutDashboard },
   { to: "/patients", label: "Patients", icon: Users },
   { to: "/daily-register", label: "Register", icon: DailyCaseRegisterIcon },
-  { to: "/schedule", label: "Schedule", icon: Calendar },
 ];
 
+// Schedule moved out of the main tabs per Manoj msg 2090 — the
+// Dashboard's Today's Appointments card already routes to /schedule,
+// so a dedicated tab was redundant. Keeping it in the More menu so
+// power users still have direct access without opening Dashboard.
 const MORE_ITEMS: NavItem[] = [
+  { to: "/schedule", label: "Schedule", icon: Calendar },
   {
     to: "/purchase-list",
     label: "Purchase List of Medicine",
@@ -76,7 +80,7 @@ export function MobileBottomNav() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <ul className="grid grid-cols-5">
+        <ul className="grid grid-cols-4">
           {TABS.map((item) => {
             const active = isActivePath(currentPath, item.to);
             return (
