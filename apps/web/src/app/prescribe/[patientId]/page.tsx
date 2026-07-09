@@ -21,6 +21,7 @@ import {
   encodeDurationWithMl,
   isNonTabletMedicine,
   parseDurationWithMl,
+  sanitizeFreeText,
   type DurationUnit,
   type MealTiming,
 } from "@docnotes/shared";
@@ -190,6 +191,11 @@ export default function PrescribePage({
   const [rows, setRows] = useState<RxRow[]>(() => [emptyRow()]);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
+  // Server ids of rows the doctor removed via the trash icon since
+  // the last save (Manoj msg 2244). Passed to the backend on save so
+  // it explicitly deletes them — otherwise the removed rows would
+  // silently persist in the DB and get re-serialized into notes.
+  const [deletedServerIds, setDeletedServerIds] = useState<string[]>([]);
   // The server hydration must only happen ONCE per page load; otherwise
   // a background refetch (after Save, cache-invalidation, etc.) would
   // clobber whatever the doctor is currently typing (Manoj msg 2083
@@ -217,6 +223,9 @@ export default function PrescribePage({
   }, [existingLinesQuery.data, hasHydrated]);
 
   function updateRow(id: string, patch: Partial<RxRow>) {
+    // Any user edit invalidates the "Saved ✓" state so the Save
+    // button flips back to its regular affordance (Manoj msg 2181).
+    setJustSaved(false);
     setRows((prev) =>
       prev.map((r) => {
         if (r.id !== id) return r;
@@ -245,7 +254,7 @@ export default function PrescribePage({
   // the backend upsert treats every row as new and stacks duplicates.
   function buildPayload() {
     return rows
-      .filter((r) => r.medicineName.trim().length > 0)
+      .filter((r) => sanitizeFreeText(r.medicineName).trim().length > 0)
       .map((r) => {
         const ml =
           r.mlQuantity.trim() && Number.isFinite(Number(r.mlQuantity))
@@ -253,12 +262,12 @@ export default function PrescribePage({
             : null;
         return {
           id: r.serverId,
-          medicineName: r.medicineName.trim(),
-          dosage: r.dosage.trim() || null,
+          medicineName: sanitizeFreeText(r.medicineName).trim(),
+          dosage: sanitizeFreeText(r.dosage).trim() || null,
           frequency: r.meal || null,
           duration: encodeDurationWithMl(combineDuration(r), ml),
           quantity: r.quantity ? Number(r.quantity) : null,
-          instructions: r.note.trim() || null,
+          instructions: sanitizeFreeText(r.note).trim() || null,
         };
       });
   }
@@ -289,6 +298,7 @@ export default function PrescribePage({
         patientId,
         visitDate: visitDateParam,
         lines: buildPayload(),
+        deletedIds: deletedServerIds,
       });
       return result;
     },
@@ -297,21 +307,28 @@ export default function PrescribePage({
       queryClient.invalidateQueries({ queryKey: [["prescriptionLine"]] });
       // Adopt server ids so the next Save/Print doesn't duplicate.
       if (result.lines) adoptServerLines(result.lines);
+      // Delete-tombstones have been applied on the server; clear the
+      // client list so a subsequent Save doesn't re-send stale ids.
+      setDeletedServerIds([]);
       // Manoj msg 2085: give the Save button visible feedback that the
-      // action landed — swap in a "Saved ✓" state briefly.
+      // action landed — swap in a "Saved ✓" state. Manoj msg 2181
+      // update: hold that state until the doctor edits or adds a row,
+      // rather than reverting after 2.5s. The reset happens inside
+      // updateRow / Add / Remove handlers below.
       setJustSaved(true);
-      window.setTimeout(() => setJustSaved(false), 2500);
     },
     onError: (e) => setSaveError(e.message),
   });
 
   const printMutation = useMutation({
     mutationFn: async (action: "print" | "download") => {
+      setSaveError(null);
       // Save first so the PDF picks up the freshest data.
       const saved = await trpcClient.prescriptionLine.upsert.mutate({
         patientId,
         visitDate: visitDateParam,
         lines: buildPayload(),
+        deletedIds: deletedServerIds,
       });
       // Adopt server ids so a subsequent Save/Print doesn't duplicate.
       if (saved.lines) adoptServerLines(saved.lines);
@@ -319,7 +336,7 @@ export default function PrescribePage({
         // Nothing was saved — skip the print. This should only fire if
         // the doctor tapped Save & Print with all rows empty, in which
         // case the disabled state has already gated the button.
-        return;
+        return { action };
       }
       const pdf = await trpcClient.export.prescription.mutate({
         visitId: saved.visitId,
@@ -329,6 +346,14 @@ export default function PrescribePage({
       } else {
         downloadBase64File(pdf.base64, pdf.filename, "application/pdf");
       }
+      return { action };
+    },
+    onSuccess: () => {
+      // Delete-tombstones applied — clear so we don't re-send on next save.
+      setDeletedServerIds([]);
+      // Save-then-print counts as a save; light up the Saved ✓ state
+      // the same way plain Save does (Manoj msg 2181).
+      setJustSaved(true);
     },
     onError: (e) => setSaveError(e.message),
   });
@@ -430,7 +455,8 @@ export default function PrescribePage({
             <button
               key={c.medicineName}
               type="button"
-              onClick={() =>
+              onClick={() => {
+                setJustSaved(false);
                 setRows((prev) => {
                   const empty = prev.find(
                     (r) => r.medicineName.trim().length === 0,
@@ -446,8 +472,8 @@ export default function PrescribePage({
                     ...prev,
                     { ...emptyRow(), medicineName: c.medicineName },
                   ];
-                })
-              }
+                });
+              }}
               className="rounded-full border bg-card px-2.5 py-0.5 text-xs hover:bg-accent"
             >
               {c.medicineName}
@@ -464,9 +490,17 @@ export default function PrescribePage({
             index={idx}
             canRemove={rows.length > 1}
             onChange={(patch) => updateRow(row.id, patch)}
-            onRemove={() =>
-              setRows((prev) => prev.filter((r) => r.id !== row.id))
-            }
+            onRemove={() => {
+              setJustSaved(false);
+              // If this row was hydrated from the server, tombstone
+              // its id so the next save tells the backend to delete
+              // it (Manoj msg 2244 delete-gap fix). Client-only rows
+              // never touched the DB, so no tombstone needed.
+              if (row.serverId) {
+                setDeletedServerIds((prev) => [...prev, row.serverId!]);
+              }
+              setRows((prev) => prev.filter((r) => r.id !== row.id));
+            }}
           />
         ))}
       </div>
@@ -474,7 +508,10 @@ export default function PrescribePage({
       <Button
         type="button"
         variant="ghost"
-        onClick={() => setRows((prev) => [...prev, emptyRow()])}
+        onClick={() => {
+          setJustSaved(false);
+          setRows((prev) => [...prev, emptyRow()]);
+        }}
         className="mt-2 text-primary hover:text-primary"
       >
         <Plus className="h-4 w-4" /> Add medicine
@@ -491,11 +528,14 @@ export default function PrescribePage({
           type="button"
           onClick={() => saveMutation.mutate()}
           disabled={saveMutation.isPending || justSaved}
-          // Manoj msg 2085: the button changes to a "Saved" state for
-          // 2.5s after a successful write so it's obvious the action
-          // landed, then reverts to the normal Save affordance.
+          // Manoj msg 2192: the earlier bg-success class rendered as a
+          // dark green, indistinguishable from the primary teal. Swap
+          // for a pale green pill so the "Saved ✓" state is obviously
+          // different — dark green text on a very light green field.
           className={
-            justSaved ? "bg-success text-success-foreground" : undefined
+            justSaved
+              ? "border-emerald-300 bg-emerald-100 text-emerald-900 hover:bg-emerald-100 hover:text-emerald-900"
+              : undefined
           }
         >
           {saveMutation.isPending ? (
@@ -518,7 +558,15 @@ export default function PrescribePage({
           onClick={() => printMutation.mutate("print")}
           disabled={!canPrint || printMutation.isPending}
         >
-          <Printer className="h-4 w-4" /> Save & Print Rx
+          {printMutation.isPending && printMutation.variables === "print" ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Preparing
+            </>
+          ) : (
+            <>
+              <Printer className="h-4 w-4" /> Save & Print Rx
+            </>
+          )}
         </Button>
         <Button
           type="button"
@@ -526,7 +574,13 @@ export default function PrescribePage({
           onClick={() => printMutation.mutate("download")}
           disabled={!canPrint || printMutation.isPending}
         >
-          Download PDF
+          {printMutation.isPending && printMutation.variables === "download" ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Preparing
+            </>
+          ) : (
+            <>Download PDF</>
+          )}
         </Button>
       </div>
     </div>
@@ -552,95 +606,69 @@ function RxRowEditor({
 }) {
   return (
     <div className="rounded-lg border bg-card p-3">
-      {/* Line 1: N. [Medicine name.......]  Qty [__]  ml [__]  🗑
-          Manoj msg 2112: two quantity inputs — tablets and ml. Only
-          one usable per row; filling one auto-disables the other. */}
-      {(() => {
-        const hasTabs = row.quantity.trim() !== "";
-        const hasMl = row.mlQuantity.trim() !== "";
-        const disableTabs = hasMl && !hasTabs;
-        const disableMl = hasTabs && !hasMl;
-        return (
-          <div className="flex items-center gap-2">
-            <span className="w-6 shrink-0 text-sm font-semibold text-muted-foreground">
-              {index + 1}.
-            </span>
-            <Input
-              id={`med-${row.id}`}
-              value={row.medicineName}
-              onChange={(e) => onChange({ medicineName: e.target.value })}
-              placeholder="Medicine name"
-              className="h-9 min-w-0 flex-1 text-base"
-            />
-            <div className="flex shrink-0 items-center gap-1">
-              <span
-                className={`text-xs ${
-                  disableTabs
-                    ? "text-muted-foreground/40"
-                    : "text-muted-foreground"
-                }`}
-              >
-                Qty
-              </span>
-              <Input
-                id={`qty-${row.id}`}
-                type="number"
-                min="0"
-                max="1000"
-                value={row.quantity}
-                disabled={disableTabs}
-                onChange={(e) =>
-                  onChange({
-                    quantity: e.target.value,
-                    quantityManuallyEdited: true,
-                  })
-                }
-                placeholder={
-                  disableTabs
-                    ? "—"
-                    : isNonTabletMedicine(row.medicineName)
-                      ? "—"
-                      : "auto"
-                }
-                className="h-9 w-14 text-center text-base disabled:opacity-40"
-              />
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <Input
-                id={`ml-${row.id}`}
-                type="number"
-                min="0"
-                max="2000"
-                value={row.mlQuantity}
-                disabled={disableMl}
-                onChange={(e) => onChange({ mlQuantity: e.target.value })}
-                placeholder="—"
-                className="h-9 w-14 text-center text-base disabled:opacity-40"
-                aria-label="ml"
-              />
-              <span
-                className={`text-xs ${
-                  disableMl
-                    ? "text-muted-foreground/40"
-                    : "text-muted-foreground"
-                }`}
-              >
-                ml
-              </span>
-            </div>
-            {canRemove && (
-              <button
-                type="button"
-                onClick={onRemove}
-                className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
-                aria-label="Remove medicine"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        );
-      })()}
+      {/* Line 1: N. [Medicine name.......]  [Qty]  [ml]  🗑
+          Manoj msg 2175 (v3): both Qty and ml always stay editable.
+          The earlier mutual-disable behaviour blocked liquid Rx like
+          "1 bottle · 120 ml" where the doctor legitimately wants
+          both. Placeholder inside each box does the labelling now —
+          the standalone label span was redundant with the placeholder
+          (msg 2175 point 3). */}
+      <div className="flex items-center gap-2">
+        <span className="w-6 shrink-0 text-sm font-semibold text-muted-foreground">
+          {index + 1}.
+        </span>
+        <Input
+          id={`med-${row.id}`}
+          value={row.medicineName}
+          // Sanitize on every keystroke (Manoj msg 2200). Some Android
+          // IMEs inject Cf format chars (RLO / ALM) as the user types,
+          // which flips the input's visible rendering right-to-left
+          // and makes it look like nothing was typed. Stripping the
+          // noise before it hits state fixes both the typing UX and
+          // the downstream save.
+          onChange={(e) =>
+            onChange({ medicineName: sanitizeFreeText(e.target.value) })
+          }
+          placeholder="Medicine name"
+          className="h-9 min-w-0 flex-1 text-base"
+        />
+        <Input
+          id={`qty-${row.id}`}
+          type="number"
+          min="0"
+          max="1000"
+          value={row.quantity}
+          onChange={(e) =>
+            onChange({
+              quantity: e.target.value,
+              quantityManuallyEdited: true,
+            })
+          }
+          placeholder="Qty"
+          className="h-9 w-14 shrink-0 text-center text-base"
+        />
+        <Input
+          id={`ml-${row.id}`}
+          type="number"
+          min="0"
+          max="2000"
+          value={row.mlQuantity}
+          onChange={(e) => onChange({ mlQuantity: e.target.value })}
+          placeholder="ml"
+          className="h-9 w-14 shrink-0 text-center text-base"
+          aria-label="ml"
+        />
+        {canRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
+            aria-label="Remove medicine"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </div>
 
       {/* Line 2: dosage chips + meal toggle + × N days — wraps on
           narrow screens; sits on one line on tablets and up. */}

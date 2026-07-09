@@ -625,7 +625,10 @@ function VisitCard({
               </FieldGroup>
             )}
             {showBslPp && (
-              <FieldGroup label="P.P." htmlFor={`${visit.id}-bslp`}>
+              <FieldGroup
+                label="B.S.L. PP (mg/dL)"
+                htmlFor={`${visit.id}-bslp`}
+              >
                 <NumInput
                   id={`${visit.id}-bslp`}
                   value={form.bslPostprandial}
@@ -636,7 +639,7 @@ function VisitCard({
               </FieldGroup>
             )}
             {showBslR && (
-              <FieldGroup label="R" htmlFor={`${visit.id}-bslr`}>
+              <FieldGroup label="B.S.L. R (mg/dL)" htmlFor={`${visit.id}-bslr`}>
                 <NumInput
                   id={`${visit.id}-bslr`}
                   value={form.bslRandom}
