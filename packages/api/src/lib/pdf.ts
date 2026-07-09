@@ -737,6 +737,17 @@ const rxStyles = StyleSheet.create({
   },
 });
 
+// Manoj msg 2263: doctors often type "Dr Manoj Gaikwad" as their
+// fullName in Settings, then the PDF template prefixes "Dr. " on top
+// and prints "Dr. Dr Manoj Gaikwad" in the header and signature line.
+// Strip any leading Dr / Dr. / DR. token (case-insensitive) before we
+// re-add our own canonical "Dr. " so the honorific appears exactly
+// once regardless of what the doctor entered.
+function formatDoctorName(fullName: string): string {
+  const cleaned = fullName.replace(/^\s*(dr\.?|DR\.?)\s+/i, "").trim();
+  return cleaned ? `Dr. ${cleaned}` : fullName;
+}
+
 function calcAgeFromYear(
   year: number | null,
   dob: Date | string | null,
@@ -871,7 +882,11 @@ export async function renderPrescriptionPdf(
         e(
           View,
           { style: rxStyles.doctorBlock },
-          e(Text, { style: rxStyles.doctorName }, `Dr. ${doctor.fullName}`),
+          e(
+            Text,
+            { style: rxStyles.doctorName },
+            formatDoctorName(doctor.fullName),
+          ),
           e(Text, { style: rxStyles.doctorLine }, doctor.qualification),
           e(
             Text,
@@ -950,7 +965,11 @@ export async function renderPrescriptionPdf(
               ? e(Text, { style: rxStyles.rxBody }, notes)
               : e(Text, { style: rxStyles.rxBody }, "—");
           })(),
-      e(Text, { style: rxStyles.signatureLine }, `Dr. ${doctor.fullName}`),
+      e(
+        Text,
+        { style: rxStyles.signatureLine },
+        formatDoctorName(doctor.fullName),
+      ),
     ),
   );
 
@@ -1146,7 +1165,11 @@ export async function renderFoodHandlerCertificatePdf(
         e(
           View,
           { style: certStyles.doctorBlock },
-          e(Text, { style: certStyles.doctorName }, `Dr. ${doctor.fullName}`),
+          e(
+            Text,
+            { style: certStyles.doctorName },
+            formatDoctorName(doctor.fullName),
+          ),
           e(Text, { style: certStyles.doctorLine }, doctor.qualification),
           e(
             Text,
@@ -1397,7 +1420,10 @@ export async function renderDailyRegisterExportPdf(
   const countNonNil = entries.filter((e) => e.paymentStatus !== "nil").length;
 
   const doctorLine = doctor
-    ? [doctor.fullName ? `Dr. ${doctor.fullName}` : null, doctor.clinicName]
+    ? [
+        doctor.fullName ? formatDoctorName(doctor.fullName) : null,
+        doctor.clinicName,
+      ]
         .filter(Boolean)
         .join(" — ")
     : "";
