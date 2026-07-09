@@ -21,6 +21,7 @@ import {
   encodeDurationWithMl,
   isNonTabletMedicine,
   parseDurationWithMl,
+  sanitizeFreeText,
   type DurationUnit,
   type MealTiming,
 } from "@docnotes/shared";
@@ -100,35 +101,6 @@ function combineDuration(row: RxRow): string | null {
   const d = row.durationValue.trim();
   if (!d) return null;
   return `${d} ${row.durationUnit}`;
-}
-
-// Strip invisible Unicode noise from a free-text field before it gets
-// saved. Manoj msg 2181 hit a case where "Glyciphage SR 1gm" rendered
-// as a jumbled string in Clinical Notes — the fingerprint (partial
-// reversals of the original word) is classic bidi override injection,
-// most likely from an Android IME or voice-to-text pipeline that
-// inserted RLE/RLO codepoints. We drop:
-//   - zero-width chars (ZWSP/ZWNJ/ZWJ)
-//   - LRM/RLM directional marks
-//   - bidi override chars (LRE/RLE/PDF/LRO/RLO) and isolate overrides
-//   - the byte-order mark
-//   - other C0 control chars (except space, which is preserved)
-// Legitimate medical text on this app is always plain Latin script;
-// no known workflow needs any of these codepoints.
-function sanitizeFreeText(s: string): string {
-  // Regex source is built as a string then compiled so this file is
-  // free of the literal invisible codepoints we are stripping.
-  // Ranges:
-  //   U+0000..U+0008 + U+000B..U+001F + U+007F  — C0 control chars
-  //     minus tab (U+0009) and newline (U+000A). Medical Rx names
-  //     shouldn't carry NULs or DELs.
-  //   U+200B..U+200F  — zero-width joiner/non-joiner/space + LRM/RLM
-  //   U+202A..U+202E  — LRE / RLE / PDF / LRO / RLO bidi overrides
-  //   U+2066..U+2069  — directional isolate overrides
-  //   U+FEFF          — byte-order mark
-  const NOISE =
-    "[\u0000-\u0008\u000B-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]";
-  return s.replace(new RegExp(NOISE, "g"), "");
 }
 
 // Shared hydration builder — used by both the initial listByVisit
@@ -629,7 +601,15 @@ function RxRowEditor({
         <Input
           id={`med-${row.id}`}
           value={row.medicineName}
-          onChange={(e) => onChange({ medicineName: e.target.value })}
+          // Sanitize on every keystroke (Manoj msg 2200). Some Android
+          // IMEs inject Cf format chars (RLO / ALM) as the user types,
+          // which flips the input's visible rendering right-to-left
+          // and makes it look like nothing was typed. Stripping the
+          // noise before it hits state fixes both the typing UX and
+          // the downstream save.
+          onChange={(e) =>
+            onChange({ medicineName: sanitizeFreeText(e.target.value) })
+          }
           placeholder="Medicine name"
           className="h-9 min-w-0 flex-1 text-base"
         />

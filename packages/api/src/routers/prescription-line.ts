@@ -11,6 +11,7 @@ import {
   upsertPrescriptionSchema,
   isNonTabletMedicine,
   parseDurationWithMl,
+  sanitizeFreeText,
 } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
@@ -64,7 +65,7 @@ export const prescriptionLineRouter = router({
   listByVisit: protectedProcedure
     .input(z.object({ visitId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      return ctx.db
+      const rows = await ctx.db
         .select()
         .from(prescriptionLines)
         .where(
@@ -74,11 +75,22 @@ export const prescriptionLineRouter = router({
           ),
         )
         .orderBy(prescriptionLines.position);
+      // Manoj msg 2200: legacy rows may carry hidden bidi noise from
+      // before the sanitizer landed. Scrub on read so the editor
+      // hydrates cleanly.
+      return rows.map((r) => ({
+        ...r,
+        medicineName: sanitizeFreeText(r.medicineName),
+        dosage: r.dosage ? sanitizeFreeText(r.dosage) : null,
+        instructions: r.instructions ? sanitizeFreeText(r.instructions) : null,
+      }));
     }),
 
   // Frequently-used medicines for this doctor — top 8 by count in the
   // last 90 days. Powers the chip strip above the medicine repeater
-  // (Manoj msg 1947 C3).
+  // (Manoj msg 1947 C3). Manoj msg 2200: pass names through the
+  // sanitizer on read so any legacy rows containing invisible bidi
+  // noise render as clean chips instead of scrambled text.
   frequentlyUsed: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db
       .select({
@@ -95,10 +107,19 @@ export const prescriptionLineRouter = router({
       .groupBy(prescriptionLines.medicineName)
       .orderBy(desc(sql`count(*)`))
       .limit(8);
-    return rows.map((r) => ({
-      medicineName: r.medicineName,
-      count: Number(r.count),
-    }));
+    // De-dup after sanitizing: two DB rows with visually identical
+    // names but different hidden noise would otherwise show as two
+    // separate chips post-scrub. Merge counts and keep the highest.
+    const merged = new Map<string, number>();
+    for (const r of rows) {
+      const clean = sanitizeFreeText(r.medicineName).trim();
+      if (!clean) continue;
+      merged.set(clean, (merged.get(clean) ?? 0) + Number(r.count));
+    }
+    return Array.from(merged.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([medicineName, count]) => ({ medicineName, count }));
   }),
 
   // Upsert: replace the visit's prescription with the incoming lines,
@@ -207,12 +228,17 @@ export const prescriptionLineRouter = router({
         await ctx.db
           .update(prescriptionLines)
           .set({
-            medicineName: l.medicineName,
-            dosage: l.dosage ?? null,
+            // Server-side sanitization (Manoj msg 2200): scrub Cf
+            // format chars + C0 controls before writing, so any
+            // client bypass still lands clean data.
+            medicineName: sanitizeFreeText(l.medicineName),
+            dosage: l.dosage ? sanitizeFreeText(l.dosage) : null,
             frequency: l.frequency ?? null,
             duration: l.duration ?? null,
             quantity: l.quantity ?? null,
-            instructions: l.instructions ?? null,
+            instructions: l.instructions
+              ? sanitizeFreeText(l.instructions)
+              : null,
           })
           .where(
             and(
@@ -228,12 +254,14 @@ export const prescriptionLineRouter = router({
             visitId: visit.id,
             providerId: ctx.session.userId,
             position: nextPos++,
-            medicineName: l.medicineName,
-            dosage: l.dosage ?? null,
+            medicineName: sanitizeFreeText(l.medicineName),
+            dosage: l.dosage ? sanitizeFreeText(l.dosage) : null,
             frequency: l.frequency ?? null,
             duration: l.duration ?? null,
             quantity: l.quantity ?? null,
-            instructions: l.instructions ?? null,
+            instructions: l.instructions
+              ? sanitizeFreeText(l.instructions)
+              : null,
           })),
         );
       }
