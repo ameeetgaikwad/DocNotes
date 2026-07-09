@@ -106,6 +106,13 @@ export const upsertPrescriptionSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "visitDate must be YYYY-MM-DD")
     .optional(),
   lines: z.array(prescriptionLineInputSchema).max(30),
+  // Manoj msg 2244: server row ids the doctor removed via the trash
+  // icon since the last save. The client tracks these so the backend
+  // can explicitly delete them — the previous incomingIds diff only
+  // caught modified rows, not removed ones, so trash-clicked rows
+  // silently persisted in the DB and got re-serialized into the
+  // Clinical Notes on next save.
+  deletedIds: z.array(z.string().uuid()).max(30).optional(),
 });
 
 export type UpsertPrescriptionInput = z.infer<typeof upsertPrescriptionSchema>;

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, eq, sql, desc, notInArray } from "drizzle-orm";
+import { and, eq, sql, desc, inArray, notInArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
   prescriptionLines,
@@ -204,6 +204,25 @@ export const prescriptionLineRouter = router({
             and(
               eq(prescriptionLines.visitId, visit.id),
               notInArray(prescriptionLines.id, incomingIds),
+            ),
+          );
+      }
+
+      // Manoj msg 2244: the diff logic above only catches rows that
+      // stayed in the client's state. Rows the doctor removed via the
+      // trash icon disappear from `input.lines` entirely, so the
+      // previous logic couldn't tell they were meant to be deleted —
+      // they silently persisted in the DB and got re-serialized into
+      // Clinical Notes on the next save. `deletedIds` is a explicit
+      // client-side tombstone list that closes this gap.
+      const deletedIds = input.deletedIds ?? [];
+      if (deletedIds.length > 0) {
+        await ctx.db
+          .delete(prescriptionLines)
+          .where(
+            and(
+              eq(prescriptionLines.visitId, visit.id),
+              inArray(prescriptionLines.id, deletedIds),
             ),
           );
       }

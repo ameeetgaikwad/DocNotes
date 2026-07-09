@@ -191,6 +191,11 @@ export default function PrescribePage({
   const [rows, setRows] = useState<RxRow[]>(() => [emptyRow()]);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
+  // Server ids of rows the doctor removed via the trash icon since
+  // the last save (Manoj msg 2244). Passed to the backend on save so
+  // it explicitly deletes them — otherwise the removed rows would
+  // silently persist in the DB and get re-serialized into notes.
+  const [deletedServerIds, setDeletedServerIds] = useState<string[]>([]);
   // The server hydration must only happen ONCE per page load; otherwise
   // a background refetch (after Save, cache-invalidation, etc.) would
   // clobber whatever the doctor is currently typing (Manoj msg 2083
@@ -293,6 +298,7 @@ export default function PrescribePage({
         patientId,
         visitDate: visitDateParam,
         lines: buildPayload(),
+        deletedIds: deletedServerIds,
       });
       return result;
     },
@@ -301,6 +307,9 @@ export default function PrescribePage({
       queryClient.invalidateQueries({ queryKey: [["prescriptionLine"]] });
       // Adopt server ids so the next Save/Print doesn't duplicate.
       if (result.lines) adoptServerLines(result.lines);
+      // Delete-tombstones have been applied on the server; clear the
+      // client list so a subsequent Save doesn't re-send stale ids.
+      setDeletedServerIds([]);
       // Manoj msg 2085: give the Save button visible feedback that the
       // action landed — swap in a "Saved ✓" state. Manoj msg 2181
       // update: hold that state until the doctor edits or adds a row,
@@ -319,6 +328,7 @@ export default function PrescribePage({
         patientId,
         visitDate: visitDateParam,
         lines: buildPayload(),
+        deletedIds: deletedServerIds,
       });
       // Adopt server ids so a subsequent Save/Print doesn't duplicate.
       if (saved.lines) adoptServerLines(saved.lines);
@@ -339,6 +349,8 @@ export default function PrescribePage({
       return { action };
     },
     onSuccess: () => {
+      // Delete-tombstones applied — clear so we don't re-send on next save.
+      setDeletedServerIds([]);
       // Save-then-print counts as a save; light up the Saved ✓ state
       // the same way plain Save does (Manoj msg 2181).
       setJustSaved(true);
@@ -480,6 +492,13 @@ export default function PrescribePage({
             onChange={(patch) => updateRow(row.id, patch)}
             onRemove={() => {
               setJustSaved(false);
+              // If this row was hydrated from the server, tombstone
+              // its id so the next save tells the backend to delete
+              // it (Manoj msg 2244 delete-gap fix). Client-only rows
+              // never touched the DB, so no tombstone needed.
+              if (row.serverId) {
+                setDeletedServerIds((prev) => [...prev, row.serverId!]);
+              }
               setRows((prev) => prev.filter((r) => r.id !== row.id));
             }}
           />
