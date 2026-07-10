@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MedicineDealersSection } from "@/components/settings/medicine-dealers-section";
+import { ChemistsSection } from "@/components/settings/chemists-section";
 import { ReminderTemplatesSection } from "@/components/settings/reminder-templates-section";
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -330,6 +331,8 @@ export default function SettingsPage() {
           />
 
           <MedicineDealersSection />
+
+          <ChemistsSection />
 
           <ReminderTemplatesSection />
         </div>

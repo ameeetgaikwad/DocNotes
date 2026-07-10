@@ -16,3 +16,4 @@ export * from "./clinic-expense.js";
 export * from "./home-visit.js";
 export * from "./custom-todo.js";
 export * from "./prescription-line.js";
+export * from "./chemist.js";
