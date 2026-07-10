@@ -264,44 +264,79 @@ export function EditPatientDialog({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Date of Birth</Label>
-              <div className="flex items-center gap-2">
+            {/* Manoj msg 2294: Age is a quick-fill shortcut — typing
+                here computes birth year and fills DOB YYYY (clearing
+                DD/MM). Reads back from dobYear so DOB edits refresh
+                Age too. */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="edit-age">Age (yrs)</Label>
                 <Input
+                  id="edit-age"
                   type="text"
                   inputMode="numeric"
-                  value={dobDay}
-                  onChange={(e) => setDobDay(sanitizeDigits(e.target.value, 2))}
-                  placeholder="DD"
-                  className="w-16 text-center"
-                />
-                <span className="text-muted-foreground">/</span>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  value={dobMonth}
-                  onChange={(e) =>
-                    setDobMonth(sanitizeDigits(e.target.value, 2))
+                  value={
+                    dobYear && /^\d{4}$/.test(dobYear)
+                      ? String(new Date().getFullYear() - Number(dobYear))
+                      : ""
                   }
-                  placeholder="MM"
-                  className="w-16 text-center"
-                />
-                <span className="text-muted-foreground">/</span>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  value={dobYear}
-                  onChange={(e) =>
-                    setDobYear(sanitizeDigits(e.target.value, 4))
-                  }
-                  placeholder="YYYY"
-                  className="w-20 text-center"
+                  onChange={(e) => {
+                    const digits = sanitizeDigits(e.target.value, 3);
+                    if (!digits) {
+                      setDobYear("");
+                      setDobDay("");
+                      setDobMonth("");
+                      return;
+                    }
+                    const age = Number(digits);
+                    if (age > 150) return;
+                    setDobYear(String(new Date().getFullYear() - age));
+                    setDobDay("");
+                    setDobMonth("");
+                  }}
+                  placeholder="—"
+                  className="text-center"
                 />
               </div>
-              {dobError && (
-                <p className="text-xs text-destructive">{dobError}</p>
-              )}
+              <div className="col-span-2 space-y-2">
+                <Label>Date of Birth</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={dobDay}
+                    onChange={(e) =>
+                      setDobDay(sanitizeDigits(e.target.value, 2))
+                    }
+                    placeholder="DD"
+                    className="w-16 text-center"
+                  />
+                  <span className="text-muted-foreground">/</span>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={dobMonth}
+                    onChange={(e) =>
+                      setDobMonth(sanitizeDigits(e.target.value, 2))
+                    }
+                    placeholder="MM"
+                    className="w-16 text-center"
+                  />
+                  <span className="text-muted-foreground">/</span>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={dobYear}
+                    onChange={(e) =>
+                      setDobYear(sanitizeDigits(e.target.value, 4))
+                    }
+                    placeholder="YYYY"
+                    className="w-20 text-center"
+                  />
+                </div>
+              </div>
             </div>
+            {dobError && <p className="text-xs text-destructive">{dobError}</p>}
           </div>
 
           <div className="space-y-4">
