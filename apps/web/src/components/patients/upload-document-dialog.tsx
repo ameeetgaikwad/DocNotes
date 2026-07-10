@@ -205,6 +205,16 @@ export function UploadDocumentDialog({
                   onChange={handleFileChange}
                 />
               </div>
+              {/* Manoj msg 2282: Samsung's file picker labels its
+                  "Files" intent as "Photos and videos" and hides
+                  everything else, so it's easy to think we don't
+                  accept PDFs. Call out the supported types so the
+                  doctor knows to tap "Photos and videos" for PDFs. */}
+              <p className="mt-1 text-xs text-muted-foreground">
+                Supports PDF, JPG, PNG, WebP, Word · pick a PDF from your
+                phone&apos;s Files (Samsung labels it &quot;Photos and
+                videos&quot;)
+              </p>
             </div>
 
             <div>
