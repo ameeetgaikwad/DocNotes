@@ -11,9 +11,8 @@ import { users } from "./users.js";
 // Chemists / pharmacy contacts (Manoj msg 2267). Doctors save the
 // WhatsApp numbers of chemists they regularly send prescriptions to,
 // then one-tap Send-to-Chemist from the Rx page opens WhatsApp with
-// the Rx text pre-filled. Structure mirrors medicine_dealers with the
-// addition of a soft-delete column so contact history isn't lost when
-// a doctor removes an outdated entry.
+// the Rx text pre-filled. Structure mirrors medicine_dealers — hard
+// delete on remove (Manoj msg 2300), no soft-delete column.
 export const chemists = pgTable(
   "chemists",
   {
@@ -28,7 +27,6 @@ export const chemists = pgTable(
     // to digits-only before building the wa.me URL.
     whatsappNumber: varchar("whatsapp_number", { length: 32 }).notNull(),
     notes: text("notes"),
-    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

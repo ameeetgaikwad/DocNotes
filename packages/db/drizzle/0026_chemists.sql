@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS "chemists" (
   "name" varchar(200) NOT NULL,
   "whatsapp_number" varchar(32) NOT NULL,
   "notes" text,
-  "deleted_at" timestamp with time zone,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
   CONSTRAINT "chemists_provider_id_users_id_fk"

@@ -11,7 +11,6 @@ export const chemistSchema = z.object({
   name: z.string(),
   whatsappNumber: z.string(),
   notes: z.string().nullable(),
-  deletedAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });

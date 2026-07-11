@@ -1,25 +1,19 @@
 import { z } from "zod";
-import { eq, and, asc, isNull } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { chemists } from "@docnotes/db";
 import { upsertChemistSchema } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
 
 // Chemists / pharmacy contacts (Manoj msg 2267). Follows the same
-// upsert-and-list shape as medicine dealers, with a soft-delete
-// column so contact history isn't lost when a doctor removes an
-// outdated entry.
+// upsert-and-list shape as medicine dealers, hard-delete on remove
+// (Manoj msg 2300 — chemists are a contact list, not medical data).
 export const chemistRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select()
       .from(chemists)
-      .where(
-        and(
-          eq(chemists.providerId, ctx.session.userId),
-          isNull(chemists.deletedAt),
-        ),
-      )
+      .where(eq(chemists.providerId, ctx.session.userId))
       .orderBy(asc(chemists.name));
   }),
 
@@ -70,16 +64,12 @@ export const chemistRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      // Soft delete — contact history stays available for audit even
-      // after the chemist is removed from the picker.
       const [deleted] = await ctx.db
-        .update(chemists)
-        .set({ deletedAt: new Date() })
+        .delete(chemists)
         .where(
           and(
             eq(chemists.id, input.id),
             eq(chemists.providerId, ctx.session.userId),
-            isNull(chemists.deletedAt),
           ),
         )
         .returning();
