@@ -15,3 +15,4 @@ export * from "./clinic-expenses.js";
 export * from "./home-visits.js";
 export * from "./custom-todos.js";
 export * from "./prescription-lines.js";
+export * from "./chemists.js";

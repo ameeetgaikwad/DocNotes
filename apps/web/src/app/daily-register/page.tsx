@@ -385,30 +385,42 @@ export default function DailyRegisterPage() {
             </Table>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 md:mt-6 md:grid-cols-4 md:gap-4">
-            <div className="rounded-xl border bg-card p-4 md:p-5">
-              <p className="text-sm text-muted-foreground">Total Cash</p>
-              <p className="mt-1 text-xl font-semibold md:text-2xl">
-                {formatINR(data.totals.cash)}
-              </p>
+          {/* Manoj msg 2276: two-row financial summary. Row 1 leads
+              with Received Today (most prominent — larger font +
+              primary tint) and Outstanding (Due) side-by-side. Row 2
+              breaks the Received total by tender: Cash / Digital. */}
+          <div className="mt-4 space-y-3 md:mt-6 md:space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 md:gap-4">
+              <div className="rounded-xl border-2 border-primary/40 bg-primary/10 p-4 md:p-6">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Received Today
+                </p>
+                <p className="mt-1 text-2xl font-bold text-primary md:text-3xl">
+                  {formatINR(data.totals.all)}
+                </p>
+              </div>
+              <div className="rounded-xl border bg-card p-4 md:p-6">
+                <p className="text-sm text-muted-foreground">
+                  Outstanding (Due)
+                </p>
+                <p className="mt-1 text-2xl font-semibold md:text-3xl">
+                  {formatINR(data.totals.due)}
+                </p>
+              </div>
             </div>
-            <div className="rounded-xl border bg-card p-4 md:p-5">
-              <p className="text-sm text-muted-foreground">Total Digital</p>
-              <p className="mt-1 text-xl font-semibold md:text-2xl">
-                {formatINR(data.totals.digital)}
-              </p>
-            </div>
-            <div className="rounded-xl border bg-card p-4 md:p-5">
-              <p className="text-sm text-muted-foreground">Outstanding (Due)</p>
-              <p className="mt-1 text-xl font-semibold md:text-2xl">
-                {formatINR(data.totals.due)}
-              </p>
-            </div>
-            <div className="rounded-xl border bg-primary/10 p-4 md:p-5">
-              <p className="text-sm text-muted-foreground">Received Today</p>
-              <p className="mt-1 text-xl font-semibold md:text-2xl">
-                {formatINR(data.totals.all)}
-              </p>
+            <div className="grid gap-3 sm:grid-cols-2 md:gap-4">
+              <div className="rounded-xl border bg-card p-4 md:p-5">
+                <p className="text-sm text-muted-foreground">Total Cash</p>
+                <p className="mt-1 text-xl font-semibold md:text-2xl">
+                  {formatINR(data.totals.cash)}
+                </p>
+              </div>
+              <div className="rounded-xl border bg-card p-4 md:p-5">
+                <p className="text-sm text-muted-foreground">Total Digital</p>
+                <p className="mt-1 text-xl font-semibold md:text-2xl">
+                  {formatINR(data.totals.digital)}
+                </p>
+              </div>
             </div>
           </div>
         </>

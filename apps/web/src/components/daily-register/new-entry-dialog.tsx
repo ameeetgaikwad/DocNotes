@@ -1101,38 +1101,80 @@ function PatientFieldsForm({
           </Select>
         </div>
       </div>
-      <div className="space-y-1.5">
-        <Label className="text-xs md:text-sm">Date of Birth</Label>
-        <div className="flex items-center gap-2">
+      {/* Manoj msg 2294: Age input is a quick-fill shortcut for
+          patients who only know their age. Typing here computes
+          birth year and pushes it into the DOB YYYY field
+          (clearing DD/MM so the row reads as year-only). Reads
+          back from dobYear so editing DOB refreshes Age too. */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-age`} className="text-xs md:text-sm">
+            Age (yrs)
+          </Label>
           <Input
+            id={`${idPrefix}-age`}
             type="text"
             inputMode="numeric"
-            value={dobDay}
-            onChange={(e) => setDobDay(sanitizeDigits(e.target.value, 2))}
-            placeholder="DD"
-            className="w-16 text-center md:h-11 md:text-base"
-          />
-          <span className="text-muted-foreground">/</span>
-          <Input
-            type="text"
-            inputMode="numeric"
-            value={dobMonth}
-            onChange={(e) => setDobMonth(sanitizeDigits(e.target.value, 2))}
-            placeholder="MM"
-            className="w-16 text-center md:h-11 md:text-base"
-          />
-          <span className="text-muted-foreground">/</span>
-          <Input
-            type="text"
-            inputMode="numeric"
-            value={dobYear}
-            onChange={(e) => setDobYear(sanitizeDigits(e.target.value, 4))}
-            placeholder="YYYY"
-            className="w-20 text-center md:h-11 md:text-base"
+            value={
+              dobYear && /^\d{4}$/.test(dobYear)
+                ? String(new Date().getFullYear() - Number(dobYear))
+                : ""
+            }
+            onChange={(e) => {
+              const digits = sanitizeDigits(e.target.value, 3);
+              if (!digits) {
+                setDobYear("");
+                setDobDay("");
+                setDobMonth("");
+                return;
+              }
+              const age = Number(digits);
+              if (age > 150) return;
+              setDobYear(String(new Date().getFullYear() - age));
+              setDobDay("");
+              setDobMonth("");
+            }}
+            placeholder="—"
+            className="text-center md:h-11 md:text-base"
           />
         </div>
-        {dobError && <p className="text-xs text-destructive">{dobError}</p>}
+        <div className="col-span-2 space-y-1.5">
+          <Label className="text-xs md:text-sm">Date of Birth</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={dobDay}
+              onChange={(e) => setDobDay(sanitizeDigits(e.target.value, 2))}
+              placeholder="DD"
+              className="w-16 text-center md:h-11 md:text-base"
+            />
+            <span className="text-muted-foreground">/</span>
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={dobMonth}
+              onChange={(e) => setDobMonth(sanitizeDigits(e.target.value, 2))}
+              placeholder="MM"
+              className="w-16 text-center md:h-11 md:text-base"
+            />
+            <span className="text-muted-foreground">/</span>
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={dobYear}
+              onChange={(e) => setDobYear(sanitizeDigits(e.target.value, 4))}
+              placeholder="YYYY"
+              className="w-20 text-center md:h-11 md:text-base"
+            />
+          </div>
+        </div>
       </div>
+      {dobError && <p className="text-xs text-destructive">{dobError}</p>}
+      <p className="text-[11px] text-muted-foreground">
+        Enter Age for quick registration — it fills the birth year. Add DD/MM
+        later if you have the full DOB.
+      </p>
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}-phone`} className="text-xs md:text-sm">
           Mobile

@@ -12,7 +12,14 @@ import {
   ne,
   getTableColumns,
 } from "drizzle-orm";
-import { patients, dailyRegisterEntries, patientVisits } from "@docnotes/db";
+import {
+  patients,
+  dailyRegisterEntries,
+  patientVisits,
+  medicalRecords,
+  documents,
+  appointments,
+} from "@docnotes/db";
 import {
   createPatientSchema,
   updatePatientSchema,
@@ -489,6 +496,12 @@ export const patientRouter = router({
   // *why* Permanent Delete will be blocked when clinical history exists
   // (Manoj msg 1340 #2).
   listArchived: protectedProcedure.query(async ({ ctx }) => {
+    // Manoj msg 2307: earlier we only counted register entries when
+    // deciding whether "safe to permanently delete" — but the DB has
+    // FKs from patient_visits, medical_records, documents, appointments,
+    // and home_visits too. If any of those referenced the patient, the
+    // hard delete failed with a raw 23503 leak. Count all FK-bearing
+    // tables here so the UI's safety hint matches reality.
     const rows = await ctx.db
       .select({
         ...getTableColumns(patients),
@@ -496,6 +509,10 @@ export const patientRouter = router({
           string | null
         >`(SELECT MAX(${dailyRegisterEntries.visitDate}) FROM ${dailyRegisterEntries} WHERE ${dailyRegisterEntries.patientId} = ${patients.id})`,
         registerEntryCount: sql<number>`(SELECT COUNT(*)::int FROM ${dailyRegisterEntries} WHERE ${dailyRegisterEntries.patientId} = ${patients.id})`,
+        visitCount: sql<number>`(SELECT COUNT(*)::int FROM ${patientVisits} WHERE ${patientVisits.patientId} = ${patients.id})`,
+        medicalRecordCount: sql<number>`(SELECT COUNT(*)::int FROM ${medicalRecords} WHERE ${medicalRecords.patientId} = ${patients.id})`,
+        documentCount: sql<number>`(SELECT COUNT(*)::int FROM ${documents} WHERE ${documents.patientId} = ${patients.id})`,
+        appointmentCount: sql<number>`(SELECT COUNT(*)::int FROM ${appointments} WHERE ${appointments.patientId} = ${patients.id})`,
       })
       .from(patients)
       .where(
@@ -572,15 +589,33 @@ export const patientRouter = router({
         return { id: input.id };
       } catch (err) {
         if (err instanceof TRPCError) throw err;
-        const pgCode = (err as { code?: string } | undefined)?.code;
-        if (pgCode === "23503") {
+        // Manoj msg 2307: Drizzle wraps the pg error inside `cause`,
+        // so the earlier top-level `.code` check missed 23503 and let
+        // the raw query dump escape to the client. Look for the code
+        // at both levels — and, defensively, in the stringified error
+        // — before deciding to re-throw. Any DB error at this point
+        // means the delete cannot proceed; return a CONFLICT with a
+        // user-friendly message either way rather than leaking SQL.
+        const asAny = err as {
+          code?: string;
+          cause?: { code?: string };
+        };
+        const pgCode = asAny?.code ?? asAny?.cause?.code;
+        const stringified = err instanceof Error ? err.message : String(err);
+        if (pgCode === "23503" || stringified.includes("23503")) {
           throw new TRPCError({
             code: "CONFLICT",
             message:
-              "This patient has clinical records and cannot be permanently deleted due to medical and Income Tax retention requirements.",
+              "This patient has clinical records (visits, documents, appointments, or history) and cannot be permanently deleted. Restore them instead.",
           });
         }
-        throw err;
+        // Anything else — network blip, permission issue — surface a
+        // clean message rather than the SQL dump.
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            "Could not permanently delete this patient. Try again in a moment or restore the patient instead.",
+        });
       }
     }),
 });

@@ -33,6 +33,10 @@ type ArchivedPatient = {
   updatedAt: Date;
   lastVisitDate: string | null;
   registerEntryCount: number;
+  visitCount: number;
+  medicalRecordCount: number;
+  documentCount: number;
+  appointmentCount: number;
 };
 
 export default function ArchivedPatientsPage() {
@@ -108,7 +112,16 @@ export default function ArchivedPatientsPage() {
         <div className="rounded-xl border bg-card">
           <ul className="divide-y">
             {archived.map((p) => {
-              const hasHistory = p.registerEntryCount > 0;
+              // Manoj msg 2307: check every FK-referencing table, not
+              // just register entries. Otherwise the safety pill lied
+              // and the delete failed with a raw DB error.
+              const totalRefs =
+                p.registerEntryCount +
+                p.visitCount +
+                p.medicalRecordCount +
+                p.documentCount +
+                p.appointmentCount;
+              const hasHistory = totalRefs > 0;
               return (
                 <li
                   key={p.id}
@@ -125,10 +138,32 @@ export default function ArchivedPatientsPage() {
                     {hasHistory ? (
                       <p className="mt-1 inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300">
                         <Lock className="h-3 w-3" />
-                        {p.registerEntryCount}{" "}
-                        {p.registerEntryCount === 1
-                          ? "register entry"
-                          : "register entries"}
+                        {(() => {
+                          const parts: string[] = [];
+                          if (p.registerEntryCount > 0)
+                            parts.push(
+                              `${p.registerEntryCount} register ${
+                                p.registerEntryCount === 1 ? "entry" : "entries"
+                              }`,
+                            );
+                          if (p.visitCount > 0)
+                            parts.push(
+                              `${p.visitCount} ${p.visitCount === 1 ? "visit" : "visits"}`,
+                            );
+                          if (p.appointmentCount > 0)
+                            parts.push(
+                              `${p.appointmentCount} ${p.appointmentCount === 1 ? "appointment" : "appointments"}`,
+                            );
+                          if (p.documentCount > 0)
+                            parts.push(
+                              `${p.documentCount} ${p.documentCount === 1 ? "document" : "documents"}`,
+                            );
+                          if (p.medicalRecordCount > 0)
+                            parts.push(
+                              `${p.medicalRecordCount} older ${p.medicalRecordCount === 1 ? "note" : "notes"}`,
+                            );
+                          return parts.join(" · ");
+                        })()}
                         {p.lastVisitDate
                           ? ` · last visit ${formatDate(p.lastVisitDate)}`
                           : ""}{" "}

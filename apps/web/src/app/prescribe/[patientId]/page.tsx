@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Check,
   Loader2,
+  MessageCircle,
   Plus,
   Trash2,
   Printer,
@@ -35,6 +36,7 @@ import {
 import { downloadBase64File, printBase64Pdf } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SendToChemistDialog } from "@/components/patients/send-to-chemist-dialog";
 
 interface RxRow {
   id: string; // client key for React list rendering
@@ -196,6 +198,8 @@ export default function PrescribePage({
   // it explicitly deletes them — otherwise the removed rows would
   // silently persist in the DB and get re-serialized into notes.
   const [deletedServerIds, setDeletedServerIds] = useState<string[]>([]);
+  // Send-to-Chemist dialog visibility (Manoj msg 2267).
+  const [chemistDialogOpen, setChemistDialogOpen] = useState(false);
   // The server hydration must only happen ONCE per page load; otherwise
   // a background refetch (after Save, cache-invalidation, etc.) would
   // clobber whatever the doctor is currently typing (Manoj msg 2083
@@ -582,7 +586,37 @@ export default function PrescribePage({
             <>Download PDF</>
           )}
         </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setChemistDialogOpen(true)}
+          disabled={!canPrint}
+        >
+          <MessageCircle className="h-4 w-4" /> Send to Chemist
+        </Button>
       </div>
+
+      <SendToChemistDialog
+        open={chemistDialogOpen}
+        onOpenChange={setChemistDialogOpen}
+        patient={{
+          firstName: patient.firstName,
+          middleName: patient.middleName,
+          lastName: patient.lastName,
+          gender: patient.gender,
+          dateOfBirth: patient.dateOfBirth,
+          dobYear: patient.dobYear,
+        }}
+        visitDate={visitDateParam}
+        lines={buildPayload().map((l) => ({
+          medicineName: l.medicineName,
+          dosage: l.dosage,
+          frequency: l.frequency,
+          duration: l.duration,
+          quantity: l.quantity,
+          instructions: l.instructions,
+        }))}
+      />
     </div>
   );
 }

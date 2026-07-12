@@ -183,6 +183,13 @@
       "when": 1782888000000,
       "tag": "0025_prescription_line_quantity",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1783696800000,
+      "tag": "0026_chemists",
+      "breakpoints": true
     }
   ]
 }
