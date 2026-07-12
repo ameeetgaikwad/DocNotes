@@ -60,7 +60,7 @@
         align-items: center;
         justify-content: center;
       }
-      .icon-wrap img {
+      .icon-wrap svg {
         width: 3rem;
         height: 3rem;
       }
@@ -115,7 +115,40 @@
   <body>
     <main class="card">
       <div class="icon-wrap">
-        <img src="/icon.svg" alt="ClinikNote" />
+        <!-- Amit msg 2318: previously loaded /icon.svg via an <img>
+             src, but the offline SW doesn't intercept non-navigation
+             requests so the asset fetch failed and the broken-image
+             icon showed up on the offline card. Inline the SVG
+             directly so the offline page never depends on the
+             network. The same shape lives in /icon.svg for the rest
+             of the app. -->
+        <svg
+          viewBox="0 0 1477 1477"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-label="ClinikNote"
+        >
+          <path
+            d="M1060 320C1131.8 320 1190 378.203 1190 450V1210C1190 1281.8 1131.8 1340 1060 1340H420C348.203 1340 290 1281.8 290 1210V450C290 378.203 348.203 320 420 320H1060ZM460 410C415.817 410 380 445.817 380 490V1170C380 1214.18 415.817 1250 460 1250H1020C1064.18 1250 1100 1214.18 1100 1170V490C1100 445.817 1064.18 410 1020 410H460Z"
+            fill="#ffffff"
+          />
+          <path
+            d="M771 650C784.255 650 795 660.745 795 674V775H896C909.255 775 920 785.745 920 799V861C920 874.255 909.255 885 896 885H795V986C795 999.255 784.255 1010 771 1010H709C695.745 1010 685 999.255 685 986V885H584C570.745 885 560 874.255 560 861V799C560 785.745 570.745 775 584 775H685V674C685 660.745 695.745 650 709 650H771Z"
+            fill="#ffffff"
+          />
+          <path
+            d="M740 130C789.706 130 830 170.294 830 220C830 269.706 789.706 310 740 310C690.294 310 650 269.706 650 220C650 170.294 690.294 130 740 130ZM740 180C717.909 180 700 197.909 700 220C700 242.091 717.909 260 740 260C762.091 260 780 242.091 780 220C780 197.909 762.091 180 740 180Z"
+            fill="#e2e8f0"
+          />
+          <rect
+            x="505"
+            y="235"
+            width="470"
+            height="180"
+            rx="40"
+            fill="#e2e8f0"
+          />
+        </svg>
       </div>
       <div class="brand">ClinikNote</div>
       <h1>You're offline</h1>
