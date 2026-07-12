@@ -65,3 +65,36 @@ export const exportFoodHandlerCertificateSchema = z.object({
 export type ExportFoodHandlerCertificate = z.infer<
   typeof exportFoodHandlerCertificateSchema
 >;
+
+// Medical Fitness Certificate (Manoj msg 2312). Generic-purpose
+// fitness cert with clinical examination findings block. Doctor
+// picks a purpose (join duties / attend school / etc.), fills the
+// vitals row (BP, pulse), and the PDF renders per Manoj's template.
+export const GENERAL_CONDITION_VALUES = ["good", "fair"] as const;
+export type GeneralCondition = (typeof GENERAL_CONDITION_VALUES)[number];
+
+export const exportMedicalFitnessCertificateSchema = z.object({
+  patientId: z.string().uuid(),
+  examDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "examDate must be YYYY-MM-DD"),
+  // Free text for the fitness purpose — "join his duties", "attend
+  // school", "get admission in a hostel", etc. Required so the cert
+  // makes sense; the client offers common suggestions.
+  purpose: z.string().trim().min(1).max(300),
+  generalCondition: z.enum(GENERAL_CONDITION_VALUES),
+  // Vitals — optional, but bpSystolic + bpDiastolic must appear together
+  // or both be absent (enforced client-side).
+  bpSystolic: z.number().int().min(40).max(300).nullable().optional(),
+  bpDiastolic: z.number().int().min(20).max(200).nullable().optional(),
+  pulse: z.number().int().min(20).max(300).nullable().optional(),
+  // Defaults to "Normal" but the doctor may want to note otherwise.
+  systemicExam: z.string().trim().min(1).max(200),
+  // Honorific override, same shape as Food Handler cert. Empty string
+  // → PDF prints "Mr./Ms." for the doctor to circle in ink.
+  honorific: z.enum(["Mr.", "Ms.", ""]).default(""),
+});
+
+export type ExportMedicalFitnessCertificate = z.infer<
+  typeof exportMedicalFitnessCertificateSchema
+>;

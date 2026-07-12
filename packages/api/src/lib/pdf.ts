@@ -1277,6 +1277,269 @@ export async function renderFoodHandlerCertificatePdf(
   return renderToBuffer(doc as any);
 }
 
+// ---------- Medical Fitness Certificate (Manoj msg 2312) ----------
+// Generic-purpose fitness certificate with a Clinical Examination
+// Findings block. Doctor picks a purpose (join his duties / attend
+// school / get admission in a hostel / etc.), fills the vitals row
+// (BP, pulse), and the PDF renders per Manoj's provided template.
+
+interface FitnessCertPatient {
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  dateOfBirth: Date | string | null;
+  dobYear: number | null;
+  gender: string | null;
+  address: string | null;
+}
+
+interface FitnessCertInputs {
+  examDate: string; // YYYY-MM-DD
+  purpose: string;
+  generalCondition: "good" | "fair";
+  bpSystolic: number | null;
+  bpDiastolic: number | null;
+  pulse: number | null;
+  systemicExam: string;
+  honorific: "Mr." | "Ms." | ""; // "" → prints "Mr./Ms."
+}
+
+function fitnessPatientName(p: FitnessCertPatient): string {
+  return [p.firstName, p.middleName, p.lastName].filter(Boolean).join(" ");
+}
+
+const fitStyles = StyleSheet.create({
+  page: {
+    paddingHorizontal: 40,
+    paddingVertical: 34,
+    fontSize: 11,
+    fontFamily: "Helvetica",
+    lineHeight: 1.45,
+  },
+  title: {
+    fontSize: 15,
+    fontFamily: "Helvetica-Bold",
+    textAlign: "center",
+    marginTop: 20,
+    marginBottom: 14,
+    textDecoration: "underline",
+    color: "#0f172a",
+  },
+  dateRow: {
+    flexDirection: "row",
+    marginTop: 4,
+    marginBottom: 12,
+    fontSize: 11,
+  },
+  dateLabel: {
+    fontFamily: "Helvetica-Bold",
+    marginRight: 4,
+  },
+  body: {
+    fontSize: 11.5,
+    color: "#0f172a",
+    textAlign: "justify",
+    marginBottom: 14,
+  },
+  sectionHeading: {
+    fontSize: 12,
+    fontFamily: "Helvetica-Bold",
+    marginTop: 8,
+    marginBottom: 6,
+    color: "#0f172a",
+  },
+  findingsRow: {
+    flexDirection: "row",
+    marginBottom: 4,
+    fontSize: 11,
+  },
+  findingLabel: {
+    width: 170,
+    fontFamily: "Helvetica-Bold",
+    color: "#0f172a",
+  },
+  findingValue: {
+    flex: 1,
+    color: "#0f172a",
+  },
+  fitStatement: {
+    marginTop: 14,
+    fontSize: 11.5,
+    color: "#0f172a",
+    textAlign: "justify",
+  },
+  signatureBlock: {
+    marginTop: 44,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  signatureLine: {
+    borderTopWidth: 0.5,
+    borderTopColor: "#0f172a",
+    paddingTop: 4,
+    width: 190,
+    textAlign: "center",
+    fontSize: 10,
+    color: "#475569",
+  },
+  sealBox: {
+    borderWidth: 0.6,
+    borderColor: "#94a3b8",
+    borderStyle: "dashed",
+    height: 55,
+    width: 155,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sealLabel: {
+    fontSize: 8,
+    color: "#94a3b8",
+  },
+});
+
+export async function renderMedicalFitnessCertificatePdf(
+  patient: FitnessCertPatient,
+  doctor: DoctorProfileData,
+  inputs: FitnessCertInputs,
+): Promise<Buffer> {
+  const patientName = fitnessPatientName(patient);
+  const age = calcAgeFromYear(patient.dobYear, patient.dateOfBirth);
+  const clinicLine = [
+    doctor.clinicName,
+    doctor.taluka,
+    doctor.district,
+    doctor.state,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const honorific = inputs.honorific || "Mr./Ms.";
+  const conditionText = inputs.generalCondition === "good" ? "Good" : "Fair";
+  const bpText =
+    inputs.bpSystolic != null && inputs.bpDiastolic != null
+      ? `${inputs.bpSystolic} / ${inputs.bpDiastolic} mm of Hg`
+      : "—";
+  const pulseText = inputs.pulse != null ? `${inputs.pulse} per minute` : "—";
+  const addressText = patient.address?.trim() || "—";
+
+  const doc = e(
+    Document,
+    null,
+    e(
+      Page,
+      { size: "A4", style: fitStyles.page },
+      // Same letterhead block as the Food Handler cert so both certs
+      // share the visual identity of the clinic.
+      e(
+        View,
+        { style: certStyles.headerRow },
+        e(
+          View,
+          { style: certStyles.doctorBlock },
+          e(
+            Text,
+            { style: certStyles.doctorName },
+            formatDoctorName(doctor.fullName),
+          ),
+          e(Text, { style: certStyles.doctorLine }, doctor.qualification),
+          e(
+            Text,
+            { style: certStyles.doctorLine },
+            `Reg. No. ${doctor.registrationNumber}`,
+          ),
+          e(
+            Text,
+            { style: certStyles.doctorLine },
+            `Mob.: ${doctor.mobileNumber}`,
+          ),
+        ),
+        e(
+          View,
+          null,
+          e(
+            Text,
+            { style: certStyles.doctorRightLine },
+            doctor.specialization ?? "",
+          ),
+        ),
+      ),
+      e(View, { style: certStyles.hrThick }),
+      clinicLine ? e(Text, { style: certStyles.clinicLine }, clinicLine) : null,
+      e(View, { style: certStyles.hrThin }),
+
+      e(Text, { style: fitStyles.title }, "MEDICAL FITNESS CERTIFICATE"),
+
+      e(
+        View,
+        { style: fitStyles.dateRow },
+        e(Text, { style: fitStyles.dateLabel }, "Date:"),
+        e(Text, null, formatDateDDMMYYYY(inputs.examDate)),
+      ),
+
+      e(
+        Text,
+        { style: fitStyles.body },
+        `This is to certify that I have personally examined ${honorific} ` +
+          `${patientName}, aged ${age != null ? `${age} years` : "___ years"}, ` +
+          `residing at ${addressText}, on ${formatDateDDMMYYYY(inputs.examDate)}.`,
+      ),
+
+      e(
+        Text,
+        { style: fitStyles.sectionHeading },
+        "Clinical Examination Findings:",
+      ),
+      e(
+        View,
+        { style: fitStyles.findingsRow },
+        e(Text, { style: fitStyles.findingLabel }, "General Condition"),
+        e(Text, { style: fitStyles.findingValue }, `: ${conditionText}`),
+      ),
+      e(
+        View,
+        { style: fitStyles.findingsRow },
+        e(Text, { style: fitStyles.findingLabel }, "Blood Pressure"),
+        e(Text, { style: fitStyles.findingValue }, `: ${bpText}`),
+      ),
+      e(
+        View,
+        { style: fitStyles.findingsRow },
+        e(Text, { style: fitStyles.findingLabel }, "Pulse"),
+        e(Text, { style: fitStyles.findingValue }, `: ${pulseText}`),
+      ),
+      e(
+        View,
+        { style: fitStyles.findingsRow },
+        e(Text, { style: fitStyles.findingLabel }, "Systemic Examination"),
+        e(
+          Text,
+          { style: fitStyles.findingValue },
+          `: ${inputs.systemicExam || "Normal"}`,
+        ),
+      ),
+
+      e(
+        Text,
+        { style: fitStyles.fitStatement },
+        `The above-named person is medically fit to ${inputs.purpose}.`,
+      ),
+
+      e(
+        View,
+        { style: fitStyles.signatureBlock },
+        e(
+          View,
+          { style: fitStyles.sealBox },
+          e(Text, { style: fitStyles.sealLabel }, "Clinic Stamp / Seal"),
+        ),
+        e(Text, { style: fitStyles.signatureLine }, "Doctor's Signature"),
+      ),
+    ),
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return renderToBuffer(doc as any);
+}
+
 // ---------- Daily Case Register export (Manoj msg 1105) ----------
 
 const dcrStyles = StyleSheet.create({

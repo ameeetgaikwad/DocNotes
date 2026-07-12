@@ -13,6 +13,7 @@ import {
   exportPrescriptionSchema,
   exportDailyRegisterSchema,
   exportFoodHandlerCertificateSchema,
+  exportMedicalFitnessCertificateSchema,
 } from "@docnotes/shared";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../trpc.js";
@@ -23,6 +24,7 @@ import {
   renderPrescriptionPdf,
   renderDailyRegisterExportPdf,
   renderFoodHandlerCertificatePdf,
+  renderMedicalFitnessCertificatePdf,
 } from "../lib/pdf.js";
 
 export const exportRouter = router({
@@ -405,6 +407,97 @@ export const exportRouter = router({
       return {
         base64: pdfBuffer.toString("base64"),
         filename: `${patient.firstName}_${patient.lastName}_FoodHandler_Cert_${input.examDate}.pdf`,
+      };
+    }),
+
+  // Medical Fitness Certificate (Manoj msg 2312). Second template
+  // in the Medical Certificates picker. Generic-purpose fitness
+  // cert with a clinical examination findings block (General
+  // Condition / BP / Pulse / Systemic Examination) and a
+  // doctor-typed purpose ("join his duties", "attend school", etc.).
+  medicalCertificateFitness: protectedProcedure
+    .input(exportMedicalFitnessCertificateSchema)
+    .mutation(async ({ ctx, input }) => {
+      const [patient, doctor] = await Promise.all([
+        ctx.db
+          .select()
+          .from(patients)
+          .where(
+            and(
+              eq(patients.id, input.patientId),
+              eq(patients.createdBy, ctx.session.userId),
+            ),
+          )
+          .limit(1)
+          .then((rows) => rows[0]),
+        ctx.db
+          .select()
+          .from(doctorProfiles)
+          .where(eq(doctorProfiles.userId, ctx.session.userId))
+          .limit(1)
+          .then((rows) => rows[0]),
+      ]);
+      if (!patient) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Patient not found",
+        });
+      }
+      if (!doctor) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Doctor profile is incomplete — set it up in Settings before printing certificates.",
+        });
+      }
+
+      const pdfBuffer = await renderMedicalFitnessCertificatePdf(
+        {
+          firstName: patient.firstName,
+          middleName: patient.middleName,
+          lastName: patient.lastName,
+          dateOfBirth: patient.dateOfBirth,
+          dobYear: patient.dobYear,
+          gender: patient.gender,
+          address: patient.address,
+        },
+        {
+          fullName: doctor.fullName,
+          qualification: doctor.qualification,
+          specialization: doctor.specialization,
+          registrationNumber: doctor.registrationNumber,
+          mobileNumber: doctor.mobileNumber,
+          email: doctor.email,
+          clinicName: doctor.clinicName,
+          taluka: doctor.taluka,
+          district: doctor.district,
+          state: doctor.state,
+        },
+        {
+          examDate: input.examDate,
+          purpose: input.purpose,
+          generalCondition: input.generalCondition,
+          bpSystolic: input.bpSystolic ?? null,
+          bpDiastolic: input.bpDiastolic ?? null,
+          pulse: input.pulse ?? null,
+          systemicExam: input.systemicExam,
+          honorific: input.honorific,
+        },
+      );
+
+      logAudit(ctx, {
+        action: "export",
+        resource: "medical_certificate_fitness",
+        resourceId: input.patientId,
+        metadata: {
+          purpose: input.purpose,
+          examDate: input.examDate,
+        },
+      });
+
+      return {
+        base64: pdfBuffer.toString("base64"),
+        filename: `${patient.firstName}_${patient.lastName}_Fitness_Cert_${input.examDate}.pdf`,
       };
     }),
 
