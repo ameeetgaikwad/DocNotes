@@ -6,7 +6,10 @@
 // "Your connection is not private" screen. All non-navigation
 // requests pass through — no interception of tRPC/auth/live data.
 
-const CACHE_VERSION = "cn-offline-v1";
+// Amit msg 2318: bumped from v1 → v2 so activate() will purge the
+// stale v1 cache and clients pick up the offline-page + fetch handler
+// changes on next load.
+const CACHE_VERSION = "cn-offline-v2";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE_URLS = [OFFLINE_URL, "/icon.svg", "/manifest.json"];
 
@@ -33,9 +36,38 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
-  // Only intercept top-level navigations — everything else (assets,
-  // tRPC, Clerk, images) falls through to the network unchanged so
-  // errors bubble up normally and live data isn't stale-cached.
+
+  // Amit msg 2318: precached assets (icon.svg, manifest.json) must
+  // fall back to the cache on network failure — otherwise the offline
+  // page loaded fine but its <img src="/icon.svg"> broke because the
+  // asset request wasn't a navigation and passed through to a dead
+  // network. Handle precached URLs first: try network, fall back to
+  // cache on any error. Non-navigation requests for URLs outside the
+  // precache list still pass through unchanged so live data isn't
+  // stale-cached.
+  const url = new URL(request.url);
+  if (
+    request.method === "GET" &&
+    url.origin === self.location.origin &&
+    PRECACHE_URLS.includes(url.pathname)
+  ) {
+    event.respondWith(
+      (async () => {
+        try {
+          return await fetch(request);
+        } catch {
+          const cache = await caches.open(CACHE_VERSION);
+          const cached = await cache.match(url.pathname);
+          if (cached) return cached;
+          throw new Error("Precached asset missing from cache");
+        }
+      })(),
+    );
+    return;
+  }
+
+  // Navigation requests — same behaviour as before: try network,
+  // serve the cached offline page on any failure.
   if (request.mode !== "navigate") return;
 
   event.respondWith(
@@ -44,13 +76,9 @@ self.addEventListener("fetch", (event) => {
         const networkResponse = await fetch(request);
         return networkResponse;
       } catch {
-        // Network failure of any kind (offline, DNS, TLS/cert error,
-        // timeout) → serve the pre-cached offline page.
         const cache = await caches.open(CACHE_VERSION);
         const cached = await cache.match(OFFLINE_URL);
         if (cached) return cached;
-        // Last-ditch fallback — an empty 503 rather than throwing so
-        // the browser doesn't show its own error page.
         return new Response("Offline", {
           status: 503,
           statusText: "Offline",
