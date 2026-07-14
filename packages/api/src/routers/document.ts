@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { eq, and, desc, sql } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { documents } from "@docnotes/db";
 import {
   createDocumentSchema,
   updateDocumentSchema,
   documentListSchema,
+  DOCUMENT_STORAGE_CAP_BYTES,
 } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
@@ -14,6 +16,30 @@ import {
   createPresignedDownloadUrl,
   deleteS3Object,
 } from "../lib/s3.js";
+
+// Sum the current provider's active + uploading document sizes.
+// Uploading rows are counted too so a doctor can't race multiple
+// tab-opens to push past the cap. Shared by the usage query and the
+// requestUpload cap check.
+async function computeUsedBytes(
+  db: import("@docnotes/db").Database,
+  userId: string,
+): Promise<number> {
+  const [row] = await db
+    .select({
+      total: sql<string>`COALESCE(SUM(${documents.sizeBytes}), 0)`,
+    })
+    .from(documents)
+    .where(
+      and(
+        eq(documents.uploadedBy, userId),
+        sql`${documents.status} <> 'archived'`,
+      ),
+    );
+  // Postgres returns SUM as a numeric string — normalise to Number
+  // here. 25 MB fits comfortably in safe-integer range.
+  return Number(row?.total ?? 0);
+}
 
 export const documentRouter = router({
   list: protectedProcedure
@@ -78,9 +104,40 @@ export const documentRouter = router({
       return result[0] ?? null;
     }),
 
+  // Manoj msg 2369: per-user storage usage. Powers the progress bar
+  // and the tiered warnings (20/40/60/80%) in the Documents section.
+  usage: protectedProcedure.query(async ({ ctx }) => {
+    const usedBytes = await computeUsedBytes(ctx.db, ctx.session.userId);
+    return {
+      usedBytes,
+      capBytes: DOCUMENT_STORAGE_CAP_BYTES,
+      percentUsed: Math.min(
+        100,
+        Math.round((usedBytes / DOCUMENT_STORAGE_CAP_BYTES) * 100),
+      ),
+    };
+  }),
+
   requestUpload: protectedProcedure
     .input(createDocumentSchema)
     .mutation(async ({ ctx, input }) => {
+      // Cap enforcement (Manoj msg 2369). Add the incoming file size to
+      // the current total and refuse if it would push past the cap.
+      // Client-side image compression should keep most uploads well
+      // under the ceiling; this is the last-line defence.
+      const usedBytes = await computeUsedBytes(ctx.db, ctx.session.userId);
+      if (usedBytes + input.sizeBytes > DOCUMENT_STORAGE_CAP_BYTES) {
+        const capMb = Math.round(DOCUMENT_STORAGE_CAP_BYTES / (1024 * 1024));
+        const usedMb = Math.round((usedBytes / (1024 * 1024)) * 10) / 10;
+        throw new TRPCError({
+          code: "PAYLOAD_TOO_LARGE",
+          message:
+            `You've used ${usedMb} MB of your ${capMb} MB storage limit. ` +
+            "Delete unused documents from other patients before uploading, " +
+            "or ask the developer to enable a paid plan.",
+        });
+      }
+
       const s3Key = generateS3Key(input.patientId, input.name);
 
       const [doc] = await ctx.db

@@ -14,6 +14,27 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { UploadDocumentDialog } from "./upload-document-dialog";
 
+// Manoj msg 2369: colour + tone of the storage bar / label at each
+// 20% tier. Green under 40%, amber 40-80%, red 80%+.
+function storageTierClass(percent: number): {
+  bar: string;
+  label: string;
+} {
+  if (percent >= 80)
+    return { bar: "bg-destructive", label: "text-destructive" };
+  if (percent >= 60)
+    return { bar: "bg-amber-500", label: "text-amber-700 dark:text-amber-300" };
+  if (percent >= 40)
+    return { bar: "bg-amber-400", label: "text-amber-700 dark:text-amber-300" };
+  return { bar: "bg-emerald-500", label: "text-muted-foreground" };
+}
+
+function formatMB(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  if (mb < 0.1) return "< 0.1 MB";
+  return `${mb.toFixed(1)} MB`;
+}
+
 const CATEGORY_LABELS: Record<string, string> = {
   lab_report: "Lab Report",
   imaging: "Imaging",
@@ -50,6 +71,7 @@ export function PatientDocuments({ patientId }: { patientId: string }) {
       limit: 20,
     }),
   );
+  const usageQuery = useQuery(trpc.document.usage.queryOptions());
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => trpcClient.document.delete.mutate({ id }),
@@ -94,6 +116,11 @@ export function PatientDocuments({ patientId }: { patientId: string }) {
     }
   }
 
+  const usage = usageQuery.data;
+  const usageTier = usage
+    ? storageTierClass(usage.percentUsed)
+    : { bar: "bg-emerald-500", label: "text-muted-foreground" };
+
   return (
     <div className="rounded-xl border bg-card">
       <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
@@ -108,6 +135,35 @@ export function PatientDocuments({ patientId }: { patientId: string }) {
           Upload
         </Button>
       </div>
+
+      {/* Manoj msg 2369: per-user storage usage across all patients.
+          Progress bar + tiered warnings at 20/40/60/80% so the doctor
+          isn't surprised by a hard block at 100%. */}
+      {usage && (
+        <div className="border-b bg-muted/20 px-4 py-3 sm:px-6">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className={usageTier.label}>
+              Storage: {formatMB(usage.usedBytes)} of {formatMB(usage.capBytes)}{" "}
+              ({usage.percentUsed}%)
+            </span>
+            {usage.percentUsed >= 80 ? (
+              <span className="text-destructive font-medium">
+                Almost full — delete unused files to make room
+              </span>
+            ) : usage.percentUsed >= 60 ? (
+              <span className="text-amber-700 dark:text-amber-300">
+                Getting close to the limit
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={`h-full transition-all ${usageTier.bar}`}
+              style={{ width: `${Math.max(2, usage.percentUsed)}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
