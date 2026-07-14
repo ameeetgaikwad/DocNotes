@@ -926,8 +926,14 @@ export function NewDailyRegisterEntryDialog({
               later from the Patient Card summary. */}
           <div className="space-y-3 rounded-md border bg-muted/30 p-3 md:p-4">
             <p className="text-sm font-medium md:text-base">Initial Vitals</p>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
+            {/* Manoj msg 2378: Weight and SpO2 don't need equal thirds
+                — a couple of digits fit. Temperature was cramped
+                because it shares its column with the °C/°F toggle.
+                Re-weight to 2:2:3 (Weight ≈ 28%, SpO2 ≈ 28%,
+                Temp ≈ 43%) via a 7-column grid so the Temp input has
+                room to breathe alongside its unit buttons. */}
+            <div className="grid grid-cols-7 gap-3">
+              <div className="col-span-2 space-y-1.5">
                 <Label htmlFor="v-wt" className="text-xs md:text-sm">
                   Weight (kg)
                 </Label>
@@ -945,7 +951,7 @@ export function NewDailyRegisterEntryDialog({
                   className="md:h-11 md:text-base"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="col-span-2 space-y-1.5">
                 <Label htmlFor="v-spo2" className="text-xs md:text-sm">
                   SpO2 (%)
                 </Label>
@@ -959,7 +965,7 @@ export function NewDailyRegisterEntryDialog({
                   className="md:h-11 md:text-base"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="col-span-3 space-y-1.5">
                 <Label htmlFor="v-temp" className="text-xs md:text-sm">
                   Temp ({tempUnit === "C" ? "°C" : "°F"})
                 </Label>
