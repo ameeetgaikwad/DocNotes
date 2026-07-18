@@ -200,6 +200,11 @@ export default function PrescribePage({
   const [deletedServerIds, setDeletedServerIds] = useState<string[]>([]);
   // Send-to-Chemist dialog visibility (Manoj msg 2267).
   const [chemistDialogOpen, setChemistDialogOpen] = useState(false);
+  // Manoj msg 2407: user complaint — tapping a frequently-used chip
+  // when the medicine is already in the row list appended a duplicate.
+  // We now scroll to the existing row and briefly ring it instead of
+  // appending. This state clears after 1.5s.
+  const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
   // The server hydration must only happen ONCE per page load; otherwise
   // a background refetch (after Save, cache-invalidation, etc.) would
   // clobber whatever the doctor is currently typing (Manoj msg 2083
@@ -461,6 +466,24 @@ export default function PrescribePage({
               type="button"
               onClick={() => {
                 setJustSaved(false);
+                // Manoj msg 2407: dedup — if this medicine is already
+                // on the list (whether the doctor typed it or it was
+                // hydrated from an earlier same-day Rx), scroll to that
+                // row and ring it briefly instead of appending. Kills
+                // the "why is Telsar beta showing twice?" class of bug.
+                const existing = rows.find(
+                  (r) =>
+                    r.medicineName.trim().toLowerCase() ===
+                    c.medicineName.toLowerCase(),
+                );
+                if (existing) {
+                  setHighlightedRowId(existing.id);
+                  document
+                    .getElementById(`rx-row-${existing.id}`)
+                    ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  window.setTimeout(() => setHighlightedRowId(null), 1500);
+                  return;
+                }
                 setRows((prev) => {
                   const empty = prev.find(
                     (r) => r.medicineName.trim().length === 0,
@@ -493,6 +516,7 @@ export default function PrescribePage({
             row={row}
             index={idx}
             canRemove={rows.length > 1}
+            highlighted={highlightedRowId === row.id}
             onChange={(patch) => updateRow(row.id, patch)}
             onRemove={() => {
               setJustSaved(false);
@@ -629,17 +653,24 @@ function RxRowEditor({
   row,
   index,
   canRemove,
+  highlighted,
   onChange,
   onRemove,
 }: {
   row: RxRow;
   index: number;
   canRemove: boolean;
+  highlighted: boolean;
   onChange: (patch: Partial<RxRow>) => void;
   onRemove: () => void;
 }) {
   return (
-    <div className="rounded-lg border bg-card p-3">
+    <div
+      id={`rx-row-${row.id}`}
+      className={`rounded-lg border bg-card p-3 transition-shadow ${
+        highlighted ? "ring-2 ring-primary/60 shadow-md" : ""
+      }`}
+    >
       {/* Line 1: N. [Medicine name.......]  [Qty]  [ml]  🗑
           Manoj msg 2175 (v3): both Qty and ml always stay editable.
           The earlier mutual-disable behaviour blocked liquid Rx like
