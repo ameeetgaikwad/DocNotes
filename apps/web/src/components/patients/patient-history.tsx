@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Loader2,
   AlertCircle,
@@ -297,6 +298,7 @@ function VisitCard({
   patientId: string;
 }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const initial = visitToForm(visit);
   const [form, setForm] = useState<VisitFormState>(initial);
   // Tracks the most recently saved snapshot so the Save/Discard
@@ -731,22 +733,36 @@ function VisitCard({
                     an unguarded tap silently drops what was typed. */}
                 <Link
                   href={`/prescribe/${patientId}?date=${visit.visitDate}`}
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     if (!dirty) return;
+                    // P1 review fix: stop the default nav BEFORE
+                    // prompting, then await the save. The prior code
+                    // fired mutate() as fire-and-forget and let the
+                    // Link navigate immediately — a slow or failed
+                    // save could leave the doctor on the Rx page
+                    // while a stale-visit Rx save later rebuilt the
+                    // notes column from the pre-edit snapshot,
+                    // silently discarding the just-typed notes.
+                    e.preventDefault();
                     const proceed = window.confirm(
                       "You have unsaved clinical notes. Save them before opening Write Rx? " +
                         "Tap OK to save & continue, Cancel to stay and finish here.",
                     );
-                    if (!proceed) {
-                      e.preventDefault();
-                      return;
+                    if (!proceed) return;
+                    try {
+                      await saveMutation.mutateAsync();
+                      router.push(
+                        `/prescribe/${patientId}?date=${visit.visitDate}`,
+                      );
+                    } catch (err) {
+                      const msg =
+                        err instanceof Error
+                          ? err.message
+                          : "Please try again.";
+                      window.alert(
+                        `Couldn't save your notes: ${msg}\n\nStaying on this page so you don't lose them.`,
+                      );
                     }
-                    // Save first, then let the Link handle navigation.
-                    // Fire-and-forget — the save runs in background;
-                    // even if it takes a moment the doctor is already
-                    // on the Rx page and the notes are safely in
-                    // flight to the DB.
-                    saveMutation.mutate();
                   }}
                   className="inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs text-muted-foreground hover:bg-accent"
                   title="Write prescription for this visit"
