@@ -1,7 +1,14 @@
 import { z } from "zod";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, or, gt, desc, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { documents } from "@docnotes/db";
+import { documents, type Database } from "@docnotes/db";
+
+// Accepts either the top-level Database or a transaction handle (both
+// expose the query methods we use). Needed because requestUpload runs
+// computeUsedBytes inside a `db.transaction(...)` block.
+type Queryable =
+  | Database
+  | Parameters<Parameters<Database["transaction"]>[0]>[0];
 import {
   createDocumentSchema,
   updateDocumentSchema,
@@ -17,25 +24,51 @@ import {
   deleteS3Object,
 } from "../lib/s3.js";
 
-// Sum the current provider's active + uploading document sizes.
-// Uploading rows are counted too so a doctor can't race multiple
-// tab-opens to push past the cap. Shared by the usage query and the
-// requestUpload cap check.
+// Age after which an "uploading" row is treated as abandoned. The
+// browser upload is expected to complete in seconds; anything still in
+// the uploading state after this window is either a failed presign, a
+// failed PUT, or a failed confirmUpload — none of which the doctor can
+// clean up herself, and none of which should permanently consume her
+// storage cap.
+const UPLOADING_ROW_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+// Sum the doctor's active document sizes. `mode` controls whether
+// still-pending uploads are counted:
+//
+//   "display" — the number shown on the Documents progress bar. Only
+//     confirmed-active rows count, so a failed upload doesn't leave a
+//     phantom byte count the doctor can't understand or clear.
+//
+//   "reservation" — used by requestUpload to reserve capacity for a
+//     new upload. Counts active bytes + still-pending uploads created
+//     within UPLOADING_ROW_TTL_MS so concurrent uploads from multiple
+//     tabs can't both slip past the cap. Older abandoned uploading
+//     rows are excluded so they don't permanently block new uploads
+//     (Amit review P2).
 async function computeUsedBytes(
-  db: import("@docnotes/db").Database,
+  db: Queryable,
   userId: string,
+  mode: "display" | "reservation" = "display",
 ): Promise<number> {
+  const statusCondition =
+    mode === "display"
+      ? eq(documents.status, "active")
+      : or(
+          eq(documents.status, "active"),
+          and(
+            eq(documents.status, "uploading"),
+            gt(
+              documents.createdAt,
+              new Date(Date.now() - UPLOADING_ROW_TTL_MS),
+            ),
+          ),
+        );
   const [row] = await db
     .select({
       total: sql<string>`COALESCE(SUM(${documents.sizeBytes}), 0)`,
     })
     .from(documents)
-    .where(
-      and(
-        eq(documents.uploadedBy, userId),
-        sql`${documents.status} <> 'archived'`,
-      ),
-    );
+    .where(and(eq(documents.uploadedBy, userId), statusCondition));
   // Postgres returns SUM as a numeric string — normalise to Number
   // here. 25 MB fits comfortably in safe-integer range.
   return Number(row?.total ?? 0);
@@ -121,41 +154,57 @@ export const documentRouter = router({
   requestUpload: protectedProcedure
     .input(createDocumentSchema)
     .mutation(async ({ ctx, input }) => {
-      // Cap enforcement (Manoj msg 2369). Add the incoming file size to
-      // the current total and refuse if it would push past the cap.
-      // Client-side image compression should keep most uploads well
-      // under the ceiling; this is the last-line defence.
-      const usedBytes = await computeUsedBytes(ctx.db, ctx.session.userId);
-      if (usedBytes + input.sizeBytes > DOCUMENT_STORAGE_CAP_BYTES) {
-        const capMb = Math.round(DOCUMENT_STORAGE_CAP_BYTES / (1024 * 1024));
-        const usedMb = Math.round((usedBytes / (1024 * 1024)) * 10) / 10;
-        throw new TRPCError({
-          code: "PAYLOAD_TOO_LARGE",
-          message:
-            `You've used ${usedMb} MB of your ${capMb} MB storage limit. ` +
-            "Delete unused documents from other patients before uploading, " +
-            "or ask the developer to enable a paid plan.",
-        });
-      }
-
       const s3Key = generateS3Key(input.patientId, input.name);
 
-      const [doc] = await ctx.db
-        .insert(documents)
-        .values({
-          patientId: input.patientId,
-          medicalRecordId: input.medicalRecordId ?? null,
-          name: input.name,
-          category: input.category,
-          mimeType: input.mimeType,
-          sizeBytes: input.sizeBytes,
-          s3Key,
-          status: "uploading",
-          notes: input.notes ?? null,
-          uploadedBy: ctx.session.userId,
-        })
-        .returning();
+      // Amit review P2: cap check + reservation must be atomic.
+      // Without this, two concurrent requestUpload calls from the same
+      // doctor (multiple tabs, or a retry storm) can both read the
+      // same usedBytes, both pass the cap check, and both insert
+      // uploading rows whose combined size exceeds the cap. Wrap the
+      // read + insert in a transaction, and take a per-user Postgres
+      // advisory lock so parallel calls serialize instead of racing.
+      // The lock is released automatically at transaction end.
+      const doc = await ctx.db.transaction(async (tx) => {
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtext(${ctx.session.userId}))`,
+        );
+        const usedBytes = await computeUsedBytes(
+          tx,
+          ctx.session.userId,
+          "reservation",
+        );
+        if (usedBytes + input.sizeBytes > DOCUMENT_STORAGE_CAP_BYTES) {
+          const capMb = Math.round(DOCUMENT_STORAGE_CAP_BYTES / (1024 * 1024));
+          const usedMb = Math.round((usedBytes / (1024 * 1024)) * 10) / 10;
+          throw new TRPCError({
+            code: "PAYLOAD_TOO_LARGE",
+            message:
+              `You've used ${usedMb} MB of your ${capMb} MB storage limit. ` +
+              "Delete unused documents from other patients before uploading, " +
+              "or ask the developer to enable a paid plan.",
+          });
+        }
+        const [row] = await tx
+          .insert(documents)
+          .values({
+            patientId: input.patientId,
+            medicalRecordId: input.medicalRecordId ?? null,
+            name: input.name,
+            category: input.category,
+            mimeType: input.mimeType,
+            sizeBytes: input.sizeBytes,
+            s3Key,
+            status: "uploading",
+            notes: input.notes ?? null,
+            uploadedBy: ctx.session.userId,
+          })
+          .returning();
+        return row!;
+      });
 
+      // Presigned URL generation lives OUTSIDE the transaction — the
+      // S3 round-trip shouldn't hold the DB lock, and the URL is safe
+      // to hand out whether or not the browser ultimately PUTs to it.
       const uploadUrl = await createPresignedUploadUrl(
         s3Key,
         input.mimeType,
@@ -165,11 +214,11 @@ export const documentRouter = router({
       logAudit(ctx, {
         action: "create",
         resource: "document",
-        resourceId: doc!.id,
+        resourceId: doc.id,
       });
 
       return {
-        documentId: doc!.id,
+        documentId: doc.id,
         uploadUrl,
         s3Key,
       };
