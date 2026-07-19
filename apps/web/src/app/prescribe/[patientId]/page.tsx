@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -205,6 +205,21 @@ export default function PrescribePage({
   // We now scroll to the existing row and briefly ring it instead of
   // appending. This state clears after 1.5s.
   const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
+  // Amit review fix: capture the rows array reference at Save-click
+  // time. If the doctor edits any field before the response lands, the
+  // subsequent `setRows` call in updateRow / add / remove replaces the
+  // array reference. On save success we compare current rows to this
+  // ref — matching means safe to adopt server ids; mismatching means
+  // the user is still editing, so skip the adoption and let the next
+  // save carry the newer state.
+  const rowsAtSubmitRef = useRef<RxRow[] | null>(null);
+  // Mirror the live rows array so mutation success handlers can compare
+  // against the CURRENT state (not the closure snapshot from when the
+  // handler was defined).
+  const rowsRef = useRef(rows);
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
   // The server hydration must only happen ONCE per page load; otherwise
   // a background refetch (after Save, cache-invalidation, etc.) would
   // clobber whatever the doctor is currently typing (Manoj msg 2083
@@ -296,13 +311,27 @@ export default function PrescribePage({
       instructions: string | null;
     }>,
   ) {
-    if (lines.length === 0) return;
+    if (lines.length === 0) {
+      // P1 review fix: the previous early-return left the editor row
+      // carrying its now-deleted serverId. If the doctor then typed a
+      // new medicine into that same row, the backend upsert would
+      // treat the payload as an update to the deleted id, silently
+      // save nothing, and the UI would report success. Replace with a
+      // fresh id-less empty row so the next payload is treated as an
+      // insert.
+      setRows([emptyRow()]);
+      return;
+    }
     setRows(lines.map((l) => rowFromServerLine(l)));
   }
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       setSaveError(null);
+      // Snapshot the array reference at submit time. Any subsequent
+      // setRows (typing, add, remove) replaces this reference, which
+      // lets onSuccess detect "user edited during save" cheaply.
+      rowsAtSubmitRef.current = rows;
       const result = await trpcClient.prescriptionLine.upsert.mutate({
         patientId,
         visitDate: visitDateParam,
@@ -314,8 +343,18 @@ export default function PrescribePage({
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: [["patientVisit"]] });
       queryClient.invalidateQueries({ queryKey: [["prescriptionLine"]] });
-      // Adopt server ids so the next Save/Print doesn't duplicate.
-      if (result.lines) adoptServerLines(result.lines);
+      // Amit review fix: only adopt server ids when the doctor hasn't
+      // touched the rows since Save was clicked. Reference-equality
+      // works because every mutation path (updateRow / add / remove)
+      // calls setRows with a new array. If they diverge, the newer
+      // typing wins — the next Save will pick it up cleanly.
+      const untouchedSinceSubmit =
+        rowsAtSubmitRef.current !== null &&
+        rowsRef.current === rowsAtSubmitRef.current;
+      if (result.lines && untouchedSinceSubmit) {
+        adoptServerLines(result.lines);
+      }
+      rowsAtSubmitRef.current = null;
       // Delete-tombstones have been applied on the server; clear the
       // client list so a subsequent Save doesn't re-send stale ids.
       setDeletedServerIds([]);
@@ -323,15 +362,26 @@ export default function PrescribePage({
       // action landed — swap in a "Saved ✓" state. Manoj msg 2181
       // update: hold that state until the doctor edits or adds a row,
       // rather than reverting after 2.5s. The reset happens inside
-      // updateRow / Add / Remove handlers below.
-      setJustSaved(true);
+      // updateRow / Add / Remove handlers below. If the doctor kept
+      // typing during the save, skip the "Saved ✓" flash — the Save
+      // button should still look actionable because there's newer
+      // state waiting to be persisted.
+      if (untouchedSinceSubmit) setJustSaved(true);
     },
-    onError: (e) => setSaveError(e.message),
+    onError: (e) => {
+      rowsAtSubmitRef.current = null;
+      setSaveError(e.message);
+    },
   });
 
   const printMutation = useMutation({
     mutationFn: async (action: "print" | "download") => {
       setSaveError(null);
+      // Amit review fix: same snapshot-guard as saveMutation. Print
+      // flows are less likely to race with typing (doctor's tap-and-
+      // wait for PDF) but the guard is cheap and keeps the two
+      // mutation paths consistent.
+      rowsAtSubmitRef.current = rows;
       // Save first so the PDF picks up the freshest data.
       const saved = await trpcClient.prescriptionLine.upsert.mutate({
         patientId,
@@ -339,8 +389,14 @@ export default function PrescribePage({
         lines: buildPayload(),
         deletedIds: deletedServerIds,
       });
-      // Adopt server ids so a subsequent Save/Print doesn't duplicate.
-      if (saved.lines) adoptServerLines(saved.lines);
+      // Adopt server ids so a subsequent Save/Print doesn't duplicate
+      // — but only if the doctor hasn't touched the rows during the
+      // roundtrip.
+      const untouchedSinceSubmit =
+        rowsAtSubmitRef.current !== null &&
+        rowsRef.current === rowsAtSubmitRef.current;
+      if (saved.lines && untouchedSinceSubmit) adoptServerLines(saved.lines);
+      rowsAtSubmitRef.current = null;
       if (!saved.visitId) {
         // Nothing was saved — skip the print. This should only fire if
         // the doctor tapped Save & Print with all rows empty, in which
@@ -364,7 +420,10 @@ export default function PrescribePage({
       // the same way plain Save does (Manoj msg 2181).
       setJustSaved(true);
     },
-    onError: (e) => setSaveError(e.message),
+    onError: (e) => {
+      rowsAtSubmitRef.current = null;
+      setSaveError(e.message);
+    },
   });
 
   if (patientQuery.isLoading) {
