@@ -132,6 +132,7 @@ This project has two classes of users that may interact with Claude:
 - After a feature is complete on `staging` and CI is green, open a PR `staging → main` with `gh pr create`. **Do not merge it.** Only the project owner reviews and merges.
 - Tell whoever requested the feature that the PR is open and waiting for the project owner's review.
 - Branch names for sub-features can be created off `staging` if needed, but the long-lived integration branch is always `staging`.
+- **Admin-panel changes ship on their own PR (added 2026-07-21 per Amit msg 2479).** Any change scoped to `apps/admin/**` or admin-only routers in `packages/api/src/routers/admin.ts` goes on a dedicated branch (e.g. `admin/<short-slug>`) and a separate PR to `main`. Do not co-mingle admin changes with the doctor-app PRs — they have different review lenses (admin is internal, doctor-app is user-facing) and different rollout risk. If an admin fix is unblocked by a hotfix on the doctor-app branch, land the doctor-app fix first, then open the admin PR off `main`.
 
 ### Repository & Infrastructure Scope
 
