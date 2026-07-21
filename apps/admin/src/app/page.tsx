@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Users, UserPlus, ClipboardList, Banknote } from "lucide-react";
+import { Users, UserPlus, ClipboardList } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { formatINR } from "@/lib/utils";
 import { IntervalPicker, type Interval } from "@/components/IntervalPicker";
 import { StatCard } from "@/components/StatCard";
 import { TimeSeriesChart } from "@/components/TimeSeriesChart";
@@ -32,7 +31,7 @@ export default function OverviewPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard
           label="Total doctors"
           value={overview.data?.totalDoctors ?? 0}
@@ -49,12 +48,6 @@ export default function OverviewPage() {
           label="Total patients"
           value={overview.data?.totalPatients ?? 0}
           icon={ClipboardList}
-          isLoading={overview.isLoading}
-        />
-        <StatCard
-          label="Total revenue"
-          value={formatINR(overview.data?.totalRevenue ?? 0)}
-          icon={Banknote}
           isLoading={overview.isLoading}
         />
       </div>
