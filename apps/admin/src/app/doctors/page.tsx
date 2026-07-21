@@ -56,7 +56,7 @@ export default function DoctorsPage() {
           <option value="lastActive">Last active</option>
           <option value="signupAt">Signup date</option>
           <option value="patientCount">Patient count</option>
-          <option value="revenue">Total revenue</option>
+          <option value="revenue">Total fees</option>
           <option value="clinic">Clinic name</option>
         </select>
       </div>
@@ -70,7 +70,7 @@ export default function DoctorsPage() {
               <th className="px-4 py-3">Signup</th>
               <th className="px-4 py-3">Last active</th>
               <th className="px-4 py-3 text-right">Patients</th>
-              <th className="px-4 py-3 text-right">Revenue</th>
+              <th className="px-4 py-3 text-right">Fees</th>
             </tr>
           </thead>
           <tbody className="divide-y">

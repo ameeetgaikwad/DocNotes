@@ -25,6 +25,62 @@ const ALLOWED_TYPES = [
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 
+// Manoj msg 2369: shrink phone-camera photos before they leave the
+// device so the R2 upload and the per-user storage cap both stay
+// friendly. 1600 px on the longer edge + JPEG q=0.75 turns a 4 MB
+// phone photo into ~250-500 KB with no visible quality loss for lab
+// reports / prescription scans. PDFs and Word docs pass through
+// unchanged (call site guards on file.type).
+async function compressImageForUpload(
+  file: File,
+  maxDimension = 1600,
+  quality = 0.75,
+): Promise<File> {
+  const rawUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("Could not read the image."));
+      el.src = rawUrl;
+    });
+    let { width, height } = img;
+    const scale = Math.min(1, maxDimension / Math.max(width, height));
+    // If the image is already small AND uses a well-compressed
+    // format, skip re-encoding — no point paying quality for nothing.
+    if (
+      scale === 1 &&
+      (file.type === "image/jpeg" || file.type === "image/webp")
+    ) {
+      return file;
+    }
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(img, 0, 0, width, height);
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", quality),
+    );
+    if (!blob) return file;
+    // Rename to .jpg so the extension matches the mime type.
+    const baseName = file.name.replace(/\.[^.]+$/, "");
+    return new File([blob], `${baseName}.jpg`, {
+      type: "image/jpeg",
+      lastModified: Date.now(),
+    });
+  } catch {
+    // On any error, fall back to the raw file — better to upload a
+    // big image than block the doctor.
+    return file;
+  } finally {
+    URL.revokeObjectURL(rawUrl);
+  }
+}
+
 const CATEGORIES = [
   { value: "lab_report", label: "Lab Report" },
   { value: "imaging", label: "Imaging" },
@@ -66,6 +122,14 @@ export function UploadDocumentDialog({
 
       setStep("uploading");
 
+      // Manoj msg 2369: compress images before requesting the upload
+      // URL so both the wire request and the R2 bill are smaller. PDFs
+      // and Word docs pass through unchanged — see technical note in
+      // that message thread.
+      const payload = file.type.startsWith("image/")
+        ? await compressImageForUpload(file)
+        : file;
+
       // Step 1: Request upload URL
       const { documentId, uploadUrl } =
         await trpcClient.document.requestUpload.mutate({
@@ -81,17 +145,17 @@ export function UploadDocumentDialog({
             | "insurance"
             | "discharge_summary"
             | "other",
-          mimeType: file.type,
-          sizeBytes: file.size,
+          mimeType: payload.type,
+          sizeBytes: payload.size,
           notes: notes || null,
         });
 
       // Step 2: Upload to S3
       const uploadResponse = await fetch(uploadUrl, {
         method: "PUT",
-        body: file,
+        body: payload,
         headers: {
-          "Content-Type": file.type,
+          "Content-Type": payload.type,
         },
       });
 
@@ -106,6 +170,8 @@ export function UploadDocumentDialog({
     },
     onSuccess: () => {
       setStep("success");
+      // Bust both the document list and the usage query so the
+      // progress bar reflects the new upload right away.
       queryClient.invalidateQueries({ queryKey: [["document"]] });
     },
     onError: (error: Error) => {

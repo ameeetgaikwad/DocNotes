@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Loader2,
   AlertCircle,
@@ -297,6 +298,7 @@ function VisitCard({
   patientId: string;
 }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const initial = visitToForm(visit);
   const [form, setForm] = useState<VisitFormState>(initial);
   // Tracks the most recently saved snapshot so the Save/Discard
@@ -724,9 +726,44 @@ function VisitCard({
                 {/* Manoj msg 1947: Rx icon on each visit's Clinical
                     Notes opens the full-screen prescription editor for
                     this visit's date. Deep-links so save picks up the
-                    same visit rather than creating today's. */}
+                    same visit rather than creating today's.
+                    Manoj msg 2380: if the doctor has unsaved notes,
+                    prompt before navigating — the /prescribe page
+                    doesn't share form state with this component, so
+                    an unguarded tap silently drops what was typed. */}
                 <Link
                   href={`/prescribe/${patientId}?date=${visit.visitDate}`}
+                  onClick={async (e) => {
+                    if (!dirty) return;
+                    // P1 review fix: stop the default nav BEFORE
+                    // prompting, then await the save. The prior code
+                    // fired mutate() as fire-and-forget and let the
+                    // Link navigate immediately — a slow or failed
+                    // save could leave the doctor on the Rx page
+                    // while a stale-visit Rx save later rebuilt the
+                    // notes column from the pre-edit snapshot,
+                    // silently discarding the just-typed notes.
+                    e.preventDefault();
+                    const proceed = window.confirm(
+                      "You have unsaved clinical notes. Save them before opening Write Rx? " +
+                        "Tap OK to save & continue, Cancel to stay and finish here.",
+                    );
+                    if (!proceed) return;
+                    try {
+                      await saveMutation.mutateAsync();
+                      router.push(
+                        `/prescribe/${patientId}?date=${visit.visitDate}`,
+                      );
+                    } catch (err) {
+                      const msg =
+                        err instanceof Error
+                          ? err.message
+                          : "Please try again.";
+                      window.alert(
+                        `Couldn't save your notes: ${msg}\n\nStaying on this page so you don't lose them.`,
+                      );
+                    }
+                  }}
                   className="inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs text-muted-foreground hover:bg-accent"
                   title="Write prescription for this visit"
                 >
@@ -823,9 +860,46 @@ function VisitCard({
               hints={medicineHints}
               className="md:min-h-[10rem] md:text-base"
             />
-            {/* Save / Discard moved to the sticky header above so the
-                keyboard never covers them. Bottom-of-card spacing kept
-                for breathing room. */}
+            {/* Manoj msg 2380: the sticky Save/Discard header scrolls
+                off on some phones when the notes textarea is focused
+                — doctors were typing notes, tapping Rx (below), and
+                losing everything because they didn't save first.
+                Second Save button anchored directly under the textarea
+                is always reachable, activates the moment the notes
+                area (or any other vitals) becomes dirty. */}
+            {dirty && (
+              <div className="flex items-center gap-2 pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => saveMutation.mutate()}
+                  disabled={saveMutation.isPending}
+                >
+                  {saveMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Saving
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4" /> Save
+                    </>
+                  )}
+                </Button>
+                {!saveMutation.isPending && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setForm(lastSaved)}
+                  >
+                    Discard
+                  </Button>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Unsaved — save before writing an Rx or the notes will be lost.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { DocumentCategory, DocumentStatus } from "../enums.js";
 
+// Manoj msg 2369: per-user total storage cap. Doctors sharing the app
+// see a tiered usage warning at 20/40/60/80% and the requestUpload
+// endpoint refuses new uploads once the sum of their documents.sizeBytes
+// would push over this ceiling.
+export const DOCUMENT_STORAGE_CAP_BYTES = 25 * 1024 * 1024; // 25 MB
+
 export const documentSchema = z.object({
   id: z.string().uuid(),
   patientId: z.string().uuid(),

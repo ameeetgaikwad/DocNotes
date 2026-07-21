@@ -251,13 +251,17 @@ function PendingDuesPanel() {
         });
       }
     }
+    // Manoj msg 2374: earlier we required 2+ patients under the same
+    // responsible party before showing a group here. But even a single
+    // patient with the field set — a doctor billing an elder relative
+    // for one grandchild's care — belongs in Consolidated so the
+    // pending-dues label reads the payer's name, not the patient's.
+    // Drop the ≥ 2 gate.
     const groups: ResponsiblePartyAggregate[] = [];
     const keys = new Set<string>();
     for (const g of byKey.values()) {
-      if (g.patients.length >= 2) {
-        groups.push(g);
-        keys.add(g.key);
-      }
+      groups.push(g);
+      keys.add(g.key);
     }
     groups.sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
     return { consolidated: groups, consolidatedKeys: keys };
@@ -421,9 +425,9 @@ function PendingDuesPanel() {
               <Users className="mb-3 h-10 w-10" />
               <p className="text-sm font-medium">No consolidated groups yet</p>
               <p className="max-w-xs text-xs">
-                Set the same &ldquo;Responsible party&rdquo; name on two or more
-                patients (from their Summary card) to group their dues here.
-                Patients without a shared label stay in the Summary tab.
+                Set a &ldquo;Responsible party&rdquo; on a patient (from their
+                Summary card) — the payer&rsquo;s name will appear here instead
+                of the patient&rsquo;s.
               </p>
             </div>
           ) : (

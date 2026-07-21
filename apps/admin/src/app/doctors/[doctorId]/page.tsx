@@ -95,7 +95,7 @@ export default function DoctorDetailPage({
           isLoading={doctor.isLoading}
         />
         <StatCard
-          label="Total revenue"
+          label="Total fees"
           value={formatINR(d?.totalRevenue ?? 0)}
           icon={Banknote}
           isLoading={doctor.isLoading}

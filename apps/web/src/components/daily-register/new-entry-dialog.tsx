@@ -197,6 +197,12 @@ export function NewDailyRegisterEntryDialog({
   // Manoj msg 2325: temperature unit toggle. Value is displayed +
   // entered in the chosen unit but always stored as °C.
   const [tempUnit, setTempUnit] = useState<"C" | "F">("C");
+  // Amit review P2: display-unit draft string. The input is bound to
+  // this so partial typing ("98" on the way to "98.6") is never
+  // clobbered by the C↔F round-trip + rounding. Kept in sync with
+  // vTempCelsius on unit toggle and on prefill; only the canonical
+  // Celsius flows into the save payload.
+  const [vTempDraft, setVTempDraft] = useState("");
 
   const debouncedSearch = useDebounce(patientSearch, 250);
   const trimmedSearch = debouncedSearch.trim();
@@ -252,6 +258,7 @@ export function NewDailyRegisterEntryDialog({
       setVBpDiastolic("");
       setVSpO2("");
       setVTempCelsius("");
+      setVTempDraft("");
     }
   }, [open, visitDate]);
 
@@ -926,8 +933,14 @@ export function NewDailyRegisterEntryDialog({
               later from the Patient Card summary. */}
           <div className="space-y-3 rounded-md border bg-muted/30 p-3 md:p-4">
             <p className="text-sm font-medium md:text-base">Initial Vitals</p>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
+            {/* Manoj msg 2378: Weight and SpO2 don't need equal thirds
+                — a couple of digits fit. Temperature was cramped
+                because it shares its column with the °C/°F toggle.
+                Re-weight to 2:2:3 (Weight ≈ 28%, SpO2 ≈ 28%,
+                Temp ≈ 43%) via a 7-column grid so the Temp input has
+                room to breathe alongside its unit buttons. */}
+            <div className="grid grid-cols-7 gap-3">
+              <div className="col-span-2 space-y-1.5">
                 <Label htmlFor="v-wt" className="text-xs md:text-sm">
                   Weight (kg)
                 </Label>
@@ -945,7 +958,7 @@ export function NewDailyRegisterEntryDialog({
                   className="md:h-11 md:text-base"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="col-span-2 space-y-1.5">
                 <Label htmlFor="v-spo2" className="text-xs md:text-sm">
                   SpO2 (%)
                 </Label>
@@ -959,7 +972,7 @@ export function NewDailyRegisterEntryDialog({
                   className="md:h-11 md:text-base"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="col-span-3 space-y-1.5">
                 <Label htmlFor="v-temp" className="text-xs md:text-sm">
                   Temp ({tempUnit === "C" ? "°C" : "°F"})
                 </Label>
@@ -969,14 +982,40 @@ export function NewDailyRegisterEntryDialog({
                     type="text"
                     inputMode="decimal"
                     placeholder="—.—"
-                    value={displayTemperature(vTempCelsius, tempUnit)}
+                    value={vTempDraft}
                     onChange={(e) => {
                       const raw = e.target.value
                         .replace(/[^\d.]/g, "")
                         .slice(0, 5);
-                      setVTempCelsius(
-                        tempUnit === "C" ? raw : fahrenheitToCelsius(raw),
-                      );
+                      // Draft is what the doctor sees while typing —
+                      // never round-trip through C↔F conversion until
+                      // blur or unit toggle. This fixes the "typed 98,
+                      // saw 98.1, couldn't type 98.6" trap flagged in
+                      // Amit's review.
+                      setVTempDraft(raw);
+                      if (raw === "") {
+                        setVTempCelsius("");
+                        return;
+                      }
+                      // Canonical Celsius is updated silently for the
+                      // save payload. Partial numeric strings ("98.")
+                      // pass Number() fine and result in a valid c.
+                      const parsed = Number(raw);
+                      if (Number.isFinite(parsed)) {
+                        setVTempCelsius(
+                          tempUnit === "C" ? raw : fahrenheitToCelsius(raw),
+                        );
+                      }
+                    }}
+                    onBlur={() => {
+                      // On blur, normalize the draft to the canonical
+                      // rounded display — so "98.66666" becomes "98.7"
+                      // once the doctor moves off the field.
+                      if (vTempCelsius) {
+                        setVTempDraft(
+                          displayTemperature(vTempCelsius, tempUnit),
+                        );
+                      }
                     }}
                     className="min-w-0 flex-1 md:h-11 md:text-base"
                   />
@@ -985,7 +1024,15 @@ export function NewDailyRegisterEntryDialog({
                       <button
                         key={u}
                         type="button"
-                        onClick={() => setTempUnit(u)}
+                        onClick={() => {
+                          setTempUnit(u);
+                          // Toggling the unit re-derives the draft
+                          // from the canonical Celsius so the input
+                          // updates immediately in the new unit. No
+                          // rounding surprises because the doctor is
+                          // committing to leave the field.
+                          setVTempDraft(displayTemperature(vTempCelsius, u));
+                        }}
                         className={`px-2 text-xs ${
                           tempUnit === u
                             ? "bg-primary text-primary-foreground"

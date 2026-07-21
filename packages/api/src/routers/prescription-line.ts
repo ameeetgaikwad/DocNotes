@@ -309,16 +309,22 @@ export const prescriptionLineRouter = router({
           }),
         )
         .join("\n");
-      if (shortText) {
+      // Strip any prior auto-appended Rx block, then append the new
+      // one (if there is one). Runs even when shortText is empty —
+      // that's the "doctor cleared every medicine" case, and the old
+      // Rx block must vanish from clinicalNotes rather than lingering
+      // as ghost history. Prior to the P1 review fix this block was
+      // gated on `if (shortText)`, so clearing an Rx left the block
+      // behind and also blocked the empty-visit cleanup downstream.
+      {
         const previousNotes = visit.clinicalNotes?.trim() ?? "";
-        // Strip any prior auto-appended Rx block so re-saving doesn't
-        // accumulate duplicates. The block is always appended at the
-        // END of notes with a leading "Rx" header (Manoj msg 2078 —
-        // drop the {rx: begin}/{rx: end} scaffolding, keep a clean
-        // "Rx" heading), so re-save reliably finds and removes it by
-        // truncating from the last standalone "Rx" line to end-of-text.
-        // Also strips the legacy {rx: begin}/{rx: end} format for old
-        // entries created before this change.
+        // The block is always appended at the END of notes with a
+        // leading "Rx" header (Manoj msg 2078 — drop the {rx: begin}/
+        // {rx: end} scaffolding, keep a clean "Rx" heading), so re-
+        // save reliably finds and removes it by truncating from the
+        // last standalone "Rx" line to end-of-text. Also strips the
+        // legacy {rx: begin}/{rx: end} format for old entries created
+        // before this change.
         let cleaned = previousNotes;
         const LEGACY_START = "{rx: begin}";
         const LEGACY_END = "{rx: end}";
@@ -345,12 +351,19 @@ export const prescriptionLineRouter = router({
           const cutIdx = lastIdx === -1 ? 0 : lastIdx;
           cleaned = cleaned.slice(0, cutIdx).trimEnd();
         }
-        const rxBlock = `Rx\n${shortText}`;
-        const nextNotes = cleaned ? `${cleaned}\n\n${rxBlock}` : rxBlock;
-        await ctx.db
-          .update(patientVisits)
-          .set({ clinicalNotes: nextNotes })
-          .where(eq(patientVisits.id, visit.id));
+        const nextNotes = shortText
+          ? cleaned
+            ? `${cleaned}\n\n${`Rx\n${shortText}`}`
+            : `Rx\n${shortText}`
+          : cleaned;
+        // Only write when something changed — avoids a needless DB
+        // hit + updatedAt bump when the notes column already matches.
+        if (nextNotes !== (visit.clinicalNotes ?? "")) {
+          await ctx.db
+            .update(patientVisits)
+            .set({ clinicalNotes: nextNotes })
+            .where(eq(patientVisits.id, visit.id));
+        }
       }
 
       // Manoj msg 2062 option (iii): if there's no Register entry for
