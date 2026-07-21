@@ -162,7 +162,11 @@ export const adminRouter = router({
         clinicName: r.clinicName ?? null,
         email: r.email ?? null,
         signupAt: r.signupAt,
-        lastActive: r.lastActive ?? null,
+        // The raw `sql<Date | null>` subselect returns whatever the pg
+        // driver hands back — for these correlated MAX(...) subqueries
+        // it's a string, not a Date. Coerce explicitly so the sort
+        // comparator's `.getTime()` doesn't blow up (Amit debug 500).
+        lastActive: r.lastActive ? new Date(r.lastActive) : null,
         patientCount: Number(r.patientCount ?? 0),
         totalRevenue: Number(r.totalRevenue ?? 0),
       }));
