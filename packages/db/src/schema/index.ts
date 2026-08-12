@@ -16,3 +16,5 @@ export * from "./home-visits.js";
 export * from "./custom-todos.js";
 export * from "./prescription-lines.js";
 export * from "./chemists.js";
+export * from "./clinic-holidays.js";
+export * from "./insight-notes.js";
