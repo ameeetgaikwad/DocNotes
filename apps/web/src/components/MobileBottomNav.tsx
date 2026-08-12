@@ -19,6 +19,7 @@ import {
   Pill,
   Archive,
   Wallet,
+  Lightbulb,
 } from "lucide-react";
 import { DailyCaseRegisterIcon } from "@/components/icons/daily-case-register";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,7 @@ const MORE_ITEMS: NavItem[] = [
   { to: "/clinic-expenses", label: "Clinic Expenses", icon: Wallet },
   { to: "/reminders", label: "Reminders", icon: BellRing },
   { to: "/reports", label: "Reports", icon: FileText },
+  { to: "/insight-notes", label: "Insight Notes", icon: Lightbulb },
   { to: "/tasks", label: "Actions", icon: ClipboardList },
   { to: "/patients/archived", label: "Recently Deleted", icon: Archive },
   { to: "/settings", label: "Settings", icon: Settings },

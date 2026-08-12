@@ -15,6 +15,7 @@ import {
   BellRing,
   Wallet,
   Pill,
+  Lightbulb,
 } from "lucide-react";
 import { DailyCaseRegisterIcon } from "@/components/icons/daily-case-register";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ const navItems = [
   { to: "/reminders", label: "Reminders", icon: BellRing },
   { to: "/tasks", label: "Actions", icon: ClipboardList },
   { to: "/reports", label: "Reports", icon: FileText },
+  { to: "/insight-notes", label: "Insight Notes", icon: Lightbulb },
 ] as const;
 
 const bottomItems = [
