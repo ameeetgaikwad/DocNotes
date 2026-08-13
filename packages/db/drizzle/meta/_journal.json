@@ -190,6 +190,20 @@
       "when": 1783696800000,
       "tag": "0026_chemists",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1786344000000,
+      "tag": "0027_clinic_holidays",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1786344060000,
+      "tag": "0028_insight_notes",
+      "breakpoints": true
     }
   ]
 }

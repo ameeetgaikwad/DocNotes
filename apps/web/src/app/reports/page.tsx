@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, ChevronRight, FileText } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, CalendarOff, ChevronRight, FileText } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { ExportDailyRegisterDialog } from "@/components/daily-register/export-dialog";
 
@@ -37,6 +38,24 @@ export default function ReportsPage() {
               </div>
               <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
             </button>
+          </li>
+          <li>
+            <Link
+              href="/reports/clinic-holidays"
+              className="flex w-full items-center gap-3 px-4 py-4 text-left transition active:bg-muted/40 sm:px-6"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <CalendarOff className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">Clinic Holidays / Closed Dates</p>
+                <p className="text-xs text-muted-foreground sm:text-sm">
+                  Log the dates your clinic was closed — holidays, personal
+                  leave, festivals — with an optional short note per entry.
+                </p>
+              </div>
+              <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+            </Link>
           </li>
         </ul>
       </div>
