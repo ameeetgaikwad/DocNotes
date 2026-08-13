@@ -49,7 +49,7 @@ export function PatientDiet({ patientId, initialDietNotes }: PatientDietProps) {
         </div>
         <div>
           <h2 className="text-lg font-semibold md:text-xl">
-            Diet &amp; Lifestyle &amp; Other Notes
+            Diet, Lifestyle etc
           </h2>
         </div>
       </div>

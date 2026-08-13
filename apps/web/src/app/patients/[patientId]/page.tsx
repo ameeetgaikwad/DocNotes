@@ -324,7 +324,7 @@ export default function PatientProfilePage({
               { value: "summary", label: "Summary" },
               { value: "history", label: "History" },
               { value: "documents", label: "Documents" },
-              { value: "diet", label: "Diet & Lifestyle & Other Notes" },
+              { value: "diet", label: "Diet, Lifestyle etc" },
               { value: "pending-dues", label: "Pending Dues" },
               { value: "appointments", label: "Appointments" },
             ].map((t) => (
