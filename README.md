@@ -1,6 +1,6 @@
 # DocNotes
 
-Medical records app for general practitioners.
+Medical records app for general practitioners. 
 
 - `apps/web` — Next.js 16 App Router (Vercel)
 - `apps/backend` — Hono API (Hetzner, Caddy + Docker)
