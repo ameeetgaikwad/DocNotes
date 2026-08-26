@@ -48,13 +48,15 @@ export function PatientDiet({ patientId, initialDietNotes }: PatientDietProps) {
           <UtensilsCrossed className="h-5 w-5 text-primary" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold md:text-xl">Diet</h2>
+          <h2 className="text-lg font-semibold md:text-xl">
+            Diet, Lifestyle etc
+          </h2>
         </div>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="diet-notes" className="md:text-base">
-          Diet notes
+          Notes
         </Label>
         <Textarea
           id="diet-notes"
@@ -88,7 +90,7 @@ export function PatientDiet({ patientId, initialDietNotes }: PatientDietProps) {
             </>
           ) : (
             <>
-              <Save className="h-4 w-4" /> Save Diet
+              <Save className="h-4 w-4" /> Save
             </>
           )}
         </Button>
