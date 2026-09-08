@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { PenLine, Search } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { formatPatientName, formatPatientAgeDob } from "@/lib/format";
+import {
+  formatPatientName,
+  formatPatientAgeDob,
+  formatAgeText,
+} from "@/lib/format";
 import { useDebounce } from "@/hooks/use-debounce";
 
 // Manoj msg 1947 A2: replace the non-functional "Records This Week"
@@ -59,7 +63,8 @@ export function WriteRxCallout() {
             <div className="p-3 text-xs text-muted-foreground">No matches.</div>
           )}
           {rows.map((p) => {
-            const { age } = formatPatientAgeDob(p);
+            const { age, ageMonths } = formatPatientAgeDob(p);
+            const ageText = formatAgeText(age, ageMonths);
             return (
               <button
                 key={p.id}
@@ -69,7 +74,7 @@ export function WriteRxCallout() {
               >
                 <span className="font-medium">{formatPatientName(p)}</span>
                 <span className="text-xs text-muted-foreground">
-                  {age != null ? `${age} y` : ""}
+                  {ageText ?? ""}
                   {p.phone ? ` · ${p.phone}` : ""}
                 </span>
               </button>

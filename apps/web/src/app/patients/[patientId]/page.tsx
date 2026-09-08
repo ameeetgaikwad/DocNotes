@@ -21,6 +21,7 @@ import {
   formatGender,
   formatPatientName,
   formatPatientAgeDob,
+  formatAgeText,
   formatINR,
 } from "@/lib/format";
 import { downloadBase64File, printBase64Pdf } from "@/lib/download";
@@ -181,7 +182,12 @@ export default function PatientProfilePage({
 
   const initials = (patient.firstName[0] ?? "") + (patient.lastName[0] ?? "");
   const fullName = formatPatientName(patient);
-  const { age: patientAge, display: dobDisplay } = formatPatientAgeDob(patient);
+  const {
+    age: patientAge,
+    ageMonths: patientAgeMonths,
+    display: dobDisplay,
+  } = formatPatientAgeDob(patient);
+  const ageText = formatAgeText(patientAge, patientAgeMonths);
   const allergies = (patient.allergies ?? []) as Array<{
     name: string;
     severity: string;
@@ -210,7 +216,7 @@ export default function PatientProfilePage({
             </h1>
             <p className="text-sm text-muted-foreground sm:text-base">
               {formatGender(patient.gender)}
-              {patientAge != null && <> &middot; {patientAge} years</>}
+              {ageText && <> &middot; {ageText}</>}
               {dobDisplay && <> &middot; DOB: {dobDisplay}</>}
               {patient.bloodType && (
                 <>
