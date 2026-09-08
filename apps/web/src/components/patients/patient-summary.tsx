@@ -79,7 +79,7 @@ export function PatientSummary({ patient }: PatientSummaryProps) {
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <Card>
+      <Card id="allergies" className="scroll-mt-4">
         <CardHeader>
           <CardTitle className="text-base">
             Allergies{allergies.length > 0 && ` (${allergies.length})`}

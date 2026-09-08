@@ -20,6 +20,7 @@ import {
   todayLocalIsoDate,
   formatPatientName,
   formatPatientAgeDob,
+  formatAgeText,
 } from "@/lib/format";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Button } from "@/components/ui/button";
@@ -672,10 +673,14 @@ export function NewDailyRegisterEntryDialog({
                     )}
                     {patientsQuery.data?.items.map((p) => {
                       const derived = parseIsoDate(p.dateOfBirth);
-                      const { age, display: dobDisplay } =
-                        formatPatientAgeDob(p);
+                      const {
+                        age,
+                        ageMonths,
+                        display: dobDisplay,
+                      } = formatPatientAgeDob(p);
+                      const ageText = formatAgeText(age, ageMonths);
                       const metaParts = [
-                        age != null ? `${age} yrs` : null,
+                        ageText,
                         dobDisplay,
                         p.phone || null,
                       ].filter((s): s is string => Boolean(s));

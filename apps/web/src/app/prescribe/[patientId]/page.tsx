@@ -30,6 +30,7 @@ import { trpc, trpcClient } from "@/lib/trpc";
 import {
   formatPatientName,
   formatPatientAgeDob,
+  formatAgeText,
   todayLocalIsoDate,
   formatGender,
 } from "@/lib/format";
@@ -448,12 +449,9 @@ export default function PrescribePage({
   }
 
   const patient = patientQuery.data;
-  const { age, display: dobDisplay } = formatPatientAgeDob(patient);
-  const patientMeta = [
-    formatGender(patient.gender),
-    age != null ? `${age} y` : null,
-    dobDisplay,
-  ]
+  const { age, ageMonths, display: dobDisplay } = formatPatientAgeDob(patient);
+  const ageText = formatAgeText(age, ageMonths);
+  const patientMeta = [formatGender(patient.gender), ageText, dobDisplay]
     .filter(Boolean)
     .join(" · ");
 

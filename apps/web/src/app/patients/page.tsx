@@ -19,6 +19,7 @@ import {
   formatGender,
   formatPatientName,
   formatPatientAgeDob,
+  formatAgeText,
   todayLocalIsoDate,
 } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -368,9 +369,11 @@ function PatientMobileMeta({
     latestDiagnosis?: string | null;
   };
 }) {
-  const { age } = formatPatientAgeDob(patient);
+  const { age, ageMonths } = formatPatientAgeDob(patient);
+  // Manoj msg 2810 — show months for infants, "N yrs" otherwise.
+  const ageText = formatAgeText(age, ageMonths);
   const parts = [
-    age != null ? `${age} yrs` : null,
+    ageText,
     shortGender(patient.gender),
     patient.latestDiagnosis?.trim() || null,
   ].filter((s): s is string => Boolean(s));
@@ -388,18 +391,19 @@ function PatientAgeDobCell({
     dobYear: number | null;
   };
 }) {
-  const { age, display } = formatPatientAgeDob(patient);
-  if (age == null && !display) {
+  const { age, ageMonths, display } = formatPatientAgeDob(patient);
+  const ageText = formatAgeText(age, ageMonths);
+  if (!ageText && !display) {
     return <span className="text-muted-foreground">—</span>;
   }
   return (
     <>
-      {age != null && (
-        <span className="font-medium text-foreground">{age} yrs</span>
+      {ageText && (
+        <span className="font-medium text-foreground">{ageText}</span>
       )}
       {display && (
         <span className="hidden sm:inline">
-          {age != null ? " · " : ""}
+          {ageText ? " · " : ""}
           {display}
         </span>
       )}

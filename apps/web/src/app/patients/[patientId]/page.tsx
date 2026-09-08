@@ -21,6 +21,7 @@ import {
   formatGender,
   formatPatientName,
   formatPatientAgeDob,
+  formatAgeText,
   formatINR,
 } from "@/lib/format";
 import { downloadBase64File, printBase64Pdf } from "@/lib/download";
@@ -70,8 +71,11 @@ export default function PatientProfilePage({
     "appointments",
   ];
   const rawTab = searchParams.get("tab");
+  // Default landing tab is History (Manoj msg 2802): it's the most-used
+  // section, and the Allergy warning below the header keeps allergy
+  // visibility even though we no longer land on Summary.
   const currentTab =
-    rawTab && allowedTabs.includes(rawTab) ? rawTab : "summary";
+    rawTab && allowedTabs.includes(rawTab) ? rawTab : "history";
 
   function buildHrefForTab(tab: string): string {
     // Preserve every existing query param (e.g. from=register so the
@@ -178,7 +182,12 @@ export default function PatientProfilePage({
 
   const initials = (patient.firstName[0] ?? "") + (patient.lastName[0] ?? "");
   const fullName = formatPatientName(patient);
-  const { age: patientAge, display: dobDisplay } = formatPatientAgeDob(patient);
+  const {
+    age: patientAge,
+    ageMonths: patientAgeMonths,
+    display: dobDisplay,
+  } = formatPatientAgeDob(patient);
+  const ageText = formatAgeText(patientAge, patientAgeMonths);
   const allergies = (patient.allergies ?? []) as Array<{
     name: string;
     severity: string;
@@ -207,7 +216,7 @@ export default function PatientProfilePage({
             </h1>
             <p className="text-sm text-muted-foreground sm:text-base">
               {formatGender(patient.gender)}
-              {patientAge != null && <> &middot; {patientAge} years</>}
+              {ageText && <> &middot; {ageText}</>}
               {dobDisplay && <> &middot; DOB: {dobDisplay}</>}
               {patient.bloodType && (
                 <>
@@ -316,6 +325,19 @@ export default function PatientProfilePage({
           </DropdownMenu>
         </div>
       </div>
+
+      {patient.allergyNotes?.trim() && (
+        <Link
+          href={`${buildHrefForTab("summary")}#allergies`}
+          className="mb-4 block rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
+          aria-label="View allergy details"
+        >
+          ⚠ Allergy:{" "}
+          {patient.allergyNotes.trim().length > 25
+            ? `${patient.allergyNotes.trim().slice(0, 25)}…`
+            : patient.allergyNotes.trim()}
+        </Link>
+      )}
 
       <Tabs value={currentTab} onValueChange={handleTabChange}>
         <div className="relative">

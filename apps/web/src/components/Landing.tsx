@@ -9,7 +9,11 @@ import {
   Pill,
   BellRing,
   ArrowRight,
+  Smartphone,
 } from "lucide-react";
+
+const PLAY_STORE_URL =
+  "https://play.google.com/store/apps/details?id=app.cliniknote.android";
 
 const FEATURES = [
   {
@@ -115,6 +119,17 @@ export function Landing() {
                 Sign in
               </Link>
             </div>
+            <div className="mt-4 flex justify-center">
+              <a
+                href={PLAY_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-md border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-accent"
+              >
+                <Smartphone className="h-4 w-4" />
+                Get it on Google Play
+              </a>
+            </div>
           </div>
         </section>
 
@@ -164,7 +179,7 @@ export function Landing() {
               compliant digital register — without the bloat of hospital
               software.
             </p>
-            <div className="mt-8">
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
                 href="/auth/register"
                 className="inline-flex items-center gap-1.5 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
@@ -172,6 +187,15 @@ export function Landing() {
                 Start your trial
                 <ArrowRight className="h-4 w-4" />
               </Link>
+              <a
+                href={PLAY_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-md border bg-background px-5 py-2.5 text-sm font-medium text-foreground shadow-sm hover:bg-accent"
+              >
+                <Smartphone className="h-4 w-4" />
+                Get it on Google Play
+              </a>
             </div>
           </div>
         </section>
