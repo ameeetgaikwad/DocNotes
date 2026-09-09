@@ -51,6 +51,9 @@ export function LegalLayout({
           <Link href="/privacy" className="text-primary hover:underline">
             Privacy
           </Link>
+          <Link href="/retention" className="text-primary hover:underline">
+            Data Retention
+          </Link>
           <Link href="/terms" className="text-primary hover:underline">
             Terms
           </Link>

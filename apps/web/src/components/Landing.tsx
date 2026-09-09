@@ -218,6 +218,9 @@ export function Landing() {
             <Link href="/privacy" className="hover:text-foreground">
               Privacy
             </Link>
+            <Link href="/retention" className="hover:text-foreground">
+              Data Retention
+            </Link>
             <Link href="/terms" className="hover:text-foreground">
               Terms
             </Link>
