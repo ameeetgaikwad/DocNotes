@@ -123,6 +123,12 @@ function Shell({ children }: { children: React.ReactNode }) {
             >
               Doctors
             </Link>
+            <Link
+              href="/blogs"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Blog
+            </Link>
             <SignOutButton>
               <button className="rounded-md border px-3 py-1.5 text-xs">
                 Sign out

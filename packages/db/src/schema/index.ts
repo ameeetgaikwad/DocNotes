@@ -18,3 +18,4 @@ export * from "./prescription-lines.js";
 export * from "./chemists.js";
 export * from "./clinic-holidays.js";
 export * from "./insight-notes.js";
+export * from "./blog-posts.js";
