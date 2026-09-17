@@ -181,3 +181,32 @@
     font-weight: 600;
   }
 }
+
+/* TipTap blog editor chrome (RichMarkdownEditor). Content typography
+   comes from .blog-markdown so the editor matches the public page. */
+@layer components {
+  .rich-editor .tiptap p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+    color: var(--color-muted-foreground);
+  }
+  .rich-editor .tiptap img.ProseMirror-selectednode {
+    outline: 2px solid var(--color-primary);
+  }
+  .rich-editor .tiptap table {
+    display: table;
+    table-layout: fixed;
+  }
+  .rich-editor .tiptap td p,
+  .rich-editor .tiptap th p {
+    margin: 0;
+  }
+  .rich-editor .tiptap .selectedCell {
+    background: hsl(172 85% 26% / 0.08);
+  }
+  .rich-editor .tableWrapper {
+    overflow-x: auto;
+  }
+}

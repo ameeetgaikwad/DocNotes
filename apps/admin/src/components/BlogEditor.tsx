@@ -4,8 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import {
   upsertBlogPostSchema,
   slugifyBlogTitle,
@@ -13,6 +11,7 @@ import {
   type UpsertBlogPost,
 } from "@docnotes/shared";
 import { trpc, trpcClient } from "@/lib/trpc";
+import { RichMarkdownEditor } from "@/components/RichMarkdownEditor";
 
 const WEB_URL = (
   process.env.NEXT_PUBLIC_WEB_URL || "https://cliniknote.app"
@@ -52,7 +51,6 @@ export function BlogEditor({ initial }: { initial?: BlogEditorInitial }) {
     initial?.coverImageUrl ?? "",
   );
   const [content, setContent] = useState(initial?.content ?? "");
-  const [mobileTab, setMobileTab] = useState<"write" | "preview">("write");
   const [errors, setErrors] = useState<string[]>([]);
 
   const wasPublished = initial?.status === "published";
@@ -98,16 +96,6 @@ export function BlogEditor({ initial }: { initial?: BlogEditorInitial }) {
     setTitle(value);
     if (!slugTouched) setSlug(slugifyBlogTitle(value));
   }
-
-  const preview = (
-    <div className="blog-markdown min-h-[24rem] rounded-md border bg-card p-4 text-sm sm:text-base">
-      {content.trim() ? (
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-      ) : (
-        <p className="text-muted-foreground">Preview appears here.</p>
-      )}
-    </div>
-  );
 
   return (
     <div className="space-y-6">
@@ -299,51 +287,8 @@ export function BlogEditor({ initial }: { initial?: BlogEditorInitial }) {
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Content (Markdown)</span>
-          <div className="flex rounded-md border text-xs lg:hidden">
-            {(["write", "preview"] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setMobileTab(tab)}
-                className={`px-3 py-1 capitalize ${
-                  mobileTab === tab ? "bg-muted font-medium" : ""
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-        </div>
-        <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer">Markdown cheatsheet</summary>
-          <pre className="mt-2 whitespace-pre-wrap rounded-md bg-muted p-3 font-mono">
-            {`## Heading      ### Smaller heading
-**bold**        *italic*
-- bullet item   1. numbered item
-[link text](https://example.com)
-![image description](https://image-url)
-> quote
-| Column | Column |
-|--------|--------|
-| cell   | cell   |`}
-          </pre>
-        </details>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows={24}
-            placeholder="Write your post in Markdown…"
-            className={`${inputClass} min-h-[24rem] font-mono ${
-              mobileTab === "write" ? "" : "hidden lg:block"
-            }`}
-          />
-          <div className={mobileTab === "preview" ? "" : "hidden lg:block"}>
-            {preview}
-          </div>
-        </div>
+        <span className="text-sm font-medium">Content</span>
+        <RichMarkdownEditor initialMarkdown={content} onChange={setContent} />
       </div>
     </div>
   );
