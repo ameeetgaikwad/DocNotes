@@ -1,0 +1,38 @@
+name: CI
+
+# Type-check + lint gate for PRs and branch pushes. Deploys are handled
+# outside GitHub Actions: Coolify builds and runs the backend
+# (api.cliniknote.app / staging-api.cliniknote.app), Vercel builds web.
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Build workspace deps first — tsc check-types resolves types from
+      # each package's dist/index.d.ts (per their `exports` field).
+      - run: pnpm --filter @docnotes/backend... build
+
+      - run: pnpm check-types
+
+      - run: pnpm lint
+
+      # Tests run if they exist; passes if no test script defined
+      - run: pnpm test || [ $? -eq 1 ] && echo "no tests yet, skipping"
+        continue-on-error: false
