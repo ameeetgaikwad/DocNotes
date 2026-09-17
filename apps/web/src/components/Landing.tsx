@@ -9,7 +9,6 @@ import {
   Pill,
   BellRing,
   ArrowRight,
-  Smartphone,
 } from "lucide-react";
 
 const PLAY_STORE_URL =
@@ -120,15 +119,7 @@ export function Landing() {
               </Link>
             </div>
             <div className="mt-4 flex justify-center">
-              <a
-                href={PLAY_STORE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-md border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-accent"
-              >
-                <Smartphone className="h-4 w-4" />
-                Get it on Google Play
-              </a>
+              <GooglePlayBadge />
             </div>
           </div>
         </section>
@@ -187,15 +178,7 @@ export function Landing() {
                 Start your trial
                 <ArrowRight className="h-4 w-4" />
               </Link>
-              <a
-                href={PLAY_STORE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-md border bg-background px-5 py-2.5 text-sm font-medium text-foreground shadow-sm hover:bg-accent"
-              >
-                <Smartphone className="h-4 w-4" />
-                Get it on Google Play
-              </a>
+              <GooglePlayBadge />
             </div>
           </div>
         </section>
@@ -237,5 +220,29 @@ export function Landing() {
         </div>
       </footer>
     </div>
+  );
+}
+
+// Official Google Play badge (asset from Amit). The PNG has wide
+// transparent clear-space, so object-cover in a badge-shaped box trims
+// it without scaling the badge itself.
+function GooglePlayBadge() {
+  return (
+    <a
+      href={PLAY_STORE_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Get it on Google Play"
+      className="inline-block rounded-lg transition-opacity hover:opacity-90"
+    >
+      <Image
+        src="/google-play-badge.png"
+        alt="Get it on Google Play"
+        width={880}
+        height={572}
+        className="h-12 w-[162px] object-cover"
+        unoptimized
+      />
+    </a>
   );
 }
