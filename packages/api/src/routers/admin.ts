@@ -15,6 +15,10 @@ type Interval = z.infer<typeof intervalSchema>;
 // Map a window keyword to (startDate, bucketUnit). For ≤30d windows we
 // bucket by day; 90d by week; "all" by month. Keeps the bucket count
 // reasonable so the line chart stays readable on any horizon.
+// `bucket` is inlined with sql.raw (always one of the literal units
+// below) rather than bound as a parameter: Postgres treats
+// date_trunc($1, col) in SELECT and date_trunc($2, col) in GROUP BY as
+// different expressions and rejects the query with 42803.
 function intervalToBuckets(interval: Interval): {
   startDateClause: ReturnType<typeof sql>;
   bucket: "day" | "week" | "month";
@@ -88,13 +92,15 @@ export const adminRouter = router({
       const { startDateClause, bucket } = intervalToBuckets(input.interval);
       const rows = await ctx.db
         .select({
-          bucket: sql<string>`to_char(date_trunc(${bucket}, ${users.createdAt}), 'YYYY-MM-DD')`,
+          bucket: sql<string>`to_char(date_trunc(${sql.raw(`'${bucket}'`)}, ${users.createdAt}), 'YYYY-MM-DD')`,
           count: sql<number>`count(*)`,
         })
         .from(users)
         .where(sql`${users.createdAt} >= ${startDateClause}`)
-        .groupBy(sql`date_trunc(${bucket}, ${users.createdAt})`)
-        .orderBy(asc(sql`date_trunc(${bucket}, ${users.createdAt})`));
+        .groupBy(sql`date_trunc(${sql.raw(`'${bucket}'`)}, ${users.createdAt})`)
+        .orderBy(
+          asc(sql`date_trunc(${sql.raw(`'${bucket}'`)}, ${users.createdAt})`),
+        );
       return rows.map((r) => ({
         bucket: r.bucket,
         count: Number(r.count),
@@ -107,7 +113,7 @@ export const adminRouter = router({
       const { startDateClause, bucket } = intervalToBuckets(input.interval);
       const rows = await ctx.db
         .select({
-          bucket: sql<string>`to_char(date_trunc(${bucket}, ${dailyRegisterEntries.visitDate}::timestamp), 'YYYY-MM-DD')`,
+          bucket: sql<string>`to_char(date_trunc(${sql.raw(`'${bucket}'`)}, ${dailyRegisterEntries.visitDate}::timestamp), 'YYYY-MM-DD')`,
           count: sql<number>`count(*)`,
         })
         .from(dailyRegisterEntries)
@@ -115,11 +121,11 @@ export const adminRouter = router({
           sql`${dailyRegisterEntries.visitDate}::timestamp >= ${startDateClause}`,
         )
         .groupBy(
-          sql`date_trunc(${bucket}, ${dailyRegisterEntries.visitDate}::timestamp)`,
+          sql`date_trunc(${sql.raw(`'${bucket}'`)}, ${dailyRegisterEntries.visitDate}::timestamp)`,
         )
         .orderBy(
           asc(
-            sql`date_trunc(${bucket}, ${dailyRegisterEntries.visitDate}::timestamp)`,
+            sql`date_trunc(${sql.raw(`'${bucket}'`)}, ${dailyRegisterEntries.visitDate}::timestamp)`,
           ),
         );
       return rows.map((r) => ({
@@ -245,7 +251,7 @@ export const adminRouter = router({
       const { startDateClause, bucket } = intervalToBuckets(input.interval);
       const rows = await ctx.db
         .select({
-          bucket: sql<string>`to_char(date_trunc(${bucket}, ${dailyRegisterEntries.visitDate}::timestamp), 'YYYY-MM-DD')`,
+          bucket: sql<string>`to_char(date_trunc(${sql.raw(`'${bucket}'`)}, ${dailyRegisterEntries.visitDate}::timestamp), 'YYYY-MM-DD')`,
           count: sql<number>`count(*)`,
         })
         .from(dailyRegisterEntries)
@@ -256,11 +262,11 @@ export const adminRouter = router({
           ),
         )
         .groupBy(
-          sql`date_trunc(${bucket}, ${dailyRegisterEntries.visitDate}::timestamp)`,
+          sql`date_trunc(${sql.raw(`'${bucket}'`)}, ${dailyRegisterEntries.visitDate}::timestamp)`,
         )
         .orderBy(
           asc(
-            sql`date_trunc(${bucket}, ${dailyRegisterEntries.visitDate}::timestamp)`,
+            sql`date_trunc(${sql.raw(`'${bucket}'`)}, ${dailyRegisterEntries.visitDate}::timestamp)`,
           ),
         );
       return rows.map((r) => ({
