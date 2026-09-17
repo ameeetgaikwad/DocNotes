@@ -204,6 +204,13 @@
       "when": 1786344060000,
       "tag": "0028_insight_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1789646400000,
+      "tag": "0029_blog_posts",
+      "breakpoints": true
     }
   ]
 }

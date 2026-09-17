@@ -50,10 +50,12 @@
   --radius-md: calc(var(--radius-lg) - 2px);
   --radius-sm: calc(var(--radius-lg) - 4px);
 
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
-    Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 
 @layer base {
@@ -81,5 +83,101 @@
     html {
       font-size: 16px;
     }
+  }
+}
+
+/* Rendered blog markdown (web /blogs pages + admin editor preview).
+   Keep the two copies in sync. */
+@layer components {
+  .blog-markdown {
+    line-height: 1.75;
+    overflow-wrap: anywhere;
+  }
+  .blog-markdown > * + * {
+    margin-top: 1rem;
+  }
+  .blog-markdown h1,
+  .blog-markdown h2,
+  .blog-markdown h3,
+  .blog-markdown h4 {
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    margin-top: 2rem;
+  }
+  .blog-markdown h1 {
+    font-size: 1.75rem;
+  }
+  .blog-markdown h2 {
+    font-size: 1.4rem;
+  }
+  .blog-markdown h3 {
+    font-size: 1.15rem;
+  }
+  .blog-markdown a {
+    color: var(--color-primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .blog-markdown ul,
+  .blog-markdown ol {
+    padding-left: 1.5rem;
+  }
+  .blog-markdown ul {
+    list-style: disc;
+  }
+  .blog-markdown ol {
+    list-style: decimal;
+  }
+  .blog-markdown li + li {
+    margin-top: 0.35rem;
+  }
+  .blog-markdown blockquote {
+    border-left: 3px solid var(--color-primary);
+    padding-left: 1rem;
+    color: var(--color-muted-foreground);
+  }
+  .blog-markdown code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: var(--color-muted);
+    border-radius: 4px;
+    padding: 0.1em 0.3em;
+  }
+  .blog-markdown pre {
+    background: var(--color-muted);
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+  }
+  .blog-markdown pre code {
+    background: none;
+    padding: 0;
+  }
+  .blog-markdown img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+  }
+  .blog-markdown hr {
+    border-top: 1px solid var(--color-border);
+    margin: 2rem 0;
+  }
+  .blog-markdown table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-size: 0.95em;
+  }
+  .blog-markdown th,
+  .blog-markdown td {
+    border: 1px solid var(--color-border);
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+  }
+  .blog-markdown th {
+    background: var(--color-muted);
+    font-weight: 600;
   }
 }

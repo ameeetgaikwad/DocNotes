@@ -215,6 +215,9 @@ export function Landing() {
             <span>ClinikNote</span>
           </div>
           <nav className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Link href="/blogs" className="hover:text-foreground">
+              Blog
+            </Link>
             <Link href="/privacy" className="hover:text-foreground">
               Privacy
             </Link>

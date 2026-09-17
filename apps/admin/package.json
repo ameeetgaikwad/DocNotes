@@ -28,7 +28,9 @@
     "postcss": "^8.4.49",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-markdown": "^10",
     "recharts": "^2.15.0",
+    "remark-gfm": "^4",
     "superjson": "^2.2.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.18"

@@ -58,8 +58,11 @@ function Shell({ children }: { children: React.ReactNode }) {
   const isPublicPage =
     pathname.startsWith("/share") ||
     pathname === "/privacy" ||
+    pathname === "/retention" ||
     pathname === "/terms" ||
-    pathname === "/disclaimer";
+    pathname === "/disclaimer" ||
+    pathname === "/blogs" ||
+    pathname.startsWith("/blogs/");
   const isHomePage = pathname === "/";
   const isOnboardingPage = pathname === "/onboarding";
 
