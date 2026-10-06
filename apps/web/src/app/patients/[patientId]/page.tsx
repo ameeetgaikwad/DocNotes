@@ -15,6 +15,7 @@ import {
   Printer,
   Share2,
   Pencil,
+  LineChart,
 } from "lucide-react";
 import { trpc, trpcClient } from "@/lib/trpc";
 import {
@@ -44,6 +45,7 @@ import { PatientPendingDues } from "@/components/patients/patient-pending-dues";
 import { ShareDialog } from "@/components/patients/share-dialog";
 import { EditPatientDialog } from "@/components/patients/edit-patient-dialog";
 import { MedicalCertificatesDialog } from "@/components/patients/medical-certificates-dialog";
+import { ChartsDialog } from "@/components/patients/charts-dialog";
 
 export default function PatientProfilePage({
   params,
@@ -54,6 +56,7 @@ export default function PatientProfilePage({
   const [shareOpen, setShareOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [certOpen, setCertOpen] = useState(false);
+  const [chartsOpen, setChartsOpen] = useState(false);
   // Honour ?tab=<value> so the Patients list can deep-link to a specific
   // tab (Manoj msg 983: "Review" should open History, not Summary).
   // Controlled — derived from searchParams every render so in-page
@@ -316,6 +319,10 @@ export default function PatientProfilePage({
                 <FileText className="h-4 w-4" />
                 Medical Certificates
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setChartsOpen(true)}>
+                <LineChart className="h-4 w-4" />
+                Charts
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-destructive">
                 <Archive className="h-4 w-4" />
@@ -431,6 +438,12 @@ export default function PatientProfilePage({
         onOpenChange={setCertOpen}
         patientId={patientId}
         patientGender={patient.gender ?? null}
+      />
+
+      <ChartsDialog
+        open={chartsOpen}
+        onOpenChange={setChartsOpen}
+        patientId={patientId}
       />
     </div>
   );

@@ -22,6 +22,7 @@ import { chemistRouter } from "./chemist.js";
 import { clinicHolidayRouter } from "./clinic-holiday.js";
 import { insightNoteRouter } from "./insight-note.js";
 import { blogRouter } from "./blog.js";
+import { patientChartRouter } from "./patient-chart.js";
 
 export const appRouter = router({
   admin: adminRouter,
@@ -47,6 +48,7 @@ export const appRouter = router({
   clinicHoliday: clinicHolidayRouter,
   insightNote: insightNoteRouter,
   blog: blogRouter,
+  patientChart: patientChartRouter,
 });
 
 export type AppRouter = typeof appRouter;

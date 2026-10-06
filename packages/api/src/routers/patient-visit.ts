@@ -9,7 +9,7 @@ import {
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
 
-async function assertPatientOwned(
+export async function assertPatientOwned(
   db: Database,
   patientId: string,
   userId: string,

@@ -20,3 +20,4 @@ export * from "./chemist.js";
 export * from "./clinic-holiday.js";
 export * from "./insight-note.js";
 export * from "./blog-post.js";
+export * from "./patient-chart.js";
