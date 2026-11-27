@@ -13,7 +13,6 @@ import {
   createDocumentSchema,
   updateDocumentSchema,
   documentListSchema,
-  DOCUMENT_STORAGE_CAP_BYTES,
 } from "@docnotes/shared";
 import { protectedProcedure, router } from "../trpc.js";
 import { logAudit } from "../lib/audit.js";
@@ -23,6 +22,7 @@ import {
   createPresignedDownloadUrl,
   deleteS3Object,
 } from "../lib/s3.js";
+import { getStorageCapBytes } from "../lib/storage-cap.js";
 
 // Age after which an "uploading" row is treated as abandoned. The
 // browser upload is expected to complete in seconds; anything still in
@@ -141,12 +141,13 @@ export const documentRouter = router({
   // and the tiered warnings (20/40/60/80%) in the Documents section.
   usage: protectedProcedure.query(async ({ ctx }) => {
     const usedBytes = await computeUsedBytes(ctx.db, ctx.session.userId);
+    const capBytes = getStorageCapBytes(ctx.session.userId);
     return {
       usedBytes,
-      capBytes: DOCUMENT_STORAGE_CAP_BYTES,
+      capBytes,
       percentUsed: Math.min(
         100,
-        Math.round((usedBytes / DOCUMENT_STORAGE_CAP_BYTES) * 100),
+        Math.round((usedBytes / capBytes) * 100),
       ),
     };
   }),
@@ -173,8 +174,9 @@ export const documentRouter = router({
           ctx.session.userId,
           "reservation",
         );
-        if (usedBytes + input.sizeBytes > DOCUMENT_STORAGE_CAP_BYTES) {
-          const capMb = Math.round(DOCUMENT_STORAGE_CAP_BYTES / (1024 * 1024));
+        const capBytes = getStorageCapBytes(ctx.session.userId);
+        if (usedBytes + input.sizeBytes > capBytes) {
+          const capMb = Math.round(capBytes / (1024 * 1024));
           const usedMb = Math.round((usedBytes / (1024 * 1024)) * 10) / 10;
           throw new TRPCError({
             code: "PAYLOAD_TOO_LARGE",
